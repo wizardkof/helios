@@ -1883,7 +1883,7 @@ pub fn wait_fence(
                 }
                 Ok(FenceWaitPrep::Registered(slot)) => break slot,
             }
-        }
+        };
 
         if timeout_ns == 0 {
             // Poll: deregister immediately; completion may still have raced in.
