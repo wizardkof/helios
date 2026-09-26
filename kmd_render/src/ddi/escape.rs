@@ -22,10 +22,6 @@ use core::mem::size_of;
 use bytemuck::{bytes_of, pod_read_unaligned};
 use helios_protocol::producer::*;
 use helios_protocol::{
-    HeliosEscapeSnapshotStatus, HELIOS_ESCAPE_SNAPSHOT_STATUS, HELIOS_SCANOUT_CAP_SNAPSHOT_STATUS,
-    HELIOS_SNAPSHOT_BUSY, HELIOS_SNAPSHOT_IDLE,
-};
-use helios_protocol::{
     HeliosEscapeAllocBlob, HeliosEscapeAttachResource, HeliosEscapeCtxCreate,
     HeliosEscapeCtxDestroy, HeliosEscapeFenceEvent, HeliosEscapeHeader, HeliosEscapeMapBlob,
     HeliosEscapeMapReadLedger, HeliosEscapePresentBufferRead, HeliosEscapePresentStream,
@@ -41,6 +37,7 @@ use helios_protocol::{
     HELIOS_ESCAPE_SUBMIT_VENUS, HELIOS_ESCAPE_UNREGISTER_FENCE_EVENT, HELIOS_ESCAPE_WAIT_FENCE,
     HELIOS_FENCE_EVENT_ALREADY_COMPLETE, HELIOS_FENCE_EVENT_CANCELLED,
     HELIOS_FENCE_EVENT_NOT_FOUND, HELIOS_FENCE_EVENT_PROBE_ACK, HELIOS_FENCE_EVENT_REGISTERED,
+    HELIOS_FENCE_EVENT_TERMINAL_ERROR,
     HELIOS_PRESENT_BUFFER_READ_ACCEPTED, HELIOS_PRESENT_BUFFER_READ_BUSY,
     HELIOS_PRESENT_BUFFER_READ_INVALID, HELIOS_PRESENT_BUFFER_READ_NOT_FOUND,
     HELIOS_PRESENT_STREAM_OP_REGISTER, HELIOS_PRESENT_STREAM_OP_UNREGISTER,
@@ -51,6 +48,11 @@ use helios_protocol::{
     HELIOS_SCANOUT_CAP_SNAPSHOT_BIND, HELIOS_SCANOUT_CAP_WINDOWED_BLT_SNAPSHOT,
     HELIOS_SCANOUT_TIMELINE_BATCH_CAP, HELIOS_SCANOUT_TIMELINE_OP_META,
     HELIOS_SCANOUT_TIMELINE_OP_READ, HELIOS_SCANOUT_TIMELINE_TIME_100NS,
+};
+use helios_protocol::{
+    HeliosEscapeQueryVenusCapset, HeliosEscapeSnapshotStatus, HELIOS_ESCAPE_QUERY_VENUS_CAPSET,
+    HELIOS_ESCAPE_SNAPSHOT_STATUS, HELIOS_SCANOUT_CAP_SNAPSHOT_STATUS, HELIOS_SNAPSHOT_BUSY,
+    HELIOS_SNAPSHOT_IDLE,
 };
 
 use super::blob_map::{
@@ -73,6 +75,8 @@ use crate::virtio::gpu::{DeviceOwner, OwnerFilter};
 /// the caller's own process handle table, so it cannot be forged across
 /// processes. This must read 0 in normal operation.
 static ESCAPE_NO_DEVICE: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+static VENUS_CAPSET_QUERY_FAILURES: core::sync::atomic::AtomicU32 =
+    core::sync::atomic::AtomicU32::new(0);
 
 /// Escape refusals that used to be silent. The project rule is that every
 /// skipped or refused path gets a named counter; without these an ICD/KMD
@@ -402,6 +406,7 @@ pub unsafe extern "C" fn dxgkddi_escape(
         },
         HELIOS_ESCAPE_ATTACH_RESOURCE => escape_attach_resource(passive, adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_STATS => escape_query_stats(adapter, buf, &hdr),
+        HELIOS_ESCAPE_QUERY_VENUS_CAPSET => escape_query_venus_capset(passive, adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT => escape_query_scanout(adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT_TIMELINE => escape_query_scanout_timeline(buf, &hdr),
         HELIOS_ESCAPE_REGISTER_FENCE_EVENT => escape_register_fence_event(adapter, buf, &hdr),
@@ -425,6 +430,34 @@ pub unsafe extern "C" fn dxgkddi_escape(
         _ => {
             ESCAPE_UNKNOWN_VERB.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
             STATUS_NOT_IMPLEMENTED
+        }
+    }
+}
+
+fn escape_query_venus_capset(
+    passive: PassiveLevel,
+    adapter: &AdapterContext,
+    buf: &mut [u8],
+    hdr: &HeliosEscapeHeader,
+) -> NTSTATUS {
+    let mut wire = match EscapeBuf::<HeliosEscapeQueryVenusCapset>::new(buf, hdr) {
+        Ok(wire) => wire,
+        Err(status) => return status,
+    };
+    let mut out = wire.read();
+    match ctrl::query_venus_capset(passive, adapter) {
+        Ok(capset) => {
+            out.out_capset = capset;
+            wire.write_back(&out);
+            STATUS_SUCCESS
+        }
+        Err(error) => {
+            let count =
+                VENUS_CAPSET_QUERY_FAILURES.fetch_add(1, core::sync::atomic::Ordering::Relaxed) + 1;
+            if count == 1 || count % 64 == 0 {
+                crate::diag::record_named_bytes(b"CapQF", count);
+            }
+            error.into()
         }
     }
 }
@@ -675,14 +708,15 @@ fn escape_register_fence_event(
         Err(st) => return st,
     };
     let req = wire.read();
-    let mut write_state = |state: u32| {
+    let mut write_state = |state: u32, response_type: u32| {
         let mut out = req;
         out.out_state = state;
+        out.out_response_type = response_type;
         wire.write_back(&out);
     };
 
     if req.fence_id == 0 && req.event_handle == 0 {
-        write_state(HELIOS_FENCE_EVENT_PROBE_ACK);
+        write_state(HELIOS_FENCE_EVENT_PROBE_ACK, 0);
         return STATUS_SUCCESS;
     }
     if req.fence_id == 0 || req.event_handle == 0 {
@@ -699,7 +733,7 @@ fn escape_register_fence_event(
     match reg {
         Ok(FenceEventReg::Registered) => {
             // The table now owns the reference; the drain signals + derefs.
-            write_state(HELIOS_FENCE_EVENT_REGISTERED);
+            write_state(HELIOS_FENCE_EVENT_REGISTERED, 0);
             STATUS_SUCCESS
         }
         Ok(FenceEventReg::AlreadyComplete) => {
@@ -708,7 +742,14 @@ fn escape_register_fence_event(
             // SAFETY: we still own the reference; the KEVENT is live.
             unsafe { wdk_sys::ntddk::KeSetEvent(event.as_ptr(), 0, 0) };
             dereference_user_event(event);
-            write_state(HELIOS_FENCE_EVENT_ALREADY_COMPLETE);
+            write_state(HELIOS_FENCE_EVENT_ALREADY_COMPLETE, 0);
+            STATUS_SUCCESS
+        }
+        Ok(FenceEventReg::AlreadyError(response_type)) => {
+            // SAFETY: the referenced KEVENT is live until we release it below.
+            unsafe { wdk_sys::ntddk::KeSetEvent(event.as_ptr(), 0, 0) };
+            dereference_user_event(event);
+            write_state(HELIOS_FENCE_EVENT_TERMINAL_ERROR, response_type);
             STATUS_SUCCESS
         }
         Ok(FenceEventReg::Invalid) => {
@@ -744,6 +785,7 @@ fn escape_unregister_fence_event(
     hdr: &HeliosEscapeHeader,
 ) -> NTSTATUS {
     use core::sync::atomic::Ordering;
+    use crate::virtio::gpu::FenceEventUnreg;
 
     let mut wire = match EscapeBuf::<HeliosEscapeFenceEvent>::new(buf, hdr) {
         Ok(w) => w,
@@ -767,7 +809,7 @@ fn escape_unregister_fence_event(
             return escape_device_gone(de);
         }
     };
-    if removed {
+    if matches!(removed, FenceEventUnreg::Cancelled) {
         // The table's reference transfers back to us: drop it plus our lookup
         // reference.
         dereference_user_event(event);
@@ -775,10 +817,10 @@ fn escape_unregister_fence_event(
     dereference_user_event(event);
 
     let mut out = req;
-    out.out_state = if removed {
-        HELIOS_FENCE_EVENT_CANCELLED
-    } else {
-        HELIOS_FENCE_EVENT_NOT_FOUND
+    (out.out_state, out.out_response_type) = match removed {
+        FenceEventUnreg::Cancelled => (HELIOS_FENCE_EVENT_CANCELLED, 0),
+        FenceEventUnreg::Error(response_type) => (HELIOS_FENCE_EVENT_TERMINAL_ERROR, response_type),
+        FenceEventUnreg::Success | FenceEventUnreg::NotFound => (HELIOS_FENCE_EVENT_NOT_FOUND, 0),
     };
     wire.write_back(&out);
     STATUS_SUCCESS
@@ -1542,7 +1584,8 @@ fn escape_submit_venus(
 
 /// `HELIOS_ESCAPE_WAIT_FENCE` → REAL wait (C3/M3.4): block (PASSIVE, KEVENT)
 /// until the wire fence completes on the used ring or `timeout_ns` elapses.
-/// The outcome is reported in `out_completed` (1 = complete, 0 = timeout) with
+/// The outcome is reported in `out_completed` (1 = success, 0 = timeout,
+/// 2 = terminal transport error, with raw `out_response_type`) with
 /// STATUS_SUCCESS — informational NTSTATUS pass-through from DxgkDdiEscape is
 /// not contractual, so the payload carries the verdict. The legacy 32-byte
 /// shape (old ICD) is still accepted: it waits, but can only report a timeout
@@ -1588,6 +1631,7 @@ fn escape_wait_fence(
             return match outcome {
                 ctrl::WaitFenceOutcome::Complete => STATUS_SUCCESS,
                 ctrl::WaitFenceOutcome::TimedOut => wdk_sys::STATUS_IO_TIMEOUT,
+                ctrl::WaitFenceOutcome::Error(_) => wdk_sys::STATUS_IO_DEVICE_ERROR,
                 ctrl::WaitFenceOutcome::Invalid => STATUS_INVALID_PARAMETER,
             };
         }
@@ -1600,8 +1644,9 @@ fn escape_wait_fence(
     };
     let mut out = wire.read();
     match outcome {
-        ctrl::WaitFenceOutcome::Complete => out.out_completed = 1,
-        ctrl::WaitFenceOutcome::TimedOut => out.out_completed = 0,
+        ctrl::WaitFenceOutcome::Complete => { out.out_completed = 1; out.out_response_type = 0; },
+        ctrl::WaitFenceOutcome::TimedOut => { out.out_completed = 0; out.out_response_type = 0; },
+        ctrl::WaitFenceOutcome::Error(response_type) => { out.out_completed = 2; out.out_response_type = response_type; },
         ctrl::WaitFenceOutcome::Invalid => return STATUS_INVALID_PARAMETER,
     }
     wire.write_back(&out);

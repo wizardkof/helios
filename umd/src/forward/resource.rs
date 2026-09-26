@@ -1506,8 +1506,6 @@ pub(crate) unsafe extern "system" fn open_resource(
         false,
         cross_context_optimal,
         dedicated_present_buffer,
-        0, // Ordinary WDDM open, not a vehicle v3 source-template borrow.
-        false,
     );
     if opened.is_none() {
         // Import of a KMD-validated-live resource failed: a real bug, not a

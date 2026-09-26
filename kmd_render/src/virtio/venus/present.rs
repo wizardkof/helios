@@ -1418,7 +1418,8 @@ impl VenusClient {
                     5_000_000_000,
                 ) {
                     ctrl::WaitFenceOutcome::Complete => {}
-                    ctrl::WaitFenceOutcome::TimedOut | ctrl::WaitFenceOutcome::Invalid => {
+                    ctrl::WaitFenceOutcome::TimedOut | ctrl::WaitFenceOutcome::Invalid
+                    | ctrl::WaitFenceOutcome::Error(_) => {
                         return Err(VirtioError::DeviceError);
                     }
                 }

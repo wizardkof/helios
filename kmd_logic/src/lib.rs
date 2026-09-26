@@ -19,9 +19,9 @@
 #![no_std]
 
 pub mod edid;
-pub mod external_memory;
 pub mod producer_completion;
 pub mod execution_completion;
+pub mod fence_completion;
 
 /// Fixed-phase scheduling for the synthetic 60 Hz CRTC heartbeat.
 ///
@@ -1045,9 +1045,7 @@ mod tests {
     const GOLD_SIZE: u64 = 0x0080_0000;
     const GOLD_MTI: u32 = 7;
 
-    // GOLDEN_LINEAR_SCANOUT_IMAGE (140 bytes). The initialLayout word at byte
-    // 112 is corrected from PREINITIALIZED (8) to UNDEFINED (0), as required
-    // for an external image by VUID-01443; all other historical bytes remain.
+    // GOLDEN_LINEAR_SCANOUT_IMAGE (140 bytes)
     const GOLDEN_LINEAR_SCANOUT_IMAGE: &[u8] = &[
         0x36, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x44, 0x44, 0x33, 0x33, 0x22, 0x22, 0x11,
         0x11, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x01, 0x00,
@@ -1056,7 +1054,7 @@ mod tests {
         0x2c, 0x00, 0x00, 0x00, 0x68, 0x07, 0x00, 0x00, 0x06, 0x04, 0x00, 0x00, 0x01, 0x00, 0x00,
         0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
         0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0x88, 0x77,
         0x77, 0x66, 0x66, 0x55, 0x55,
     ];
@@ -1137,11 +1135,22 @@ mod tests {
     /// wrong bytes here are a black desktop, which is how the 39th session
     /// started.
     #[test]
-    fn external_linear_scanout_starts_undefined_with_unchanged_geometry() {
+    fn linear_scanout_image_bytes_are_unchanged() {
         let w = encode_image_create(
             GOLD_DEVICE,
             GOLD_IMAGE,
-            &external_memory::linear_scanout_image(1896, 1030),
+            &ImageCreateSpec {
+                pnext: ImagePNext::ExternalMemory {
+                    handle_type: 0x0000_0200,
+                },
+                flags: 0,
+                format: 44, // VK_FORMAT_B8G8R8A8_UNORM
+                width: 1896,
+                height: 1030,
+                tiling: IMAGE_TILING_LINEAR,
+                usage: 0x1 | 0x2,
+                initial_layout: 8, // PREINITIALIZED
+            },
         );
         assert_eq!(w.finished(), Some(GOLDEN_LINEAR_SCANOUT_IMAGE));
     }
@@ -5464,6 +5473,21 @@ pub mod wddm_boundary {
         pub rejection: Rejection,
     }
 
+    /// Whether one outstanding async fence blocks an exclusive prefix wait.
+    ///
+    /// Ring zero retires at host decode and belongs to the legacy WDDM domain.
+    /// Rings one and above retire at GPU completion; they participate only when
+    /// the caller explicitly waits in the GPU-completion domain. `fence_id ==
+    /// watermark` is outside the exclusive prefix.
+    pub const fn prefix_blocks(
+        fence_id: u64,
+        watermark: u64,
+        ring_idx: u8,
+        include_gpu: bool,
+    ) -> bool {
+        fence_id != 0 && fence_id < watermark && (include_gpu || ring_idx == 0)
+    }
+
     /// Choose the wire-fence dependency for a submission that named
     /// `gpu_fence_id`.
     ///
@@ -5520,7 +5544,7 @@ pub mod wddm_boundary {
 
 #[cfg(test)]
 mod wddm_boundary_tests {
-    use super::wddm_boundary::{Kind, Rejection, select};
+    use super::wddm_boundary::{prefix_blocks, select, Kind, Rejection};
 
     /// A representative live generation: base 1 + 3·2^32, 40 ids issued.
     const BASE: u64 = 1 + (3u64 << 32);
@@ -5624,6 +5648,18 @@ mod wddm_boundary_tests {
         assert_eq!(s.rejection, Rejection::Accepted);
         assert_eq!(s.watermark, u64::MAX);
         assert_ne!(s.watermark, 0);
+    }
+
+    #[test]
+    fn decode_only_prefix_counts_ring_zero_but_not_gpu_completion_rings() {
+        let watermark = 18;
+        assert!(prefix_blocks(17, watermark, 0, false));
+        assert!(!prefix_blocks(18, watermark, 0, false));
+        assert!(!prefix_blocks(17, watermark, 1, false));
+        assert!(!prefix_blocks(17, watermark, u8::MAX, false));
+        assert!(prefix_blocks(17, watermark, 1, true));
+        assert!(prefix_blocks(17, watermark, u8::MAX, true));
+        assert!(!prefix_blocks(0, watermark, 0, false));
     }
 }
 

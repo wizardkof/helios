@@ -72,15 +72,17 @@ use crate::adapter::AdapterContext;
 use crate::irql::PassiveLevel;
 use core::sync::atomic::Ordering;
 use helios_protocol::{
-    resp_is_ok, VirtioGpuCtrlHdr, VirtioGpuCtxCreate, VirtioGpuCtxDestroy, VirtioGpuCtxResource,
-    VirtioGpuGetCapsetInfo, VirtioGpuRect, VirtioGpuResourceCreateBlob, VirtioGpuResourceFlush,
-    VirtioGpuResourceMapBlob, VirtioGpuResourceUnmapBlob, VirtioGpuResourceUnref,
-    VirtioGpuRespCapsetInfo, VirtioGpuRespMapInfo, VirtioGpuSetScanoutBlob,
+    parse_venus_capset_reply, resp_is_ok, VenusCapset, VirtioGpuCtrlHdr, VirtioGpuCtxCreate,
+    VirtioGpuCtxDestroy, VirtioGpuCtxResource, VirtioGpuGetCapset, VirtioGpuGetCapsetInfo,
+    VirtioGpuRect, VirtioGpuResourceCreateBlob, VirtioGpuResourceFlush, VirtioGpuResourceMapBlob,
+    VirtioGpuResourceUnmapBlob, VirtioGpuResourceUnref, VirtioGpuRespCapsetInfo,
+    VirtioGpuRespMapInfo, VirtioGpuSetScanoutBlob, VIRTIO_GPU_CAPSET_VENUS,
     VIRTIO_GPU_CMD_CTX_ATTACH_RESOURCE, VIRTIO_GPU_CMD_CTX_CREATE, VIRTIO_GPU_CMD_CTX_DESTROY,
-    VIRTIO_GPU_CMD_CTX_DETACH_RESOURCE, VIRTIO_GPU_CMD_GET_CAPSET_INFO,
+    VIRTIO_GPU_CMD_CTX_DETACH_RESOURCE, VIRTIO_GPU_CMD_GET_CAPSET, VIRTIO_GPU_CMD_GET_CAPSET_INFO,
     VIRTIO_GPU_CMD_RESOURCE_CREATE_BLOB, VIRTIO_GPU_CMD_RESOURCE_FLUSH,
     VIRTIO_GPU_CMD_RESOURCE_MAP_BLOB, VIRTIO_GPU_CMD_RESOURCE_UNMAP_BLOB,
     VIRTIO_GPU_CMD_RESOURCE_UNREF, VIRTIO_GPU_CMD_SET_SCANOUT_BLOB, VIRTIO_GPU_MAP_CACHE_MASK,
+    VIRTIO_GPU_RESP_OK_CAPSET_INFO, VIRTIO_GPU_VENUS_CAPSET_SIZE,
 };
 
 /// `KernelMode` (`KPROCESSOR_MODE`).
@@ -507,6 +509,66 @@ pub fn ctrl_fifo_barrier(
         SYNC_ROUNDTRIP_TIMEOUT_MS,
         None,
     )
+}
+
+/// Discover and fetch the exact Venus capset advertised by the host. The
+/// enumeration and payload are bounded by the virtio-gpu profile; malformed,
+/// missing, or differently sized capsets fail closed before the ICD can emit
+/// profile-specific commands.
+pub fn query_venus_capset(
+    passive: PassiveLevel,
+    adapter: &AdapterContext,
+) -> Result<VenusCapset, VirtioError> {
+    const MAX_CAPSET_INDEX: u32 = 32;
+    let mut venus_version = None;
+    for capset_index in 0..MAX_CAPSET_INDEX {
+        let mut cmd = VirtioGpuGetCapsetInfo::zeroed();
+        cmd.hdr.type_ = VIRTIO_GPU_CMD_GET_CAPSET_INFO;
+        cmd.capset_index = capset_index;
+        let mut response = [0u8; size_of::<VirtioGpuRespCapsetInfo>()];
+        ctrl_roundtrip(
+            passive,
+            adapter,
+            bytes_of(&cmd),
+            None,
+            &mut response,
+            SYNC_ROUNDTRIP_TIMEOUT_MS,
+            None,
+        )?;
+        let info: VirtioGpuRespCapsetInfo = bytemuck::pod_read_unaligned(&response);
+        if info.hdr.type_ != VIRTIO_GPU_RESP_OK_CAPSET_INFO {
+            return Err(VirtioError::DeviceError);
+        }
+        if info.capset_id == 0 {
+            break;
+        }
+        if info.capset_id == VIRTIO_GPU_CAPSET_VENUS {
+            if info.capset_max_size as usize != VIRTIO_GPU_VENUS_CAPSET_SIZE
+                || info.capset_max_version == 0
+            {
+                return Err(VirtioError::DeviceError);
+            }
+            venus_version = Some(info.capset_max_version);
+            break;
+        }
+    }
+    let version = venus_version.ok_or(VirtioError::CapNotFound)?;
+
+    let mut cmd = VirtioGpuGetCapset::zeroed();
+    cmd.hdr.type_ = VIRTIO_GPU_CMD_GET_CAPSET;
+    cmd.capset_id = VIRTIO_GPU_CAPSET_VENUS;
+    cmd.capset_version = version;
+    let mut response = [0u8; size_of::<VirtioGpuCtrlHdr>() + VIRTIO_GPU_VENUS_CAPSET_SIZE];
+    ctrl_roundtrip(
+        passive,
+        adapter,
+        bytes_of(&cmd),
+        None,
+        &mut response,
+        SYNC_ROUNDTRIP_TIMEOUT_MS,
+        None,
+    )?;
+    parse_venus_capset_reply(&response).ok_or(VirtioError::DeviceError)
 }
 
 // ── Context lifecycle ────────────────────────────────────────────────────────
@@ -1762,10 +1824,21 @@ pub fn submit_venus_async_windowed_blt(
 pub enum WaitFenceOutcome {
     /// The wire fence has completed (host-visible-complete).
     Complete,
+    /// Terminal virtio-gpu response; the ICD maps the raw type to VkResult.
+    Error(u32),
     /// `timeout_ns` elapsed first (or this was a poll and it is still pending).
     TimedOut,
     /// The id was never assigned / the transport is gone.
     Invalid,
+}
+
+fn terminal_wait_outcome(state: helios_kmd_logic::fence_completion::TerminalState) -> WaitFenceOutcome {
+    use helios_kmd_logic::fence_completion::TerminalState;
+    match state {
+        TerminalState::Pending => WaitFenceOutcome::TimedOut,
+        TerminalState::Success => WaitFenceOutcome::Complete,
+        TerminalState::Error { response_type } => WaitFenceOutcome::Error(response_type),
+    }
 }
 
 /// Wait (PASSIVE, KEVENT) until wire fence `fence_id` completes or
@@ -1783,7 +1856,7 @@ pub fn wait_fence(
     // `fence_wait_cancel`.
     SyncWaitBlock::with(|block| {
         let mut full_retries = 0u32;
-        loop {
+        let completion_slot = loop {
             let prep = adapter.with_virtio(|v| {
                 v.drain_used();
                 v.fence_wait_prepare(fence_id, block.as_ptr())
@@ -1791,6 +1864,7 @@ pub fn wait_fence(
             match prep {
                 Err(_) => return WaitFenceOutcome::Invalid, // transport gone
                 Ok(FenceWaitPrep::Complete) => return WaitFenceOutcome::Complete,
+                Ok(FenceWaitPrep::Error(response_type)) => return WaitFenceOutcome::Error(response_type),
                 Ok(FenceWaitPrep::Invalid) => return WaitFenceOutcome::Invalid,
                 Ok(FenceWaitPrep::TableFull) => {
                     full_retries += 1;
@@ -1807,15 +1881,14 @@ pub fn wait_fence(
                     }
                     sleep_ms(passive, 1);
                 }
-                Ok(FenceWaitPrep::Registered) => break,
+                Ok(FenceWaitPrep::Registered(slot)) => break slot,
             }
         }
 
         if timeout_ns == 0 {
             // Poll: deregister immediately; completion may still have raced in.
-            return match adapter.with_virtio(|v| v.fence_wait_cancel(block.as_ptr())) {
-                Ok(true) => WaitFenceOutcome::Complete,
-                Ok(false) => WaitFenceOutcome::TimedOut,
+            return match adapter.with_virtio(|v| v.fence_wait_cancel(block.as_ptr(), completion_slot)) {
+                Ok(state) => terminal_wait_outcome(state),
                 // Transport gone: the fence did NOT retire. Reporting Complete here
                 // made escape_wait_fence write out_completed = 1 and return
                 // STATUS_SUCCESS for an unretired wire fence - a direct violation of
@@ -1831,17 +1904,20 @@ pub fn wait_fence(
 
         let total_ms = (timeout_ns / 1_000_000).max(1).min(WAIT_FENCE_MAX_MS);
         if wait_block(passive, adapter, block, total_ms) {
-            return WaitFenceOutcome::Complete;
+            return match adapter.with_virtio(|v| v.fence_wait_consume(completion_slot)) {
+                Ok(state) => terminal_wait_outcome(state),
+                Err(_) => WaitFenceOutcome::Invalid,
+            };
         }
         match adapter.with_virtio(|v| {
             v.drain_used();
-            v.fence_wait_cancel(block.as_ptr())
+            v.fence_wait_cancel(block.as_ptr(), completion_slot)
         }) {
-            Ok(true) => WaitFenceOutcome::Complete,
-            Ok(false) => {
+            Ok(helios_kmd_logic::fence_completion::TerminalState::Pending) => {
                 FENCE_WAIT_TIMEOUTS.fetch_add(1, Ordering::Relaxed);
                 WaitFenceOutcome::TimedOut
             }
+            Ok(state) => terminal_wait_outcome(state),
             // As in the poll exit above.
             Err(_) => {
                 TRANSPORT_GONE_AT_WAIT.fetch_add(1, Ordering::Relaxed);

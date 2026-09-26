@@ -24,6 +24,11 @@ is empirical — each item cost a real diagnostic cycle.
 
 Overridable per deployment: `HELIOS_SSH_VM`, `HELIOS_SSH_SLAVE`,
 `HELIOS_SSH_CONFIG` (see below), `HELIOS_LINUX_PROJECT_ROOT` (where this repo is).
+For a VM deployment whose interactive account differs from the historical
+default, set `HELIOS_VM_INTERACTIVE_USER`; unset keeps `tibix`, while an empty
+value is rejected. This only changes the `vm` + `purpose=desktop` scheduled-task
+principal. For the WinBoat LAB deployment described by its operator, use
+`HELIOS_VM_INTERACTIVE_USER=reliuz`.
 
 The domain tools (`win_exec`, `win_cargo`, `win_vkd3d`, `win_meson`,
 `win_install_*`, …) remain VM- and `Z:\`-specific. The `win_host_*` tools are the

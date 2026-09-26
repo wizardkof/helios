@@ -234,6 +234,19 @@ pub fn host_spec(name: &str) -> Result<&'static HostSpec> {
     }
 }
 
+/// Resolve the VM desktop principal. An unset override preserves the historic
+/// `tibix` default; an explicitly empty value is an error instead of silently
+/// falling back to a different account.
+fn vm_interactive_user(override_user: Option<&str>) -> Result<String> {
+    match override_user {
+        None => Ok(VM.interactive_user.to_string()),
+        Some(user) if user.trim().is_empty() => {
+            bail!("HELIOS_VM_INTERACTIVE_USER is set but empty")
+        }
+        Some(user) => Ok(user.to_string()),
+    }
+}
+
 pub fn host_names() -> [&'static str; 2] {
     ["vm", "slave"]
 }
@@ -589,21 +602,43 @@ pub fn task_wrapper(payload: &str, log: &str, purpose: Purpose, spec: &HostSpec)
 }
 
 /// The encoded snippet that registers and starts the task under the principal
-/// its purpose demands. Pure.
-pub fn register_task_script(spec: &HostSpec, name: &str, wrapper: &str, purpose: Purpose) -> String {
+/// its purpose demands, applying the desktop-user override from the process
+/// environment when applicable.
+pub fn register_task_script(
+    spec: &HostSpec,
+    name: &str,
+    wrapper: &str,
+    purpose: Purpose,
+) -> Result<String> {
+    let override_user = std::env::var("HELIOS_VM_INTERACTIVE_USER").ok();
+    register_task_script_with_user(spec, name, wrapper, purpose, override_user.as_deref())
+}
+
+fn register_task_script_with_user(
+    spec: &HostSpec,
+    name: &str,
+    wrapper: &str,
+    purpose: Purpose,
+    override_user: Option<&str>,
+) -> Result<String> {
     let principal = if purpose.is_system() {
         "New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest".to_string()
     } else {
+        let user = if spec.name == "vm" && purpose == Purpose::Desktop {
+            vm_interactive_user(override_user)?
+        } else {
+            spec.interactive_user.to_string()
+        };
         format!(
             "New-ScheduledTaskPrincipal -UserId {} -LogonType Interactive -RunLevel Highest",
-            lit(spec.interactive_user)
+            lit(&user)
         )
     };
     let name_lit = lit(name);
     let argument = lit(&format!(
         r#"-NoProfile -ExecutionPolicy Bypass -File "{wrapper}""#
     ));
-    format!(
+    Ok(format!(
         "$ErrorActionPreference='Stop'\n\
          Unregister-ScheduledTask -TaskName {name} -Confirm:$false -ErrorAction SilentlyContinue\n\
          $action = New-ScheduledTaskAction -Execute {exe} -Argument {argument} -WorkingDirectory {wd}\n\
@@ -618,7 +653,7 @@ pub fn register_task_script(spec: &HostSpec, name: &str, wrapper: &str, purpose:
         argument = argument,
         wd = lit(spec.staging),
         principal = principal,
-    )
+    ))
 }
 
 /// A started (or finished) detached task.
@@ -655,7 +690,7 @@ pub async fn task_start(
     push(spec, &local, &remote_wrapper).await?;
     let _ = std::fs::remove_file(&local);
 
-    let script = register_task_script(spec, name, &remote_wrapper, purpose);
+    let script = register_task_script(spec, name, &remote_wrapper, purpose)?;
     let out = run_body(spec, &script, 180).await?;
     let state = out
         .stdout
@@ -975,25 +1010,73 @@ mod tests {
 
     #[test]
     fn system_purposes_register_as_system_and_desktop_as_the_user() {
-        let sys = register_task_script(spec("slave"), "T", r"C:\w.ps1", Purpose::Build);
+        let sys = register_task_script_with_user(
+            spec("slave"),
+            "T",
+            r"C:\w.ps1",
+            Purpose::Build,
+            Some("reliuz"),
+        )
+        .unwrap();
         assert!(sys.contains("UserId 'SYSTEM'"));
         assert!(sys.contains("ServiceAccount"));
-        let desk = register_task_script(spec("vm"), "T", r"C:\w.ps1", Purpose::Desktop);
+        let desk = register_task_script_with_user(
+            spec("vm"),
+            "T",
+            r"C:\w.ps1",
+            Purpose::Desktop,
+            None,
+        )
+        .unwrap();
         assert!(desk.contains("UserId 'tibix'"));
         assert!(desk.contains("Interactive"));
+        let overridden = register_task_script_with_user(
+            spec("vm"),
+            "T",
+            r"C:\w.ps1",
+            Purpose::Desktop,
+            Some("reliuz"),
+        )
+        .unwrap();
+        assert!(overridden.contains("UserId 'reliuz'"));
+        for purpose in [Purpose::Build, Purpose::Install, Purpose::System] {
+            let script = register_task_script_with_user(
+                spec("vm"),
+                "T",
+                r"C:\w.ps1",
+                purpose,
+                Some("reliuz"),
+            )
+            .unwrap();
+            assert!(script.contains("UserId 'SYSTEM'"), "{purpose:?} must remain SYSTEM");
+            assert!(!script.contains("UserId 'reliuz'"));
+        }
         // Registration always returns a state marker the caller can parse.
         assert!(sys.contains("WINRUN_TASK="));
         // The wrapper path is double-quoted INSIDE the -Argument string, which
         // is itself a single-quoted literal.
         assert!(sys.contains(r#"-File "C:\w.ps1""#), "{sys}");
-        let spaced = register_task_script(
+        let spaced = register_task_script_with_user(
             spec("vm"),
             "T2",
             r"C:\Users\Some User\winrun\x.ps1",
             Purpose::Desktop,
-        );
+            None,
+        ).unwrap();
         assert!(spaced.contains(r#"-File "C:\Users\Some User\winrun\x.ps1""#), "{spaced}");
         assert!(spaced.contains(r"WorkingDirectory 'C:\Users\Tibix\winrun'"), "{spaced}");
+    }
+
+    #[test]
+    fn desktop_override_empty_value_is_rejected_and_session_guard_remains() {
+        assert_eq!(vm_interactive_user(None).unwrap(), "tibix");
+        assert_eq!(vm_interactive_user(Some("reliuz")).unwrap(), "reliuz");
+        assert!(vm_interactive_user(Some("")).is_err());
+        assert!(vm_interactive_user(Some("   ")).is_err());
+        let wrapper = task_wrapper("payload", r"C:\l.log", Purpose::Desktop, spec("vm"));
+        assert!(wrapper.contains("$session -eq 0"));
+        assert!(wrapper.contains("exit 87"));
+        assert!(wrapper.contains("WINRUN_EXPECT_SESSION = '1'"));
     }
 
     #[test]

@@ -112,8 +112,6 @@ mod ffi {
             linear_scanout_target: bool,
             cross_context_optimal: bool,
             dedicated_present_buffer: bool,
-            source_image_create_info: usize,
-            source_external_ownership: bool,
         ) -> usize;
 
         /// Create a dedicated OPTIMAL, DMA_BUF-exportable image and report
@@ -338,8 +336,7 @@ impl ffi::HeliosDxvkDevice {
 
     /// # Safety
     /// Caller upholds `open_ddi_texture2d`'s preconditions (a live KMT handle
-    /// and a renderer resource id the host still has). A nonzero source image
-    /// pointer and its nested data remain live through this synchronous call.
+    /// and a renderer resource id the host still has).
     #[allow(clippy::too_many_arguments)]
     pub(crate) unsafe fn open_texture2d(
         &self,
@@ -357,8 +354,6 @@ impl ffi::HeliosDxvkDevice {
         linear_scanout_target: bool,
         cross_context_optimal: bool,
         dedicated_present_buffer: bool,
-        source_image_create_info: usize,
-        source_external_ownership: bool,
     ) -> Option<ID3D11Resource> {
         // SAFETY: the caller upholds the resource-id/handle preconditions
         // above, and the bridge transfers one reference on success.
@@ -378,8 +373,6 @@ impl ffi::HeliosDxvkDevice {
                 linear_scanout_target,
                 cross_context_optimal,
                 dedicated_present_buffer,
-                source_image_create_info,
-                source_external_ownership,
             ))
         }
     }
@@ -546,7 +539,6 @@ impl BridgeDevice {
 
     /// # Safety
     /// See [`ffi::HeliosDxvkDevice::open_texture2d`].
-    /// A nonzero source image pointer is borrowed through this call only.
     #[allow(clippy::too_many_arguments)]
     pub(crate) unsafe fn open_texture2d(
         &self,
@@ -564,11 +556,7 @@ impl BridgeDevice {
         linear_scanout_target: bool,
         cross_context_optimal: bool,
         dedicated_present_buffer: bool,
-        source_image_create_info: usize,
-        source_external_ownership: bool,
     ) -> Option<ID3D11Resource> {
-        // SAFETY: the caller retains the resource and any source template
-        // through the synchronous native import, which copies nested metadata.
         unsafe {
             self.get()?.open_texture2d(
                 width,
@@ -585,8 +573,6 @@ impl BridgeDevice {
                 linear_scanout_target,
                 cross_context_optimal,
                 dedicated_present_buffer,
-                source_image_create_info,
-                source_external_ownership,
             )
         }
     }
@@ -633,9 +619,8 @@ impl BridgeDevice {
     }
 
     pub(crate) fn present_frame_gate(&self, timeout_us: u32, order_mode: u32) -> i32 {
-        self.get().map_or(crate::hr::E_FAIL, |d| {
-            d.present_frame_gate(timeout_us, order_mode)
-        })
+        self.get()
+            .map_or(crate::hr::E_FAIL, |d| d.present_frame_gate(timeout_us, order_mode))
     }
 
     pub(crate) fn flush_present_copy(&self) -> u64 {

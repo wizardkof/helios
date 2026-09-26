@@ -40,6 +40,7 @@
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include "probe_common.h"
 
 #include <cstdio>
 #include <cstring>
@@ -139,6 +140,8 @@ int main(int argc, char** argv) {
     hr = D3D12CreateDevice(helios, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device));
     printf("\n");
     print_hr("D3D12CreateDevice(FL 11_0)", hr);
+    helios_fullstack::print_result("D3D12", helios_desc.Description,
+                                   helios_desc.AdapterLuid, hr);
 
     const bool created = SUCCEEDED(hr) && device != nullptr;
     if (created) {

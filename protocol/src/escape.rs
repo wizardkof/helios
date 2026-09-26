@@ -83,6 +83,8 @@ pub const HELIOS_ESCAPE_PRESENT_BUFFER_READ: u32 = 0x0012;
 
 /// Read-only release eligibility for a private WindowedBlt snapshot.
 pub const HELIOS_ESCAPE_SNAPSHOT_STATUS: u32 = 0x0015;
+/// Read the host's negotiated Venus capset through the virtio control queue.
+pub const HELIOS_ESCAPE_QUERY_VENUS_CAPSET: u32 = 0x0016;
 
 pub const HELIOS_SNAPSHOT_BUSY: u32 = 0;
 pub const HELIOS_SNAPSHOT_IDLE: u32 = 1;
@@ -99,6 +101,17 @@ pub struct HeliosEscapeSnapshotStatus {
 }
 
 const _: () = assert!(core::mem::size_of::<HeliosEscapeSnapshotStatus>() == 24);
+
+/// Read-only capset query. The fixed payload is validated against the
+/// `GET_CAPSET` response before this escape is completed.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct HeliosEscapeQueryVenusCapset {
+    pub hdr: HeliosEscapeHeader,
+    pub out_capset: crate::virtio_gpu::VenusCapset,
+}
+
+const _: () = assert!(core::mem::size_of::<HeliosEscapeQueryVenusCapset>() == 176);
 
 pub const HELIOS_SCANOUT_TIMELINE_OP_META: u32 = 0;
 pub const HELIOS_SCANOUT_TIMELINE_OP_READ: u32 = 1;
@@ -301,10 +314,11 @@ pub struct HeliosEscapeWaitFence {
     pub hdr: HeliosEscapeHeader,
     pub fence_id: u64,
     pub timeout_ns: u64,
-    /// out: 1 = fence complete, 0 = timed out. Pre-set to 1 by the caller (see
+    /// out: 1 = success, 0 = timed out, 2 = terminal transport error. Pre-set to 1 by the caller (see
     /// the deploy-order note above).
     pub out_completed: u32,
-    pub _pad: u32,
+    /// out: raw VirtIO response type when out_completed == 2.
+    pub out_response_type: u32,
 }
 
 /// The pre-async 32-byte `HELIOS_ESCAPE_WAIT_FENCE` shape: a strict PREFIX of
@@ -363,6 +377,8 @@ pub const HELIOS_FENCE_EVENT_CANCELLED: u32 = 3;
 /// UNREGISTER: no matching registration. Either the fence retired (the event
 /// was signaled — check the event state) or nothing was ever registered.
 pub const HELIOS_FENCE_EVENT_NOT_FOUND: u32 = 4;
+/// Terminal error; out_response_type carries the raw VirtIO response type.
+pub const HELIOS_FENCE_EVENT_TERMINAL_ERROR: u32 = 5;
 
 /// `HELIOS_ESCAPE_REGISTER_FENCE_EVENT` / `HELIOS_ESCAPE_UNREGISTER_FENCE_EVENT`.
 /// 40 bytes. NON-BLOCKING both ways — this is the replacement for parking a
@@ -381,7 +397,8 @@ pub const HELIOS_FENCE_EVENT_NOT_FOUND: u32 = 4;
 ///
 /// UNREGISTER (after a usermode wait timeout): same `{fence_id, event_handle}`
 /// pair. `HELIOS_FENCE_EVENT_CANCELLED` = the KMD did not and will not signal;
-/// `HELIOS_FENCE_EVENT_NOT_FOUND` + a signaled event = the fence retired.
+/// `HELIOS_FENCE_EVENT_NOT_FOUND` + a signaled event = successful retirement;
+/// `HELIOS_FENCE_EVENT_TERMINAL_ERROR` reports an error after the wake.
 ///
 /// Capability probe: REGISTER with `fence_id == 0 && event_handle == 0` →
 /// `HELIOS_FENCE_EVENT_PROBE_ACK` on a supporting KMD; the escape itself fails
@@ -396,7 +413,7 @@ pub struct HeliosEscapeFenceEvent {
     pub event_handle: u64,
     /// out: one of `HELIOS_FENCE_EVENT_*`.
     pub out_state: u32,
-    pub _pad: u32,
+    pub out_response_type: u32,
 }
 
 /// `HELIOS_ESCAPE_QUERY_SCANOUT` — read-only identity of the optional KMD-owned

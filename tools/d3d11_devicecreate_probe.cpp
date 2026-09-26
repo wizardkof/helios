@@ -17,6 +17,7 @@
 #include <d3d11.h>
 #include <cstdio>
 #include <cwchar>
+#include "probe_common.h"
 
 int main() {
     IDXGIFactory1* factory = nullptr;
@@ -28,6 +29,7 @@ int main() {
 
     IDXGIAdapter1* adapter = nullptr;
     IDXGIAdapter1* helios = nullptr;
+    DXGI_ADAPTER_DESC1 helios_desc{};
     for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
         DXGI_ADAPTER_DESC1 desc{};
         adapter->GetDesc1(&desc);
@@ -36,6 +38,7 @@ int main() {
                 desc.SubSysId, desc.Revision, desc.Flags);
         if (wcsstr(desc.Description, L"Helios") != nullptr) {
             helios = adapter;
+            helios_desc = desc;
             helios->AddRef();
         }
         adapter->Release();
@@ -76,10 +79,12 @@ int main() {
     printf("D3D11CreateDevice hr=0x%08x featureLevel=0x%04x device=%p context=%p\n",
            static_cast<unsigned>(hr), static_cast<unsigned>(achieved),
            static_cast<void*>(device), static_cast<void*>(context));
+    helios_fullstack::print_result("D3D11", helios_desc.Description,
+                                   helios_desc.AdapterLuid, hr);
 
     if (context != nullptr) context->Release();
     if (device != nullptr) device->Release();
     helios->Release();
     factory->Release();
-    return 0;
+    return FAILED(hr) ? 3 : 0;
 }

@@ -747,6 +747,12 @@ unsafe fn dxgkddi_present_inner(
                                 .store(STATUS_DEVICE_NOT_READY as u32, Ordering::Relaxed);
                             return STATUS_DEVICE_NOT_READY;
                         }
+                        crate::virtio::ctrl::WaitFenceOutcome::Error(_) => {
+                            crate::diag::record_named_bytes(b"PBSyWt", 0xE3);
+                            PRESENT_LAST_STATUS
+                                .store(STATUS_DEVICE_NOT_READY as u32, Ordering::Relaxed);
+                            return STATUS_DEVICE_NOT_READY;
+                        }
                     }
                     let mirror_ready = destination_buffer.is_some_and(|resource_id| {
                         adapter

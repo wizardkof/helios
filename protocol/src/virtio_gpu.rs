@@ -81,6 +81,8 @@ pub const VIRTIO_GPU_CAPSET_VIRGL2: u32 = 2;
 pub const VIRTIO_GPU_CAPSET_GFXSTREAM: u32 = 3;
 /// Vulkan via Venus. This is the capset Helios drives.
 pub const VIRTIO_GPU_CAPSET_VENUS: u32 = 4;
+/// Fixed wire size of the reconstructed `virgl_renderer_capset_venus` profile.
+pub const VIRTIO_GPU_VENUS_CAPSET_SIZE: usize = 160;
 
 // ── Shared-memory region ids (`virtio_gpu_shm_id`) ──────────────────────────
 /// No region. The cap's `id` byte holds one of these.
@@ -247,6 +249,64 @@ pub struct VirtioGpuRespCapsetInfo {
     pub padding: u32,
 }
 
+/// `VIRTIO_GPU_CMD_GET_CAPSET`. The reply is variable length and begins with
+/// `VirtioGpuCtrlHdr`; its payload is interpreted using the discovered capset.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct VirtioGpuGetCapset {
+    pub hdr: VirtioGpuCtrlHdr,
+    pub capset_id: u32,
+    pub capset_version: u32,
+}
+
+/// Venus capset payload returned by the paired virglrenderer profile.
+/// Keep this field order synchronized with `virgl_renderer_capset_venus` in
+/// `src/venus_hw.h`; QEMU returns this payload after the 24-byte control header.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct VenusCapset {
+    pub wire_format_version: u32,
+    pub vk_xml_version: u32,
+    pub vk_ext_command_serialization_spec_version: u32,
+    pub vk_mesa_venus_protocol_spec_version: u32,
+    pub supports_blob_id_0: u32,
+    pub vk_extension_mask1: [u32; 32],
+    pub allow_vk_wait_syncs: u32,
+    pub supports_multiple_timelines: u32,
+    pub use_guest_vram: u32,
+}
+
+const _: () = assert!(core::mem::size_of::<VenusCapset>() == VIRTIO_GPU_VENUS_CAPSET_SIZE);
+const _: () = {
+    assert!(core::mem::offset_of!(VenusCapset, vk_extension_mask1) == 20);
+    assert!(core::mem::offset_of!(VenusCapset, allow_vk_wait_syncs) == 148);
+    assert!(core::mem::offset_of!(VenusCapset, supports_multiple_timelines) == 152);
+    assert!(core::mem::offset_of!(VenusCapset, use_guest_vram) == 156);
+};
+
+/// Decode only the exact response envelope and Venus payload size. Semantic
+/// version/feature checks belong to the negotiated profile owner.
+pub fn parse_venus_capset_reply(bytes: &[u8]) -> Option<VenusCapset> {
+    let expected =
+        core::mem::size_of::<VirtioGpuCtrlHdr>().checked_add(core::mem::size_of::<VenusCapset>())?;
+    if bytes.len() != expected
+        || u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) != VIRTIO_GPU_RESP_OK_CAPSET
+    {
+        return None;
+    }
+    let capset: VenusCapset = bytemuck::pod_read_unaligned(
+        bytes.get(core::mem::size_of::<VirtioGpuCtrlHdr>()..expected)?,
+    );
+    if capset.supports_blob_id_0 > 1
+        || capset.allow_vk_wait_syncs > 1
+        || capset.supports_multiple_timelines > 1
+        || capset.use_guest_vram > 1
+    {
+        return None;
+    }
+    Some(capset)
+}
+
 // ── GET_DISPLAY_INFO (Phase 2 smoke test) ───────────────────────────────────
 
 /// A rectangle in the display-info response.
@@ -319,6 +379,8 @@ const _: () = {
     assert!(core::mem::size_of::<VirtioGpuRespMapInfo>() == 32);
     assert!(core::mem::size_of::<VirtioGpuGetCapsetInfo>() == 32);
     assert!(core::mem::size_of::<VirtioGpuRespCapsetInfo>() == 40);
+    assert!(core::mem::size_of::<VirtioGpuGetCapset>() == 32);
+    assert!(core::mem::size_of::<VenusCapset>() == 160);
     assert!(core::mem::size_of::<VirtioGpuRespDisplayInfo>() == 24 + 16 * 24);
     assert!(core::mem::size_of::<VirtioGpuSetScanoutBlob>() == 96);
     assert!(core::mem::size_of::<VirtioGpuResourceFlush>() == 48);
@@ -566,6 +628,7 @@ mod virtio_bindings_pin {
         pin_layout!(VirtioGpuResourceUnref, vb::virtio_gpu_resource_unref);
         pin_layout!(VirtioGpuGetCapsetInfo, vb::virtio_gpu_get_capset_info);
         pin_layout!(VirtioGpuRespCapsetInfo, vb::virtio_gpu_resp_capset_info);
+        pin_layout!(VirtioGpuGetCapset, vb::virtio_gpu_get_capset);
         pin_layout!(
             VirtioGpuDisplayOne,
             vb::virtio_gpu_resp_display_info_virtio_gpu_display_one
@@ -586,5 +649,34 @@ mod virtio_bindings_pin {
         pin_layout!(VirtioGpuRespMapInfo, vb::virtio_gpu_resp_map_info);
         pin_layout!(VirtioGpuSetScanoutBlob, vb::virtio_gpu_set_scanout_blob);
         pin_layout!(VirtioGpuResourceFlush, vb::virtio_gpu_resource_flush);
+    }
+
+    #[test]
+    fn venus_capset_reply_requires_the_exact_typed_wire_envelope() {
+        use super::*;
+        let mut capset = VenusCapset::zeroed();
+        capset.wire_format_version = 1;
+        capset.vk_xml_version = 0x0040_0000;
+        capset.vk_ext_command_serialization_spec_version = 1;
+        capset.vk_mesa_venus_protocol_spec_version = 4;
+        capset.vk_extension_mask1[0] = 1;
+        capset.vk_extension_mask1[17] = 0x8000_0000;
+
+        let mut reply = [0u8; size_of::<VirtioGpuCtrlHdr>() + size_of::<VenusCapset>()];
+        reply[..4].copy_from_slice(&VIRTIO_GPU_RESP_OK_CAPSET.to_le_bytes());
+        reply[size_of::<VirtioGpuCtrlHdr>()..].copy_from_slice(bytemuck::bytes_of(&capset));
+
+        let decoded = parse_venus_capset_reply(&reply).expect("valid Venus capset reply");
+        assert_eq!(decoded.wire_format_version, 1);
+        assert_eq!(decoded.vk_extension_mask1[17], 0x8000_0000);
+        assert!(parse_venus_capset_reply(&reply[..reply.len() - 1]).is_none());
+
+        reply[..4].copy_from_slice(&VIRTIO_GPU_RESP_OK_NODATA.to_le_bytes());
+        assert!(parse_venus_capset_reply(&reply).is_none());
+
+        capset.supports_multiple_timelines = 2;
+        reply[..4].copy_from_slice(&VIRTIO_GPU_RESP_OK_CAPSET.to_le_bytes());
+        reply[size_of::<VirtioGpuCtrlHdr>()..].copy_from_slice(bytemuck::bytes_of(&capset));
+        assert!(parse_venus_capset_reply(&reply).is_none());
     }
 }

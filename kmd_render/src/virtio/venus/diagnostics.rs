@@ -41,6 +41,10 @@ impl VenusClient {
                 crate::diag::record_named_bytes(b"PBPrF", 0xE2);
                 return;
             }
+            ctrl::WaitFenceOutcome::Error(response_type) => {
+                crate::diag::record_named_bytes(b"PBPrF", response_type);
+                return;
+            }
         }
 
         let prep = match ctrl::map_blob_prepare(
