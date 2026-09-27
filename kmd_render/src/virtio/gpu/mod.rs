@@ -3996,7 +3996,7 @@ impl VirtioGpu {
         // is only spent once the device has actually taken the descriptor.
         self.next_wire_fence += 1;
         let ring = cmd.hdr.ring_idx;
-        P06_DIAG.record_submit_assigned(ctx_id, ring, fence_id, previous_wire_fence);
+        P06_DIAG.record_submit_assigned(ctx_id, ring as u32, fence_id, previous_wire_fence);
         ASYNC_SUBMIT_COUNT.fetch_add(1, Ordering::Relaxed);
         if ring != 0 {
             RING_SUBMIT_COUNT.fetch_add(1, Ordering::Relaxed);
