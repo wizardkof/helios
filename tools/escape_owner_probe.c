@@ -150,15 +150,20 @@ struct helios_escape_query_scanout {
 static D3DKMT_HANDLE g_adapter, g_device_a, g_device_b;
 static LUID g_adapter_luid;
 
-static NTSTATUS escape_on(D3DKMT_HANDLE device, void* buf, UINT size) {
+static NTSTATUS escape_on_adapter(D3DKMT_HANDLE adapter, D3DKMT_HANDLE device,
+                                 void* buf, UINT size) {
     D3DKMT_ESCAPE esc;
     memset(&esc, 0, sizeof(esc));
-    esc.hAdapter = g_adapter;
+    esc.hAdapter = adapter;
     esc.hDevice = device; /* 0 = the forgeable owner value this probe tests */
     esc.Type = D3DKMT_ESCAPE_DRIVERPRIVATE;
     esc.pPrivateDriverData = buf;
     esc.PrivateDriverDataSize = size;
     return D3DKMTEscape(&esc);
+}
+
+static NTSTATUS escape_on(D3DKMT_HANDLE device, void* buf, UINT size) {
+    return escape_on_adapter(g_adapter, device, buf, size);
 }
 
 static int destroy_device(D3DKMT_HANDLE device) {
@@ -353,11 +358,11 @@ static int dump_stats_v5_monitor(UINT interval_ms, UINT duration_ms) {
     return failed;
 }
 
-static int v5_query_supported(D3DKMT_HANDLE device) {
+static int v5_query_supported(D3DKMT_HANDLE adapter, D3DKMT_HANDLE device) {
     struct helios_escape_query_stats_v5 v5;
     memset(&v5, 0xA5, sizeof(v5));
     hdr_init(&v5.v4.v3.v2.v1.hdr, HELIOS_ESCAPE_QUERY_STATS, sizeof(v5));
-    const NTSTATUS status = escape_on(device, &v5, sizeof(v5));
+    const NTSTATUS status = escape_on_adapter(adapter, device, &v5, sizeof(v5));
     const int supported = NT_SUCCESS(status) &&
                           v5.v4.out_present_streams_cap == 64 &&
                           v5.out_p06_diag_version == 1;
@@ -403,10 +408,12 @@ static int v5_reader_open(LUID *luid, D3DKMT_HANDLE *adapter,
             D3DKMT_CLOSEADAPTER close;
             memset(&close, 0, sizeof(close));
             close.hAdapter = items[i].hAdapter;
-            (void)D3DKMTCloseAdapter(&close);
+            const NTSTATUS close_status = D3DKMTCloseAdapter(&close);
+            printf("adapter_candidate create_failed close_raw=0x%08x close_nt_success=%u\n",
+                   (unsigned)close_status, NT_SUCCESS(close_status));
             continue;
         }
-        if (!v5_query_supported(create.hDevice)) {
+        if (!v5_query_supported(items[i].hAdapter, create.hDevice)) {
             D3DKMT_DESTROYDEVICE destroy;
             memset(&destroy, 0, sizeof(destroy));
             destroy.hDevice = create.hDevice;
