@@ -4,7 +4,9 @@
 //! Moved verbatim out of `virtio/gpu.rs` by T8/R1103, which re-exports this
 //! module wholesale so the 53+ external `gpu::<COUNTER>` paths are unchanged.
 
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+
+use wdk_sys::ntddk::KeQueryInterruptTimePrecise;
 
 use super::gpu::{MAX_BLOBS, MAX_RESOURCES};
 
@@ -14,6 +16,115 @@ use super::gpu::{MAX_BLOBS, MAX_RESOURCES};
 /// but nonzero still means the host stopped answering in time. Read by
 /// `DxgkDdiCollectDbgInfo` / `HELIOS_ESCAPE_QUERY_STATS` (acceptance: stays 0).
 pub static CTRL_TIMEOUT_COUNT: AtomicU32 = AtomicU32::new(0);
+
+/// Fixed, nonpaged atomic state for diagnostic-only P06 fence attribution.
+/// Every time is a QPC tick sampled by KeQueryInterruptTimePrecise's QPC
+/// output, in the same tick domain as user-mode QueryPerformanceCounter.
+pub struct P06DiagnosticCounters {
+    pub submit_assigned_count: AtomicU64,
+    pub last_submit_ctx: AtomicU64,
+    pub last_submit_ring: AtomicU64,
+    pub last_submit_wire_fence: AtomicU64,
+    pub last_submit_time: AtomicU64,
+    pub event_register_count: AtomicU64,
+    pub last_register_fence: AtomicU64,
+    pub last_register_result: AtomicU64,
+    pub last_register_response: AtomicU64,
+    pub last_register_time: AtomicU64,
+    pub async_error_drain_count: AtomicU64,
+    pub last_error_fence: AtomicU64,
+    pub last_error_response: AtomicU64,
+    pub last_error_time: AtomicU64,
+    pub event_signal_count: AtomicU64,
+    pub last_signal_fence: AtomicU64,
+    pub last_signal_time: AtomicU64,
+    pub event_unregister_count: AtomicU64,
+    pub last_unregister_fence: AtomicU64,
+    pub last_unregister_result: AtomicU64,
+    pub last_unregister_response: AtomicU64,
+    pub last_unregister_time: AtomicU64,
+    pub last_submit_previous_wire_fence: AtomicU64,
+}
+
+impl P06DiagnosticCounters {
+    const fn new() -> Self {
+        Self {
+            submit_assigned_count: AtomicU64::new(0),
+            last_submit_ctx: AtomicU64::new(0),
+            last_submit_ring: AtomicU64::new(0),
+            last_submit_wire_fence: AtomicU64::new(0),
+            last_submit_time: AtomicU64::new(0),
+            event_register_count: AtomicU64::new(0),
+            last_register_fence: AtomicU64::new(0),
+            last_register_result: AtomicU64::new(0),
+            last_register_response: AtomicU64::new(0),
+            last_register_time: AtomicU64::new(0),
+            async_error_drain_count: AtomicU64::new(0),
+            last_error_fence: AtomicU64::new(0),
+            last_error_response: AtomicU64::new(0),
+            last_error_time: AtomicU64::new(0),
+            event_signal_count: AtomicU64::new(0),
+            last_signal_fence: AtomicU64::new(0),
+            last_signal_time: AtomicU64::new(0),
+            event_unregister_count: AtomicU64::new(0),
+            last_unregister_fence: AtomicU64::new(0),
+            last_unregister_result: AtomicU64::new(0),
+            last_unregister_response: AtomicU64::new(0),
+            last_unregister_time: AtomicU64::new(0),
+            last_submit_previous_wire_fence: AtomicU64::new(0),
+        }
+    }
+
+    #[inline]
+    fn qpc_now() -> u64 {
+        let mut qpc = 0;
+        // SAFETY: KeQueryInterruptTimePrecise is a scalar clock read valid at
+        // any IRQL; its optional output receives the QPC-domain timestamp.
+        unsafe { KeQueryInterruptTimePrecise(&mut qpc) };
+        qpc
+    }
+
+    pub fn record_submit_assigned(&self, ctx: u32, ring: u32, fence: u64, previous_fence: u64) {
+        self.last_submit_ctx.store(ctx as u64, Ordering::Relaxed);
+        self.last_submit_ring.store(ring as u64, Ordering::Relaxed);
+        self.last_submit_wire_fence.store(fence, Ordering::Relaxed);
+        self.last_submit_previous_wire_fence
+            .store(previous_fence, Ordering::Relaxed);
+        self.last_submit_time.store(Self::qpc_now(), Ordering::Relaxed);
+        self.submit_assigned_count.fetch_add(1, Ordering::Release);
+    }
+
+    pub fn record_register(&self, fence: u64, result: u64, response: u32) {
+        self.last_register_fence.store(fence, Ordering::Relaxed);
+        self.last_register_result.store(result, Ordering::Relaxed);
+        self.last_register_response.store(response as u64, Ordering::Relaxed);
+        self.last_register_time.store(Self::qpc_now(), Ordering::Relaxed);
+        self.event_register_count.fetch_add(1, Ordering::Release);
+    }
+
+    pub fn record_async_error_drain(&self, fence: u64, response: u32) {
+        self.last_error_fence.store(fence, Ordering::Relaxed);
+        self.last_error_response.store(response as u64, Ordering::Relaxed);
+        self.last_error_time.store(Self::qpc_now(), Ordering::Relaxed);
+        self.async_error_drain_count.fetch_add(1, Ordering::Release);
+    }
+
+    pub fn record_signal(&self, fence: u64) {
+        self.last_signal_fence.store(fence, Ordering::Relaxed);
+        self.last_signal_time.store(Self::qpc_now(), Ordering::Relaxed);
+        self.event_signal_count.fetch_add(1, Ordering::Release);
+    }
+
+    pub fn record_unregister(&self, fence: u64, result: u64, response: u32) {
+        self.last_unregister_fence.store(fence, Ordering::Relaxed);
+        self.last_unregister_result.store(result, Ordering::Relaxed);
+        self.last_unregister_response.store(response as u64, Ordering::Relaxed);
+        self.last_unregister_time.store(Self::qpc_now(), Ordering::Relaxed);
+        self.event_unregister_count.fetch_add(1, Ordering::Release);
+    }
+}
+
+pub static P06_DIAG: P06DiagnosticCounters = P06DiagnosticCounters::new();
 
 // ── C3/M3.4 async-transport telemetry (all DISPATCH-safe atomics) ────────────
 

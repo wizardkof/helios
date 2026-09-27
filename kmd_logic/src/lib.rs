@@ -22,6 +22,8 @@ pub mod edid;
 pub mod producer_completion;
 pub mod execution_completion;
 pub mod fence_completion;
+mod p06_diagnostics;
+pub use p06_diagnostics::observe_result_preserving;
 
 /// Fixed-phase scheduling for the synthetic 60 Hz CRTC heartbeat.
 ///

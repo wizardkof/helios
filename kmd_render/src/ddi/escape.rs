@@ -27,6 +27,7 @@ use helios_protocol::{
     HeliosEscapeMapReadLedger, HeliosEscapePresentBufferRead, HeliosEscapePresentStream,
     HeliosEscapeQueryScanout, HeliosEscapeQueryScanoutTimeline, HeliosEscapeQueryStats,
     HeliosEscapeQueryStatsV2, HeliosEscapeQueryStatsV3, HeliosEscapeQueryStatsV4,
+    HeliosEscapeQueryStatsV5,
     HeliosEscapeReleaseBlob, HeliosEscapeScanoutEvent, HeliosEscapeSubmitVenus,
     HeliosEscapeWaitFence, HeliosEscapeWaitFenceLegacy, HELIOS_ESCAPE_ALLOC_BLOB,
     HELIOS_ESCAPE_ATTACH_RESOURCE, HELIOS_ESCAPE_CTX_CREATE, HELIOS_ESCAPE_CTX_DESTROY,
@@ -1116,6 +1117,7 @@ fn escape_query_stats(
     let sz2 = size_of::<HeliosEscapeQueryStatsV2>();
     let sz3 = size_of::<HeliosEscapeQueryStatsV3>();
     let sz4 = size_of::<HeliosEscapeQueryStatsV4>();
+    let sz5 = size_of::<HeliosEscapeQueryStatsV5>();
     if buf.len() < sz {
         return refuse_short_buffer();
     }
@@ -1130,6 +1132,7 @@ fn escape_query_stats(
     let v2 = declared >= sz2 && buf.len() >= sz2;
     let v3 = declared >= sz3 && buf.len() >= sz3;
     let v4 = declared >= sz4 && buf.len() >= sz4;
+    let v5 = declared >= sz5 && buf.len() >= sz5;
     let (stats, fence_events_live) =
         match adapter.with_virtio(|v| (v.table_stats(), v.fence_events_live())) {
             Ok(s) => s,
@@ -1218,7 +1221,40 @@ fn escape_query_stats(
     out4.out_present_stream_markers = PRESENT_STREAM_MARKERS.load(Ordering::Relaxed);
     out4.out_present_stream_retires = PRESENT_STREAM_RETIRES.load(Ordering::Relaxed);
     out4.out_present_stream_rejects = PRESENT_STREAM_REJECTS.load(Ordering::Relaxed);
-    buf[..sz4].copy_from_slice(bytes_of(&out4));
+    if !v5 {
+        buf[..sz4].copy_from_slice(bytes_of(&out4));
+        return STATUS_SUCCESS;
+    }
+
+    let diag = &crate::virtio::counters::P06_DIAG;
+    let mut out5: HeliosEscapeQueryStatsV5 = pod_read_unaligned(&buf[..sz5]);
+    out5.v4 = out4;
+    out5.out_p06_diag_version = 1;
+    out5.submit_assigned_count = diag.submit_assigned_count.load(Ordering::Acquire);
+    out5.last_submit_ctx = diag.last_submit_ctx.load(Ordering::Relaxed);
+    out5.last_submit_ring = diag.last_submit_ring.load(Ordering::Relaxed);
+    out5.last_submit_wire_fence = diag.last_submit_wire_fence.load(Ordering::Relaxed);
+    out5.last_submit_time = diag.last_submit_time.load(Ordering::Relaxed);
+    out5.event_register_count = diag.event_register_count.load(Ordering::Acquire);
+    out5.last_register_fence = diag.last_register_fence.load(Ordering::Relaxed);
+    out5.last_register_result = diag.last_register_result.load(Ordering::Relaxed);
+    out5.last_register_response = diag.last_register_response.load(Ordering::Relaxed);
+    out5.last_register_time = diag.last_register_time.load(Ordering::Relaxed);
+    out5.async_error_drain_count = diag.async_error_drain_count.load(Ordering::Acquire);
+    out5.last_error_fence = diag.last_error_fence.load(Ordering::Relaxed);
+    out5.last_error_response = diag.last_error_response.load(Ordering::Relaxed);
+    out5.last_error_time = diag.last_error_time.load(Ordering::Relaxed);
+    out5.event_signal_count = diag.event_signal_count.load(Ordering::Acquire);
+    out5.last_signal_fence = diag.last_signal_fence.load(Ordering::Relaxed);
+    out5.last_signal_time = diag.last_signal_time.load(Ordering::Relaxed);
+    out5.event_unregister_count = diag.event_unregister_count.load(Ordering::Acquire);
+    out5.last_unregister_fence = diag.last_unregister_fence.load(Ordering::Relaxed);
+    out5.last_unregister_result = diag.last_unregister_result.load(Ordering::Relaxed);
+    out5.last_unregister_response = diag.last_unregister_response.load(Ordering::Relaxed);
+    out5.last_unregister_time = diag.last_unregister_time.load(Ordering::Relaxed);
+    out5.last_submit_previous_wire_fence =
+        diag.last_submit_previous_wire_fence.load(Ordering::Relaxed);
+    buf[..sz5].copy_from_slice(bytes_of(&out5));
     STATUS_SUCCESS
 }
 

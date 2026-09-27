@@ -781,6 +781,40 @@ pub struct HeliosEscapeQueryStatsV4 {
     pub out_present_stream_rejects: u32,
 }
 
+/// `HELIOS_ESCAPE_QUERY_STATS` v5: V4's 232-byte prefix followed by a
+/// diagnostic-only P06 snapshot. New values are u64 words so the C ABI has no
+/// implicit padding and the fixed snapshot can be copied atomically field by
+/// field. `out_p06_diag_version == 1` identifies this extension.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct HeliosEscapeQueryStatsV5 {
+    pub v4: HeliosEscapeQueryStatsV4,
+    pub out_p06_diag_version: u64,
+    pub submit_assigned_count: u64,
+    pub last_submit_ctx: u64,
+    pub last_submit_ring: u64,
+    pub last_submit_wire_fence: u64,
+    pub last_submit_time: u64,
+    pub event_register_count: u64,
+    pub last_register_fence: u64,
+    pub last_register_result: u64,
+    pub last_register_response: u64,
+    pub last_register_time: u64,
+    pub async_error_drain_count: u64,
+    pub last_error_fence: u64,
+    pub last_error_response: u64,
+    pub last_error_time: u64,
+    pub event_signal_count: u64,
+    pub last_signal_fence: u64,
+    pub last_signal_time: u64,
+    pub event_unregister_count: u64,
+    pub last_unregister_fence: u64,
+    pub last_unregister_result: u64,
+    pub last_unregister_response: u64,
+    pub last_unregister_time: u64,
+    pub last_submit_previous_wire_fence: u64,
+}
+
 const _: () = {
     assert!(core::mem::size_of::<HeliosEscapeHeader>() == 16);
     assert!(core::mem::size_of::<HeliosEscapeQueryStats>() == 88);
@@ -809,10 +843,15 @@ const _: () = {
     assert!(core::mem::size_of::<HeliosEscapeQueryScanout>() == 64);
     assert!(core::mem::size_of::<HeliosScanoutTimelineEvent>() == 64);
     assert!(core::mem::size_of::<HeliosEscapeQueryScanoutTimeline>() == 64);
+    assert!(core::mem::size_of::<HeliosEscapeQueryStats>() == 88);
     assert!(core::mem::size_of::<HeliosEscapeQueryStatsV2>() == 152);
     // v2 (152) + 12 u32 = 200. The v2 prefix must stay byte-identical.
     assert!(core::mem::size_of::<HeliosEscapeQueryStatsV3>() == 200);
     assert!(core::mem::size_of::<HeliosEscapeQueryStatsV4>() == 232);
+    assert!(core::mem::size_of::<HeliosEscapeQueryStatsV5>() == 424);
+    assert!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, v4) == 0);
+    assert!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, out_p06_diag_version) == 232);
+    assert!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_submit_previous_wire_fence) == 416);
     assert!(core::mem::size_of::<HeliosReadLedgerSlot>() == 32);
     assert!(core::mem::align_of::<HeliosReadLedgerSlot>() == 8);
     assert!(core::mem::offset_of!(HeliosReadLedgerSlot, generation) == 8);
@@ -856,5 +895,28 @@ mod scanout_timeline_tests {
         );
         assert_eq!(core::mem::size_of::<HeliosReadLedgerPage>(), 2112);
         assert!(core::mem::size_of::<HeliosReadLedgerPage>() <= 4096);
+    }
+}
+
+#[cfg(test)]
+mod query_stats_v5_abi_tests {
+    use super::*;
+
+    #[test]
+    fn query_stats_v5_is_append_only_and_pins_diagnostic_offsets() {
+        assert_eq!(core::mem::size_of::<HeliosEscapeQueryStats>(), 88);
+        assert_eq!(core::mem::size_of::<HeliosEscapeQueryStatsV2>(), 152);
+        assert_eq!(core::mem::size_of::<HeliosEscapeQueryStatsV3>(), 200);
+        assert_eq!(core::mem::size_of::<HeliosEscapeQueryStatsV4>(), 232);
+        assert_eq!(core::mem::size_of::<HeliosEscapeQueryStatsV5>(), 424);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, v4), 0);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, out_p06_diag_version), 232);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_submit_wire_fence), 264);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_register_fence), 288);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_error_fence), 328);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_signal_fence), 360);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_unregister_fence), 384);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_submit_previous_wire_fence), 416);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV4, out_present_streams_live), 200);
     }
 }

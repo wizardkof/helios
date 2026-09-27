@@ -3957,6 +3957,7 @@ impl VirtioGpu {
             return Err((meta, venus, VirtioError::DeviceError));
         }
         let fence_id = self.next_wire_fence;
+        let previous_wire_fence = fence_id.saturating_sub(1);
         let identity = FenceIdentity {
             generation: self.wire_fence_base,
             fence_id,
@@ -3995,6 +3996,7 @@ impl VirtioGpu {
         // is only spent once the device has actually taken the descriptor.
         self.next_wire_fence += 1;
         let ring = cmd.hdr.ring_idx;
+        P06_DIAG.record_submit_assigned(ctx_id, ring, fence_id, previous_wire_fence);
         ASYNC_SUBMIT_COUNT.fetch_add(1, Ordering::Relaxed);
         if ring != 0 {
             RING_SUBMIT_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -4533,6 +4535,7 @@ impl VirtioGpu {
                     let response_ok = resp_is_ok(resp_type);
                     if !response_ok {
                         ASYNC_RESP_ERRORS.fetch_add(1, Ordering::Relaxed);
+                        P06_DIAG.record_async_error_drain(fence_id, resp_type);
                     }
                     let completed_identity = FenceIdentity {
                         generation: self.wire_fence_base,
@@ -4644,6 +4647,7 @@ impl VirtioGpu {
                                 KeSetEvent(e.event.as_ptr(), IO_NO_INCREMENT, 0);
                                 ObDereferenceObjectDeferDelete(e.event.as_ptr() as PVOID);
                             }
+                            P06_DIAG.record_signal(fence_id);
                             FENCE_EVENT_SIGNALS.fetch_add(1, Ordering::Relaxed);
                         } else {
                             j += 1;
@@ -4936,6 +4940,23 @@ impl VirtioGpu {
     /// reference (released by the drain / unregister / teardown). On every
     /// other outcome the caller still owns it and must deref.
     pub fn fence_event_register(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventReg {
+        helios_kmd_logic::observe_result_preserving(
+            self.fence_event_register_inner(fence_id, event),
+            |result| {
+                let (code, response) = match result {
+                    FenceEventReg::Registered => (1, 0),
+                    FenceEventReg::AlreadyComplete => (2, 0),
+                    FenceEventReg::AlreadyError(response) => (3, *response),
+                    FenceEventReg::Invalid => (4, 0),
+                    FenceEventReg::TableFull => (5, 0),
+                    FenceEventReg::Duplicate => (6, 0),
+                };
+                P06_DIAG.record_register(fence_id, code, response);
+            },
+        )
+    }
+
+    fn fence_event_register_inner(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventReg {
         // As in fence_wait_prepare. `Invalid` leaves the object reference with
         // the caller, per the ownership contract documented on this function —
         // including the foreign-generation arm below, which is why it returns
@@ -4983,6 +5004,21 @@ impl VirtioGpu {
     /// the caller (who must deref it); `false` = no such entry (the drain
     /// consumed it — the event was signaled — or it was never parked).
     pub fn fence_event_unregister(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventUnreg {
+        helios_kmd_logic::observe_result_preserving(
+            self.fence_event_unregister_inner(fence_id, event),
+            |result| {
+                let (code, response) = match result {
+                    FenceEventUnreg::Cancelled => (1, 0),
+                    FenceEventUnreg::Success => (2, 0),
+                    FenceEventUnreg::Error(response) => (3, *response),
+                    FenceEventUnreg::NotFound => (4, 0),
+                };
+                P06_DIAG.record_unregister(fence_id, code, response);
+            },
+        )
+    }
+
+    fn fence_event_unregister_inner(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventUnreg {
         if let Some(i) = self
             .fence_events
             .iter()

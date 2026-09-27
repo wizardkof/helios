@@ -23,11 +23,15 @@
 //       Z:\tools\escape_owner_probe.c -I"Z:\icd\win-build\wdk-include" -lgdi32
 #include <windows.h>
 #include <stdio.h>
+#include <stddef.h>
 
 #ifndef _NTDEF_
 typedef LONG NTSTATUS, *PNTSTATUS;
 #endif
 #include <d3dkmthk.h>
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+#endif
 
 /* protocol/src/escape.rs is the AUTHORITY for every opcode below — these are a
  * hand-kept C mirror of it and must be re-checked against it when it changes.
@@ -111,6 +115,29 @@ struct helios_escape_query_stats_v4 {
     UINT out_present_stream_retires, out_present_stream_rejects;
 };
 
+/* V5 append-only P06 diagnostic snapshot. */
+struct helios_escape_query_stats_v5 {
+    struct helios_escape_query_stats_v4 v4;
+    UINT64 out_p06_diag_version;
+    UINT64 submit_assigned_count, last_submit_ctx, last_submit_ring;
+    UINT64 last_submit_wire_fence, last_submit_time;
+    UINT64 event_register_count, last_register_fence, last_register_result;
+    UINT64 last_register_response, last_register_time;
+    UINT64 async_error_drain_count, last_error_fence, last_error_response, last_error_time;
+    UINT64 event_signal_count, last_signal_fence, last_signal_time;
+    UINT64 event_unregister_count, last_unregister_fence, last_unregister_result;
+    UINT64 last_unregister_response, last_unregister_time;
+    UINT64 last_submit_previous_wire_fence;
+};
+_Static_assert(sizeof(struct helios_escape_query_stats) == 88, "QUERY_STATS v1 size");
+_Static_assert(sizeof(struct helios_escape_query_stats_v2) == 152, "QUERY_STATS v2 size");
+_Static_assert(sizeof(struct helios_escape_query_stats_v3) == 200, "QUERY_STATS v3 size");
+_Static_assert(sizeof(struct helios_escape_query_stats_v4) == 232, "QUERY_STATS v4 size");
+_Static_assert(sizeof(struct helios_escape_query_stats_v5) == 424, "QUERY_STATS v5 size");
+_Static_assert(offsetof(struct helios_escape_query_stats_v5, v4) == 0, "V4 prefix offset");
+_Static_assert(offsetof(struct helios_escape_query_stats_v5, out_p06_diag_version) == 232, "V5 discriminator offset");
+_Static_assert(offsetof(struct helios_escape_query_stats_v5, last_submit_previous_wire_fence) == 416, "previous wire fence offset");
+
 /* HeliosEscapeQueryScanout */
 struct helios_escape_query_scanout {
     struct helios_escape_header hdr;
@@ -121,6 +148,7 @@ struct helios_escape_query_scanout {
 };
 
 static D3DKMT_HANDLE g_adapter, g_device_a, g_device_b;
+static LUID g_adapter_luid;
 
 static NTSTATUS escape_on(D3DKMT_HANDLE device, void* buf, UINT size) {
     D3DKMT_ESCAPE esc;
@@ -131,6 +159,20 @@ static NTSTATUS escape_on(D3DKMT_HANDLE device, void* buf, UINT size) {
     esc.pPrivateDriverData = buf;
     esc.PrivateDriverDataSize = size;
     return D3DKMTEscape(&esc);
+}
+
+static int destroy_device(D3DKMT_HANDLE device) {
+    D3DKMT_DESTROYDEVICE dd;
+    memset(&dd, 0, sizeof(dd));
+    dd.hDevice = device;
+    return NT_SUCCESS(D3DKMTDestroyDevice(&dd));
+}
+
+static int close_adapter(D3DKMT_HANDLE adapter) {
+    D3DKMT_CLOSEADAPTER ca;
+    memset(&ca, 0, sizeof(ca));
+    ca.hAdapter = adapter;
+    return NT_SUCCESS(D3DKMTCloseAdapter(&ca));
 }
 
 static void hdr_init(struct helios_escape_header* h, UINT verb, UINT size) {
@@ -145,12 +187,16 @@ static void hdr_init(struct helios_escape_header* h, UINT verb, UINT size) {
 static int open_helios(UINT* out_ctx_a) {
     D3DKMT_ENUMADAPTERS2 ea;
     memset(&ea, 0, sizeof(ea));
-    if (D3DKMTEnumAdapters2(&ea) != 0 || ea.NumAdapters == 0) {
+    if (!NT_SUCCESS(D3DKMTEnumAdapters2(&ea)) || ea.NumAdapters == 0) {
         printf("EnumAdapters2 failed\n");
         return 1;
     }
     ea.pAdapters = (D3DKMT_ADAPTERINFO*)calloc(ea.NumAdapters, sizeof(D3DKMT_ADAPTERINFO));
-    if (D3DKMTEnumAdapters2(&ea) != 0) {
+    if (!ea.pAdapters) {
+        printf("adapter enumeration allocation failed\n");
+        return 1;
+    }
+    if (!NT_SUCCESS(D3DKMTEnumAdapters2(&ea))) {
         printf("EnumAdapters2(2) failed\n");
         return 1;
     }
@@ -159,14 +205,13 @@ static int open_helios(UINT* out_ctx_a) {
         D3DKMT_CREATEDEVICE cd;
         memset(&cd, 0, sizeof(cd));
         cd.hAdapter = h;
-        if (D3DKMTCreateDevice(&cd) != 0) {
-            D3DKMT_CLOSEADAPTER ca;
-            memset(&ca, 0, sizeof(ca));
-            ca.hAdapter = h;
-            D3DKMTCloseAdapter(&ca);
+        const NTSTATUS create_status = D3DKMTCreateDevice(&cd);
+        if (!NT_SUCCESS(create_status)) {
+            close_adapter(h);
             continue;
         }
         g_adapter = h;
+        g_adapter_luid = ea.pAdapters[i].AdapterLuid;
         g_device_a = cd.hDevice;
 
         struct helios_escape_ctx_create cc;
@@ -174,12 +219,12 @@ static int open_helios(UINT* out_ctx_a) {
         hdr_init(&cc.hdr, HELIOS_ESCAPE_CTX_CREATE, sizeof(cc));
         cc.capset_id = VIRTIO_GPU_CAPSET_VENUS;
         NTSTATUS est = escape_on(g_device_a, &cc, sizeof(cc));
-        if (est == 0 && cc.out_ctx_id != 0) {
+        if (NT_SUCCESS(est) && cc.out_ctx_id != 0) {
             *out_ctx_a = cc.out_ctx_id;
             D3DKMT_CREATEDEVICE cd2;
             memset(&cd2, 0, sizeof(cd2));
             cd2.hAdapter = h;
-            if (D3DKMTCreateDevice(&cd2) == 0) {
+            if (NT_SUCCESS(D3DKMTCreateDevice(&cd2))) {
                 g_device_b = cd2.hDevice;
             }
             printf("helios adapter luid=%08x:%08x deviceA=%#x deviceB=%#x ctxA=%u\n",
@@ -189,14 +234,8 @@ static int open_helios(UINT* out_ctx_a) {
             free(ea.pAdapters);
             return 0;
         }
-        D3DKMT_DESTROYDEVICE dd;
-        memset(&dd, 0, sizeof(dd));
-        dd.hDevice = cd.hDevice;
-        D3DKMTDestroyDevice(&dd);
-        D3DKMT_CLOSEADAPTER ca;
-        memset(&ca, 0, sizeof(ca));
-        ca.hAdapter = h;
-        D3DKMTCloseAdapter(&ca);
+        destroy_device(cd.hDevice);
+        close_adapter(h);
         g_adapter = 0;
         g_device_a = 0;
     }
@@ -214,11 +253,11 @@ static int dump_stats(const char* label, struct helios_escape_query_stats* out) 
     memset(&qs, 0, sizeof(qs));
     hdr_init(&qs.hdr, HELIOS_ESCAPE_QUERY_STATS, sizeof(qs));
     NTSTATUS st = escape_on(g_device_a, &qs, sizeof(qs));
-    if (st != 0) {
+    if (!NT_SUCCESS(st)) {
         printf("[%s] QUERY_STATS st=0x%08x\n", label, (unsigned)st);
         return 1;
     }
-    if (st4 == 0 && v4.out_present_streams_cap != 0) {
+    if (NT_SUCCESS(st4) && v4.out_present_streams_cap != 0) {
         printf("[%s] V3 escape_refusals: bad_header=%u unknown_verb=%u short_buffer=%u "
                "device_gone=%u no_device=%u foreign_ctx=%u | ctrl_resp_errors=%u "
                "ddi_unmaps=%u | hal: dma_fails=%u mmio_fails=%u cache_full=%u | "
@@ -257,16 +296,184 @@ static int dump_stats(const char* label, struct helios_escape_query_stats* out) 
     return 0;
 }
 
+static int dump_stats_v5(const char* label) {
+    struct helios_escape_query_stats_v5 v5;
+    memset(&v5, 0xA5, sizeof(v5));
+    hdr_init(&v5.v4.v3.v2.v1.hdr, HELIOS_ESCAPE_QUERY_STATS, sizeof(v5));
+    NTSTATUS st = escape_on(g_device_a, &v5, sizeof(v5));
+    const struct helios_escape_query_stats_v4 *v4 = &v5.v4;
+    FILETIME ft;
+    LARGE_INTEGER qpc;
+    GetSystemTimePreciseAsFileTime(&ft);
+    QueryPerformanceCounter(&qpc);
+    const ULONGLONG utc_filetime = ((ULONGLONG)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+    printf("utc_filetime=%llu qpc=%lld pid=%lu tid=%lu luid=%08x:%08x device=%#x [%s] QUERY_STATS_V5 raw=0x%08x nt_success=%u cap=%u diag_version=%llu "
+           "submit_count=%llu last_submit_fence=%llu register_count=%llu "
+           "last_submit_previous_fence=%llu register_fence=%llu register_result=%llu register_response=%llu "
+           "error_drain_count=%llu error_fence=%llu error_response=%llu signal_count=%llu signal_fence=%llu "
+           "unregister_count=%llu unregister_fence=%llu unregister_result=%llu unregister_response=%llu\n",
+           (unsigned long long)utc_filetime, (long long)qpc.QuadPart,
+           (unsigned long)GetCurrentProcessId(), (unsigned long)GetCurrentThreadId(),
+           (unsigned)g_adapter_luid.HighPart,
+           (unsigned)g_adapter_luid.LowPart, (unsigned)g_device_a,
+           label, (unsigned)st, NT_SUCCESS(st), v4->out_present_streams_cap,
+           (unsigned long long)v5.out_p06_diag_version,
+           (unsigned long long)v5.submit_assigned_count,
+           (unsigned long long)v5.last_submit_wire_fence,
+           (unsigned long long)v5.event_register_count,
+           (unsigned long long)v5.last_submit_previous_wire_fence,
+           (unsigned long long)v5.last_register_fence,
+           (unsigned long long)v5.last_register_result,
+           (unsigned long long)v5.last_register_response,
+           (unsigned long long)v5.async_error_drain_count,
+           (unsigned long long)v5.last_error_fence,
+           (unsigned long long)v5.last_error_response,
+           (unsigned long long)v5.event_signal_count,
+           (unsigned long long)v5.last_signal_fence,
+           (unsigned long long)v5.event_unregister_count,
+           (unsigned long long)v5.last_unregister_fence,
+           (unsigned long long)v5.last_unregister_result,
+           (unsigned long long)v5.last_unregister_response);
+    return !NT_SUCCESS(st) || v4->out_present_streams_cap != 64 ||
+           v5.out_p06_diag_version != 1;
+}
+
+static int dump_stats_v5_monitor(UINT interval_ms, UINT duration_ms) {
+    if (!interval_ms || duration_ms % interval_ms)
+        return 1;
+    const UINT sample_count = duration_ms / interval_ms + 1;
+    int failed = 0;
+    for (UINT sample = 0; sample < sample_count; sample++) {
+        char label[32];
+        snprintf(label, sizeof(label), "monitor-%u", sample);
+        failed |= dump_stats_v5(label);
+        if (sample + 1 != sample_count)
+            Sleep(interval_ms);
+    }
+    return failed;
+}
+
+static int v5_query_supported(D3DKMT_HANDLE device) {
+    struct helios_escape_query_stats_v5 v5;
+    memset(&v5, 0xA5, sizeof(v5));
+    hdr_init(&v5.v4.v3.v2.v1.hdr, HELIOS_ESCAPE_QUERY_STATS, sizeof(v5));
+    const NTSTATUS status = escape_on(device, &v5, sizeof(v5));
+    const int supported = NT_SUCCESS(status) &&
+                          v5.v4.out_present_streams_cap == 64 &&
+                          v5.out_p06_diag_version == 1;
+    printf("adapter_candidate v5_raw=0x%08x nt_success=%u cap=%u diag_version=%llu supported=%u\n",
+           (unsigned)status, NT_SUCCESS(status),
+           v5.v4.out_present_streams_cap,
+           (unsigned long long)v5.out_p06_diag_version, supported);
+    return supported;
+}
+
+static int v5_reader_open(LUID *luid, D3DKMT_HANDLE *adapter,
+                          D3DKMT_HANDLE *device) {
+    D3DKMT_ENUMADAPTERS2 ea;
+    memset(&ea, 0, sizeof(ea));
+    NTSTATUS status = D3DKMTEnumAdapters2(&ea);
+    printf("enum_adapters_count raw=0x%08x nt_success=%u count=%u\n",
+           (unsigned)status, NT_SUCCESS(status), (unsigned)ea.NumAdapters);
+    if (!NT_SUCCESS(status) || !ea.NumAdapters)
+        return 1;
+    const UINT capacity = ea.NumAdapters;
+    D3DKMT_ADAPTERINFO *items = calloc(capacity, sizeof(*items));
+    if (!items)
+        return 1;
+    ea.pAdapters = items;
+    status = D3DKMTEnumAdapters2(&ea);
+    printf("enum_adapters_data raw=0x%08x nt_success=%u count=%u\n",
+           (unsigned)status, NT_SUCCESS(status), (unsigned)ea.NumAdapters);
+    if (!NT_SUCCESS(status)) {
+        free(items);
+        return 1;
+    }
+    int found = 0;
+    for (UINT i = 0; i < ea.NumAdapters; i++) {
+        D3DKMT_CREATEDEVICE create;
+        memset(&create, 0, sizeof(create));
+        create.hAdapter = items[i].hAdapter;
+        const NTSTATUS status = D3DKMTCreateDevice(&create);
+        printf("adapter_candidate luid=%08x:%08x create_raw=0x%08x nt_success=%u device=%#x\n",
+               (unsigned)items[i].AdapterLuid.HighPart,
+               (unsigned)items[i].AdapterLuid.LowPart, (unsigned)status,
+               NT_SUCCESS(status), (unsigned)create.hDevice);
+        if (!NT_SUCCESS(status)) {
+            D3DKMT_CLOSEADAPTER close;
+            memset(&close, 0, sizeof(close));
+            close.hAdapter = items[i].hAdapter;
+            (void)D3DKMTCloseAdapter(&close);
+            continue;
+        }
+        if (!v5_query_supported(create.hDevice)) {
+            D3DKMT_DESTROYDEVICE destroy;
+            memset(&destroy, 0, sizeof(destroy));
+            destroy.hDevice = create.hDevice;
+            const NTSTATUS dst = D3DKMTDestroyDevice(&destroy);
+            D3DKMT_CLOSEADAPTER close;
+            memset(&close, 0, sizeof(close));
+            close.hAdapter = items[i].hAdapter;
+            const NTSTATUS cst = D3DKMTCloseAdapter(&close);
+            printf("adapter_candidate rejected destroy_raw=0x%08x nt_success=%u close_raw=0x%08x nt_success=%u\n",
+                   (unsigned)dst, NT_SUCCESS(dst), (unsigned)cst, NT_SUCCESS(cst));
+            continue;
+        }
+        *adapter = items[i].hAdapter;
+        *device = create.hDevice;
+        *luid = items[i].AdapterLuid;
+        found = 1;
+        break;
+    }
+    free(items);
+    return !found;
+}
+
+static int v5_reader_close(D3DKMT_HANDLE adapter, D3DKMT_HANDLE device) {
+    D3DKMT_DESTROYDEVICE destroy;
+    memset(&destroy, 0, sizeof(destroy));
+    destroy.hDevice = device;
+    const NTSTATUS dst = D3DKMTDestroyDevice(&destroy);
+    D3DKMT_CLOSEADAPTER close;
+    memset(&close, 0, sizeof(close));
+    close.hAdapter = adapter;
+    const NTSTATUS cst = D3DKMTCloseAdapter(&close);
+    printf("teardown destroy_raw=0x%08x destroy_nt_success=%u close_raw=0x%08x close_nt_success=%u\n",
+           (unsigned)dst, NT_SUCCESS(dst), (unsigned)cst, NT_SUCCESS(cst));
+    return !NT_SUCCESS(dst) || !NT_SUCCESS(cst);
+}
+
+static int run_v5_reader(int monitor, UINT interval_ms, UINT duration_ms) {
+    LUID luid;
+    D3DKMT_HANDLE adapter = 0, device = 0;
+    if (v5_reader_open(&luid, &adapter, &device))
+        return 1;
+    g_adapter = adapter;
+    g_adapter_luid = luid;
+    g_device_a = device;
+    int failed = monitor ? dump_stats_v5_monitor(interval_ms, duration_ms)
+                         : dump_stats_v5("once");
+    failed |= v5_reader_close(adapter, device);
+    return failed;
+}
+
 static int query_scanout(struct helios_escape_query_scanout* qs) {
     memset(qs, 0, sizeof(*qs));
     hdr_init(&qs->hdr, HELIOS_ESCAPE_QUERY_SCANOUT, sizeof(*qs));
     NTSTATUS st = escape_on(g_device_a, qs, sizeof(*qs));
     printf("QUERY_SCANOUT st=0x%08x resid=%u %ux%u pitch=%u gen=%u\n", (unsigned)st,
            qs->out_resource_id, qs->out_width, qs->out_height, qs->out_pitch, qs->out_generation);
-    return st != 0;
+    return !NT_SUCCESS(st);
 }
 
 int main(int argc, char** argv) {
+    if (argc > 1 && strcmp(argv[1], "--v5-once") == 0)
+        return run_v5_reader(0, 0, 0);
+    if (argc > 1 && strcmp(argv[1], "--v5-monitor") == 0) {
+        const UINT interval = argc > 2 ? (UINT)strtoul(argv[2], NULL, 10) : 100;
+        const UINT duration = argc > 3 ? (UINT)strtoul(argv[3], NULL, 10) : 2000;
+        return run_v5_reader(1, interval, duration);
+    }
     int destructive = (argc > 1 && strcmp(argv[1], "--attack") == 0);
     /* Optional explicit victim resource id for test 4. QUERY_SCANOUT only
        reports the KMD-owned LINEAR direct primary, which may not be published;
@@ -360,21 +567,12 @@ int main(int argc, char** argv) {
     cd.ctx_id = ctx_a;
     st = escape_on(g_device_a, &cd, sizeof(cd));
     printf("own CTX_DESTROY        st=0x%08x %s\n", (unsigned)st,
-           st == 0 ? "(PASS: owner keeps its rights)" : "(FAIL: owner-scoping is too strict)");
+           NT_SUCCESS(st) ? "(PASS: owner keeps its rights)" : "(FAIL: owner-scoping is too strict)");
 
     if (g_device_b) {
-        D3DKMT_DESTROYDEVICE dd;
-        memset(&dd, 0, sizeof(dd));
-        dd.hDevice = g_device_b;
-        D3DKMTDestroyDevice(&dd);
+        destroy_device(g_device_b);
     }
-    D3DKMT_DESTROYDEVICE dd;
-    memset(&dd, 0, sizeof(dd));
-    dd.hDevice = g_device_a;
-    D3DKMTDestroyDevice(&dd);
-    D3DKMT_CLOSEADAPTER ca;
-    memset(&ca, 0, sizeof(ca));
-    ca.hAdapter = g_adapter;
-    D3DKMTCloseAdapter(&ca);
+    destroy_device(g_device_a);
+    close_adapter(g_adapter);
     return 0;
 }
