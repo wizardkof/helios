@@ -97,10 +97,12 @@ pub const HELIOS_P06_SECTION_STATUS_STALE_GENERATION: u32 = 2;
 pub const HELIOS_P06_SECTION_STATUS_INVALID_STATE: u32 = 3;
 pub const HELIOS_P06_SECTION_STATUS_FAILURE: u32 = 4;
 pub const HELIOS_P06_SECTION_NAME_CAP: usize = 128;
+pub const HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED: u32 = 1;
 pub const HELIOS_P06_SECTION_MAGIC: u64 = 0x5046_3653_4543_544e;
 pub const HELIOS_P06_SECTION_VERSION: u32 = 1;
 
-/// Diagnostic request/reply; the name bootstraps the first OpenFileMappingW.
+/// Diagnostic request/reply; returned names identify the exact Win32 and
+/// Object Manager names used for the read-only user bootstrap and ZwCreateSection.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct HeliosEscapeP06SectionCarrier {
@@ -113,6 +115,10 @@ pub struct HeliosEscapeP06SectionCarrier {
     pub sequence: u64,
     pub test_value: u64,
     pub object_name: [u16; HELIOS_P06_SECTION_NAME_CAP],
+    pub native_name: [u16; HELIOS_P06_SECTION_NAME_CAP],
+    /// HELIOS_P06_SECTION_LEASE_* bits; never contains the handle value.
+    pub lease_flags: u32,
+    pub reserved_tail: u32,
 }
 
 /// Read-only state carried by the diagnostic section.
@@ -130,9 +136,11 @@ pub struct HeliosP06SectionRecord {
 }
 
 const _: () = {
-    assert!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>() == 312);
+    assert!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>() == 576);
     assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, sequence) == 40);
     assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, object_name) == 56);
+    assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, native_name) == 312);
+    assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, lease_flags) == 568);
     assert!(core::mem::size_of::<HeliosP06SectionRecord>() == 48);
     assert!(core::mem::offset_of!(HeliosP06SectionRecord, sequence) == 32);
 };
@@ -979,9 +987,11 @@ mod p06_section_carrier_abi_tests {
     #[test]
     fn section_carrier_abi_layout_is_fixed() {
         assert_eq!(HELIOS_ESCAPE_P06_SECTION_CARRIER, 0x0017);
-        assert_eq!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>(), 312);
+        assert_eq!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>(), 576);
         assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, sequence), 40);
         assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, object_name), 56);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, native_name), 312);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, lease_flags), 568);
         assert_eq!(core::mem::size_of::<HeliosP06SectionRecord>(), 48);
         assert_eq!(core::mem::offset_of!(HeliosP06SectionRecord, sequence), 32);
     }

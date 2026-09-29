@@ -7,7 +7,7 @@
 use core::ptr;
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
-use helios_kmd_logic::section_carrier::{self, Slot, State};
+use helios_kmd_logic::section_carrier::{self, BackingResources, Slot, State};
 use helios_protocol::{
     HeliosP06SectionRecord, HELIOS_P06_SECTION_MAGIC, HELIOS_P06_SECTION_VERSION,
 };
@@ -17,6 +17,7 @@ use wdk_sys::{HANDLE, NTSTATUS, PVOID};
 use super::AdapterContext;
 
 pub(crate) const MAX_SLOTS: usize = section_carrier::MAX_PROBES;
+const MAX_ORPHAN_RESERVATIONS: usize = MAX_SLOTS * 2;
 const OBJ_CASE_INSENSITIVE: u32 = 0x40;
 const OBJ_KERNEL_HANDLE: u32 = 0x200;
 const PAGE_READWRITE: u32 = 0x04;
@@ -35,6 +36,30 @@ const SID_AND_ATTRIBUTES_MAX: usize = 68;
 
 static NEXT_PROBE_ID: AtomicU32 = AtomicU32::new(1);
 static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
+#[derive(Clone, Copy)]
+struct OrphanEntry {
+    reserved: bool,
+    resources: BackingResources,
+}
+
+struct OrphanRegistry {
+    lock: AtomicU32,
+    entries: core::cell::UnsafeCell<[OrphanEntry; MAX_ORPHAN_RESERVATIONS]>,
+}
+
+// SAFETY: access to entries is serialized by lock; lock holders only copy or
+// update fixed-size values and never invoke WDK or Object Manager routines.
+unsafe impl Sync for OrphanRegistry {}
+
+static ORPHAN_REGISTRY: OrphanRegistry = OrphanRegistry {
+    lock: AtomicU32::new(0),
+    entries: core::cell::UnsafeCell::new(
+        [OrphanEntry {
+            reserved: false,
+            resources: BackingResources::EMPTY,
+        }; MAX_ORPHAN_RESERVATIONS],
+    ),
+};
 
 fn diagnostic_result(status: NTSTATUS) -> u32 {
     use helios_protocol::*;
@@ -54,19 +79,19 @@ fn diagnostic_result(status: NTSTATUS) -> u32 {
 #[derive(Clone, Copy)]
 pub(crate) struct SectionSlot {
     logic: Slot,
-    object: usize,
-    system_view: usize,
     name: [u16; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
+    native_name: [u16; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
     size: usize,
+    orphan_reservation: usize,
 }
 
 impl SectionSlot {
     pub(crate) const EMPTY: Self = Self {
         logic: Slot::EMPTY,
-        object: 0,
-        system_view: 0,
         name: [0; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
+        native_name: [0; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
         size: 0,
+        orphan_reservation: usize::MAX,
     };
 }
 
@@ -201,6 +226,121 @@ fn slot_status(error: section_carrier::SlotError) -> NTSTATUS {
         section_carrier::SlotError::StaleGeneration => wdk_sys::STATUS_REVISION_MISMATCH,
         section_carrier::SlotError::InvalidState => wdk_sys::STATUS_INVALID_DEVICE_STATE,
         section_carrier::SlotError::NonMonotonicSequence => wdk_sys::STATUS_INVALID_PARAMETER,
+        section_carrier::SlotError::ResourcesIncomplete
+        | section_carrier::SlotError::ResourcesRemain => wdk_sys::STATUS_INVALID_DEVICE_STATE,
+    }
+}
+
+struct OrphanLock;
+
+impl OrphanLock {
+    fn acquire() -> Self {
+        // This lock is used only from PASSIVE_LEVEL escape/teardown paths and
+        // protects a fixed-size copy/update; no WDK call is made while held.
+        while ORPHAN_REGISTRY
+            .lock
+            .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            core::hint::spin_loop();
+        }
+        Self
+    }
+}
+
+impl Drop for OrphanLock {
+    fn drop(&mut self) {
+        ORPHAN_REGISTRY.lock.store(0, Ordering::Release);
+    }
+}
+
+fn reserve_orphan_slot() -> Option<usize> {
+    let _guard = OrphanLock::acquire();
+    // SAFETY: the registry lock provides exclusive access to this fixed table.
+    let entries = unsafe { &mut *ORPHAN_REGISTRY.entries.get() };
+    let index = entries.iter().position(|entry| !entry.reserved)?;
+    entries[index] = OrphanEntry {
+        reserved: true,
+        resources: BackingResources::EMPTY,
+    };
+    Some(index)
+}
+
+fn store_orphan(index: usize, resources: BackingResources) {
+    let _guard = OrphanLock::acquire();
+    // SAFETY: the registry lock provides exclusive access to this fixed table.
+    let entries = unsafe { &mut *ORPHAN_REGISTRY.entries.get() };
+    if let Some(entry) = entries.get_mut(index).filter(|entry| entry.reserved) {
+        entry.resources = resources;
+    }
+}
+
+fn free_orphan_reservation(index: usize) {
+    if index == usize::MAX {
+        return;
+    }
+    let _guard = OrphanLock::acquire();
+    // SAFETY: the registry lock provides exclusive access to this fixed table.
+    let entries = unsafe { &mut *ORPHAN_REGISTRY.entries.get() };
+    if let Some(entry) = entries.get_mut(index) {
+        *entry = OrphanEntry {
+            reserved: false,
+            resources: BackingResources::EMPTY,
+        };
+    }
+}
+
+fn cleanup_backing_resources(resources: &mut BackingResources) -> NTSTATUS {
+    if resources.system_view != 0 {
+        // SAFETY: the lease owns this exact system-space view until unmap succeeds.
+        let status =
+            unsafe { wdk_sys::ntddk::MmUnmapViewInSystemSpace(resources.system_view as PVOID) };
+        if status < 0 {
+            return status;
+        }
+        resources.system_view = 0;
+    }
+    if resources.kernel_handle != 0 {
+        // SAFETY: the lease owns this kernel handle until ZwClose succeeds.
+        let status = unsafe { wdk_sys::ntddk::ZwClose(resources.kernel_handle as HANDLE) };
+        if status < 0 {
+            return status;
+        }
+        resources.kernel_handle = 0;
+    }
+    if resources.object != 0 {
+        // SAFETY: the object reference was acquired for this lease and is
+        // dereferenced only after its owned view and kernel handle are gone.
+        unsafe { wdk_sys::ntddk::ObfDereferenceObject(resources.object as PVOID) };
+        resources.object = 0;
+    }
+    wdk_sys::STATUS_SUCCESS
+}
+
+fn retry_orphans() {
+    for index in 0..MAX_ORPHAN_RESERVATIONS {
+        let resources = {
+            let _guard = OrphanLock::acquire();
+            // SAFETY: the registry lock provides exclusive access to this table.
+            let entries = unsafe { &mut *ORPHAN_REGISTRY.entries.get() };
+            let Some(entry) = entries.get_mut(index) else {
+                continue;
+            };
+            if !entry.reserved || entry.resources.is_empty() {
+                continue;
+            }
+            let resources = entry.resources;
+            entry.resources = BackingResources::EMPTY;
+            resources
+        };
+        let mut remaining = resources;
+        let status = cleanup_backing_resources(&mut remaining);
+        if status < 0 {
+            store_orphan(index, remaining);
+            unsafe { crate::diag::record_named_bytes(b"P06Orp", status as u32) };
+        } else {
+            free_orphan_reservation(index);
+        }
     }
 }
 
@@ -209,27 +349,49 @@ fn discard_creating(
     index: usize,
     lease: section_carrier::Lease,
     cause: NTSTATUS,
+    request: &mut helios_protocol::HeliosEscapeP06SectionCarrier,
 ) -> NTSTATUS {
     match with_slots(adapter, |slots| {
-        if slots
-            .get(index)
-            .is_some_and(|slot| slot.logic.state == State::Creating)
-        {
-            section_carrier::fail_create_slot(&mut slots[index].logic, lease)
-                .map_err(slot_status)?;
-            slots[index].object = 0;
-            slots[index].system_view = 0;
-            slots[index].name = [0; helios_protocol::HELIOS_P06_SECTION_NAME_CAP];
-            slots[index].size = 0;
-            Ok(true)
-        } else {
-            Ok(false)
+        let Some(slot) = slots.get_mut(index) else {
+            return Ok(false);
+        };
+        if slot.logic.state != State::Creating && slot.logic.state != State::Releasing {
+            return Ok(false);
         }
+        request.lease_flags = if slot.logic.resources.kernel_handle != 0 {
+            helios_protocol::HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
+        } else {
+            0
+        };
+        let cleanup_status = cleanup_backing_resources(&mut slot.logic.resources);
+        request.lease_flags = if slot.logic.resources.kernel_handle != 0 {
+            helios_protocol::HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
+        } else {
+            0
+        };
+        if cleanup_status < 0 {
+            if slot.logic.state == State::Creating {
+                let resources = slot.logic.resources;
+                section_carrier::retain_failed_create_slot(&mut slot.logic, lease, resources)
+                    .map_err(slot_status)?;
+            }
+            unsafe { crate::diag::record_named_bytes(b"P06Cln", cleanup_status as u32) };
+            return Ok(false);
+        }
+        if slot.logic.state == State::Creating {
+            section_carrier::fail_create_slot(&mut slot.logic, lease).map_err(slot_status)?;
+        } else {
+            section_carrier::finish_release_slot(&mut slot.logic, lease).map_err(slot_status)?;
+        }
+        let reservation = slot.orphan_reservation;
+        *slot = SectionSlot::EMPTY;
+        free_orphan_reservation(reservation);
+        Ok(true)
     }) {
         Ok(Ok(true)) => cause,
         Ok(Ok(false)) => {
             unsafe { crate::diag::record_named_bytes(b"P06Cln", cause as u32) };
-            wdk_sys::STATUS_INVALID_DEVICE_STATE
+            cause
         }
         Ok(Err(cleanup_status)) | Err(cleanup_status) => {
             unsafe { crate::diag::record_named_bytes(b"P06Cln", cleanup_status as u32) };
@@ -311,12 +473,12 @@ fn create_security_descriptor(
 fn create_backing_section(
     native_name: &[u16],
     requestor_sid: PVOID,
-) -> Result<(PVOID, PVOID), (u64, NTSTATUS)> {
+) -> Result<BackingResources, (u64, NTSTATUS, BackingResources)> {
     let Some(native_len) = native_name.iter().position(|unit| *unit == 0) else {
-        return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL));
+        return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL, BackingResources::EMPTY));
     };
     if native_len == 0 {
-        return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL));
+        return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL, BackingResources::EMPTY));
     }
     let mut unicode: wdk_sys::UNICODE_STRING = unsafe { core::mem::zeroed() };
     unsafe { wdk_sys::ntddk::RtlInitUnicodeString(&mut unicode, native_name.as_ptr()) };
@@ -328,7 +490,7 @@ fn create_backing_section(
     let mut acl = [0u64; 32];
     let status = create_security_descriptor(&mut sd, &mut acl, requestor_sid);
     if status < 0 {
-        return Err((1, status));
+        return Err((1, status, BackingResources::EMPTY));
     }
     attributes.SecurityDescriptor = &mut sd as *mut _ as PVOID;
     let mut maximum_size: wdk_sys::LARGE_INTEGER = unsafe { core::mem::zeroed() };
@@ -346,15 +508,19 @@ fn create_backing_section(
         )
     };
     if status < 0 {
-        if !handle.is_null() {
-            let close_status = unsafe { wdk_sys::ntddk::ZwClose(handle) };
-            if close_status < 0 {
-                unsafe { crate::diag::record_named_bytes(b"P06Hnd", close_status as u32) };
-                return Err((2, close_status));
-            }
-        }
-        return Err((2, status));
+        return Err((
+            2,
+            status,
+            BackingResources {
+                kernel_handle: handle as usize,
+                ..BackingResources::EMPTY
+            },
+        ));
     }
+    let mut resources = BackingResources {
+        kernel_handle: handle as usize,
+        ..BackingResources::EMPTY
+    };
     let mut object: PVOID = ptr::null_mut();
     let status = unsafe {
         wdk_sys::ntddk::ObReferenceObjectByHandle(
@@ -366,20 +532,8 @@ fn create_backing_section(
             ptr::null_mut(),
         )
     };
-    let close_status = unsafe { wdk_sys::ntddk::ZwClose(handle) };
-    if close_status < 0 {
-        unsafe { crate::diag::record_named_bytes(b"P06Hnd", close_status as u32) };
-        if !object.is_null() {
-            unsafe { wdk_sys::ntddk::ObfDereferenceObject(object) };
-        }
-        return Err((3, close_status));
-    }
+    resources.object = object as usize;
     if status < 0 || object.is_null() {
-        // A successful reference should always return an object pointer; if a
-        // malformed kernel response supplied one with failure, release it.
-        if !object.is_null() {
-            unsafe { wdk_sys::ntddk::ObfDereferenceObject(object) };
-        }
         return Err((
             3,
             if status < 0 {
@@ -387,6 +541,7 @@ fn create_backing_section(
             } else {
                 wdk_sys::STATUS_INVALID_HANDLE
             },
+            resources,
         ));
     }
     let mut base: PVOID = ptr::null_mut();
@@ -397,17 +552,7 @@ fn create_backing_section(
         || base.is_null()
         || view_size < core::mem::size_of::<HeliosP06SectionRecord>() as u64
     {
-        let mut retain_object_reference = false;
-        if !base.is_null() {
-            let unmap_status = unsafe { wdk_sys::ntddk::MmUnmapViewInSystemSpace(base) };
-            if unmap_status < 0 {
-                unsafe { crate::diag::record_named_bytes(b"P06Unm", unmap_status as u32) };
-                retain_object_reference = true;
-            }
-        }
-        if !retain_object_reference {
-            unsafe { wdk_sys::ntddk::ObfDereferenceObject(object) };
-        }
+        resources.system_view = base as usize;
         return Err((
             4,
             if status < 0 {
@@ -417,12 +562,11 @@ fn create_backing_section(
             } else {
                 wdk_sys::STATUS_BUFFER_TOO_SMALL
             },
+            resources,
         ));
     }
-    // The kernel handle itself is never returned. The name is the temporary
-    // user-mode bootstrap; the retained object reference keeps the named
-    // section alive until RELEASE even after ZwClose.
-    Ok((object, base))
+    resources.system_view = base as usize;
+    Ok(resources)
 }
 
 fn record_at(view: usize) -> *mut HeliosP06SectionRecord {
@@ -488,6 +632,7 @@ fn create(
     adapter: &AdapterContext,
     request: &mut helios_protocol::HeliosEscapeP06SectionCarrier,
 ) -> NTSTATUS {
+    retry_orphans();
     let Some(probe_id) = next_nonwrapping_id() else {
         return wdk_sys::STATUS_INSUFFICIENT_RESOURCES;
     };
@@ -496,12 +641,18 @@ fn create(
     };
     let Some(names) = helios_kmd_logic::section_names::make::<
         { helios_protocol::HELIOS_P06_SECTION_NAME_CAP },
-    >(probe_id, generation)
-    else {
+    >(probe_id, generation) else {
         return wdk_sys::STATUS_BUFFER_TOO_SMALL;
     };
     request.object_name = names.win32_name;
-    let name_len = names.win32_name_len;
+    request.native_name = names.native_name;
+    request.lease_flags = 0;
+    request.probe_id = probe_id;
+    request.generation = generation;
+    let orphan_reservation = match reserve_orphan_slot() {
+        Some(reservation) => reservation,
+        None => return wdk_sys::STATUS_INSUFFICIENT_RESOURCES,
+    };
     let reserved = match with_slots(adapter, |slots| {
         let Some(index) = slots
             .iter()
@@ -518,17 +669,28 @@ fn create(
             return Some(Err(error));
         }
         request.slot_index = index as u32;
+        slots[index].name = names.win32_name;
+        slots[index].native_name = names.native_name;
+        slots[index].size = 4096;
+        slots[index].orphan_reservation = orphan_reservation;
         Some(Ok(index))
     }) {
         Ok(reserved) => reserved,
-        Err(status) => return status,
+        Err(status) => {
+            free_orphan_reservation(orphan_reservation);
+            return status;
+        }
     };
     let Some(index) = reserved else {
+        free_orphan_reservation(orphan_reservation);
         return wdk_sys::STATUS_INSUFFICIENT_RESOURCES;
     };
     let index = match index {
         Ok(index) => index,
-        Err(error) => return slot_status(error),
+        Err(error) => {
+            free_orphan_reservation(orphan_reservation);
+            return slot_status(error);
+        }
     };
     let lease = section_carrier::Lease {
         index,
@@ -538,26 +700,30 @@ fn create(
     let mut requestor_sid = [0u64; 9];
     if let Err((stage, status)) = capture_requestor_sid(&mut requestor_sid) {
         request.sequence = stage;
-        return discard_creating(adapter, index, lease, status);
+        return discard_creating(adapter, index, lease, status, request);
     }
-    let (object, view) = match create_backing_section(
-        &names.native_name,
-        requestor_sid.as_mut_ptr() as PVOID,
-    ) {
-        Ok(pair) => pair,
-        Err((stage, status)) => {
-            request.sequence = stage;
-            return discard_creating(adapter, index, lease, status);
-        }
-    };
+    let resources =
+        match create_backing_section(&names.native_name, requestor_sid.as_mut_ptr() as PVOID) {
+            Ok(resources) => resources,
+            Err((stage, status, resources)) => {
+                request.sequence = stage;
+                request.lease_flags = if resources.kernel_handle != 0 {
+                    HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
+                } else {
+                    0
+                };
+                let _ = with_slots(adapter, |slots| {
+                    slots[index].logic.resources = resources;
+                });
+                return discard_creating(adapter, index, lease, status, request);
+            }
+        };
+    let view = resources.system_view as PVOID;
     write_record(view as usize, probe_id, generation, 0, request.test_value);
     let committed = with_slots(adapter, |slots| {
         let slot = &mut slots[index];
+        slot.logic.resources = resources;
         section_carrier::acquire_live_slot(&mut slot.logic, lease).map_err(slot_status)?;
-        slot.object = object as usize;
-        slot.system_view = view as usize;
-        slot.name = request.object_name;
-        slot.size = 4096;
         Ok(())
     });
     let commit_status = match committed {
@@ -565,16 +731,10 @@ fn create(
         Ok(Err(status)) | Err(status) => status,
     };
     if commit_status < 0 {
-        let unmap_status = unsafe { wdk_sys::ntddk::MmUnmapViewInSystemSpace(view) };
-        if unmap_status < 0 {
-            unsafe { crate::diag::record_named_bytes(b"P06Unm", unmap_status as u32) };
-        } else {
-            unsafe { wdk_sys::ntddk::ObfDereferenceObject(object) };
-        }
-        return discard_creating(adapter, index, lease, commit_status);
+        let _ = with_slots(adapter, |slots| slots[index].logic.resources = resources);
+        return discard_creating(adapter, index, lease, commit_status, request);
     }
-    request.probe_id = probe_id;
-    request.generation = generation;
+    request.lease_flags = HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED;
     request.sequence = 5;
     request.test_value = 4096;
     wdk_sys::STATUS_SUCCESS
@@ -611,7 +771,7 @@ fn publish(
         )
         .map_err(slot_status)?;
         write_record(
-            slots[index].system_view,
+            slots[index].logic.resources.system_view,
             request.probe_id,
             request.generation,
             request.sequence,
@@ -653,6 +813,12 @@ fn query(
         request.sequence = state.sequence;
         request.test_value = slots[index].size as u64;
         request.object_name = slots[index].name;
+        request.native_name = slots[index].native_name;
+        request.lease_flags = if slots[index].logic.resources.kernel_handle != 0 {
+            HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
+        } else {
+            0
+        };
         Ok(())
     }) {
         Ok(Ok(())) => wdk_sys::STATUS_SUCCESS,
@@ -685,18 +851,16 @@ fn release(
             generation: request.generation,
         };
         section_carrier::begin_release_slot(&mut slots[index].logic, lease).map_err(slot_status)?;
-        let unmap_status =
-            unsafe { wdk_sys::ntddk::MmUnmapViewInSystemSpace(slots[index].system_view as PVOID) };
-        if unmap_status < 0 {
-            if let Err(error) = section_carrier::restore_live_slot(&mut slots[index].logic, lease) {
-                unsafe { crate::diag::record_named_bytes(b"P06Rel", slot_status(error) as u32) };
-            }
-            return Err(unmap_status);
+        let cleanup_status = cleanup_backing_resources(&mut slots[index].logic.resources);
+        if cleanup_status < 0 {
+            unsafe { crate::diag::record_named_bytes(b"P06Rel", cleanup_status as u32) };
+            return Err(cleanup_status);
         }
-        unsafe { wdk_sys::ntddk::ObfDereferenceObject(slots[index].object as PVOID) };
         section_carrier::finish_release_slot(&mut slots[index].logic, lease)
             .map_err(slot_status)?;
+        let reservation = slots[index].orphan_reservation;
         slots[index] = SectionSlot::EMPTY;
+        free_orphan_reservation(reservation);
         Ok(())
     }) {
         Ok(Ok(())) => wdk_sys::STATUS_SUCCESS,
@@ -706,27 +870,22 @@ fn release(
 }
 
 pub(crate) unsafe fn release_all(adapter: &AdapterContext) {
-    let removed = match with_slots(adapter, |slots| {
-        let old = *slots;
-        *slots = [SectionSlot::EMPTY; MAX_SLOTS];
-        old
-    }) {
-        Ok(removed) => removed,
-        Err(status) => {
-            unsafe { crate::diag::record_named_bytes(b"P06Cln", status as u32) };
-            return;
-        }
-    };
-    for slot in removed {
-        if slot.logic.state == State::Live || slot.logic.state == State::Releasing {
-            let status =
-                unsafe { wdk_sys::ntddk::MmUnmapViewInSystemSpace(slot.system_view as PVOID) };
-            if status < 0 {
-                // Preserve the reference if a failed unmap may leave the view.
-                unsafe { crate::diag::record_named_bytes(b"P06Unm", status as u32) };
-            } else {
-                unsafe { wdk_sys::ntddk::ObfDereferenceObject(slot.object as PVOID) };
+    let status = with_slots(adapter, |slots| {
+        for slot in slots.iter_mut() {
+            if slot.logic.state == State::Free {
+                continue;
             }
+            let cleanup_status = cleanup_backing_resources(&mut slot.logic.resources);
+            if cleanup_status < 0 {
+                store_orphan(slot.orphan_reservation, slot.logic.resources);
+                unsafe { crate::diag::record_named_bytes(b"P06Cln", cleanup_status as u32) };
+            } else {
+                free_orphan_reservation(slot.orphan_reservation);
+            }
+            *slot = SectionSlot::EMPTY;
         }
+    });
+    if let Err(status) = status {
+        unsafe { crate::diag::record_named_bytes(b"P06Cln", status as u32) };
     }
 }

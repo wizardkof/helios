@@ -18,6 +18,34 @@ pub enum SlotError {
     InvalidState,
     NonMonotonicSequence,
     GenerationExhausted,
+    ResourcesIncomplete,
+    ResourcesRemain,
+}
+
+/// Kernel resources owned by a section-carrier lease. `kernel_handle` keeps
+/// the temporary Object Manager name alive; `object` and `system_view` provide
+/// the KMD's independent object and mapped-view ownership.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BackingResources {
+    pub kernel_handle: usize,
+    pub object: usize,
+    pub system_view: usize,
+}
+
+impl BackingResources {
+    pub const EMPTY: Self = Self {
+        kernel_handle: 0,
+        object: 0,
+        system_view: 0,
+    };
+
+    pub const fn is_empty(self) -> bool {
+        self.kernel_handle == 0 && self.object == 0 && self.system_view == 0
+    }
+
+    pub const fn is_complete(self) -> bool {
+        self.kernel_handle != 0 && self.object != 0 && self.system_view != 0
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,6 +55,7 @@ pub struct Slot {
     pub sequence: u64,
     pub value: u64,
     pub state: State,
+    pub resources: BackingResources,
 }
 
 impl Slot {
@@ -36,6 +65,7 @@ impl Slot {
         sequence: 0,
         value: 0,
         state: State::Free,
+        resources: BackingResources::EMPTY,
     };
 }
 
@@ -160,6 +190,7 @@ pub fn start_create(slot: &mut Slot, lease: Lease) -> Result<(), SlotError> {
         sequence: 0,
         value: 0,
         state: State::Creating,
+        resources: BackingResources::EMPTY,
     };
     Ok(())
 }
@@ -169,7 +200,27 @@ pub fn acquire_live_slot(slot: &mut Slot, lease: Lease) -> Result<(), SlotError>
     if slot.state != State::Creating {
         return Err(SlotError::InvalidState);
     }
+    if !slot.resources.is_complete() {
+        return Err(SlotError::ResourcesIncomplete);
+    }
     slot.state = State::Live;
+    Ok(())
+}
+
+/// Keep partially acquired resources attached to a failed CREATE lease so a
+/// later RELEASE or adapter teardown can retry cleanup without freeing the
+/// slot or losing ownership.
+pub fn retain_failed_create_slot(
+    slot: &mut Slot,
+    lease: Lease,
+    resources: BackingResources,
+) -> Result<(), SlotError> {
+    check_identity(slot, lease)?;
+    if slot.state != State::Creating || resources.is_empty() {
+        return Err(SlotError::InvalidState);
+    }
+    slot.resources = resources;
+    slot.state = State::Releasing;
     Ok(())
 }
 
@@ -178,13 +229,16 @@ pub fn fail_create_slot(slot: &mut Slot, lease: Lease) -> Result<(), SlotError> 
     if slot.state != State::Creating {
         return Err(SlotError::InvalidState);
     }
+    if !slot.resources.is_empty() {
+        return Err(SlotError::ResourcesRemain);
+    }
     *slot = Slot::EMPTY;
     Ok(())
 }
 
 pub fn begin_release_slot(slot: &mut Slot, lease: Lease) -> Result<(), SlotError> {
     check_identity(slot, lease)?;
-    if slot.state != State::Live {
+    if slot.state != State::Live && slot.state != State::Releasing {
         return Err(SlotError::InvalidState);
     }
     slot.state = State::Releasing;
@@ -204,6 +258,9 @@ pub fn finish_release_slot(slot: &mut Slot, lease: Lease) -> Result<(), SlotErro
     check_identity(slot, lease)?;
     if slot.state != State::Releasing {
         return Err(SlotError::InvalidState);
+    }
+    if !slot.resources.is_empty() {
+        return Err(SlotError::ResourcesRemain);
     }
     *slot = Slot::EMPTY;
     Ok(())
@@ -303,6 +360,14 @@ mod tests {
         ([Slot::EMPTY; MAX_PROBES], [0; MAX_PROBES])
     }
 
+    fn test_resources() -> BackingResources {
+        BackingResources {
+            kernel_handle: 1,
+            object: 2,
+            system_view: 3,
+        }
+    }
+
     #[test]
     fn create_transitions_and_partial_failures_return_slot_to_free() {
         let (mut slots, mut gens) = table();
@@ -314,8 +379,59 @@ mod tests {
         let next = reserve(&mut slots, &mut gens, 5).unwrap();
         assert_eq!(next.index, lease.index);
         assert_ne!(next.generation, lease.generation);
+        slots[next.index].resources = test_resources();
         acquire_live(&mut slots, next).unwrap();
         assert_eq!(query(&slots, next).unwrap().state, State::Live);
+    }
+
+    #[test]
+    fn live_transition_requires_the_lease_to_own_its_kernel_handle() {
+        let (mut slots, mut gens) = table();
+        let lease = reserve(&mut slots, &mut gens, 41).unwrap();
+
+        // The pre-fix CREATE path closed this handle before committing LIVE.
+        assert_eq!(
+            acquire_live(&mut slots, lease),
+            Err(SlotError::ResourcesIncomplete)
+        );
+
+        slots[lease.index].resources = BackingResources {
+            kernel_handle: 0x11,
+            object: 0x22,
+            system_view: 0x33,
+        };
+        acquire_live(&mut slots, lease).unwrap();
+        let live = query(&slots, lease).unwrap();
+        assert_eq!(live.resources.kernel_handle, 0x11);
+        assert_eq!(live.resources.object, 0x22);
+        assert_eq!(live.resources.system_view, 0x33);
+    }
+
+    #[test]
+    fn failed_create_resources_keep_the_slot_reserved_until_cleanup() {
+        let (mut slots, mut gens) = table();
+        let lease = reserve(&mut slots, &mut gens, 42).unwrap();
+        let resources = BackingResources {
+            kernel_handle: 0x11,
+            object: 0x22,
+            system_view: 0,
+        };
+        retain_failed_create_slot(&mut slots[lease.index], lease, resources).unwrap();
+
+        assert_eq!(slots[lease.index].state, State::Releasing);
+        assert_eq!(slots[lease.index].resources, resources);
+        assert_eq!(
+            finish_release(&mut slots, lease),
+            Err(SlotError::ResourcesRemain)
+        );
+        let other = reserve(&mut slots, &mut gens, 43).unwrap();
+        assert_ne!(other.index, lease.index);
+
+        slots[lease.index].resources = BackingResources::EMPTY;
+        finish_release(&mut slots, lease).unwrap();
+        let reused = reserve(&mut slots, &mut gens, 44).unwrap();
+        assert_eq!(reused.index, lease.index);
+        assert_ne!(reused.generation, lease.generation);
     }
 
     #[test]
@@ -337,9 +453,11 @@ mod tests {
     fn release_reuse_rejects_every_stale_operation_and_isolates_new_lease() {
         let (mut slots, mut gens) = table();
         let old = reserve(&mut slots, &mut gens, 7).unwrap();
+        slots[old.index].resources = test_resources();
         acquire_live(&mut slots, old).unwrap();
         publish(&mut slots, old, 1, 0xA).unwrap();
         begin_release(&mut slots, old).unwrap();
+        slots[old.index].resources = BackingResources::EMPTY;
         finish_release(&mut slots, old).unwrap();
         assert_eq!(query(&slots, old), Err(SlotError::InvalidId));
         assert_eq!(publish(&mut slots, old, 2, 0xB), Err(SlotError::InvalidId));
@@ -347,6 +465,7 @@ mod tests {
         let new = reserve(&mut slots, &mut gens, 8).unwrap();
         assert_eq!(new.index, old.index);
         assert_ne!(new.generation, old.generation);
+        slots[new.index].resources = test_resources();
         acquire_live(&mut slots, new).unwrap();
         assert_eq!(query(&slots, old), Err(SlotError::StaleGeneration));
         assert_eq!(
@@ -367,6 +486,7 @@ mod tests {
     fn duplicate_release_and_nonmonotonic_publish_are_rejected() {
         let (mut slots, mut gens) = table();
         let lease = reserve(&mut slots, &mut gens, 3).unwrap();
+        slots[lease.index].resources = test_resources();
         acquire_live(&mut slots, lease).unwrap();
         publish(&mut slots, lease, 1, 1).unwrap();
         assert_eq!(
@@ -374,10 +494,12 @@ mod tests {
             Err(SlotError::NonMonotonicSequence)
         );
         begin_release(&mut slots, lease).unwrap();
+        begin_release(&mut slots, lease).unwrap();
         assert_eq!(
-            begin_release(&mut slots, lease),
-            Err(SlotError::InvalidState)
+            finish_release(&mut slots, lease),
+            Err(SlotError::ResourcesRemain)
         );
+        slots[lease.index].resources = BackingResources::EMPTY;
         finish_release(&mut slots, lease).unwrap();
     }
 
