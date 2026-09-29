@@ -30,7 +30,7 @@ const SECURITY_DESCRIPTOR_REVISION: u32 = 1;
 const KERNEL_MODE: i8 = 0;
 const SECTION_SYSTEM_SID: [u8; 12] = [1, 1, 0, 0, 0, 0, 0, 5, 18, 0, 0, 0];
 // TOKEN_INFORMATION_CLASS::TokenUser from ntifs.h / WDK.
-const TOKEN_USER_INFORMATION_CLASS: u32 = 1;
+const TOKEN_USER_INFORMATION_CLASS: i32 = 1;
 const SID_AND_ATTRIBUTES_MAX: usize = 68;
 
 static NEXT_PROBE_ID: AtomicU32 = AtomicU32::new(1);
@@ -287,7 +287,9 @@ fn create_security_descriptor(
     let Some(acl_len) = acl_len.filter(|n| *n <= core::mem::size_of_val(acl_storage)) else {
         return wdk_sys::STATUS_BUFFER_TOO_SMALL;
     };
-    let acl = acl_storage.as_mut_ptr() as PVOID;
+    // Let the generated WDK PACL signature determine the opaque pointer type;
+    // ACL storage is byte-addressed and aligned by the u64 backing array.
+    let acl = acl_storage.as_mut_ptr() as *mut _;
     let mut status = unsafe { wdk_sys::ntddk::RtlCreateAcl(acl, acl_len as u32, ACL_REVISION) };
     if status < 0 {
         return status;
@@ -385,7 +387,7 @@ fn create_backing_section(
             &mut handle,
             SECTION_MAP_READ | SECTION_QUERY,
             &mut attributes,
-            &maximum_size,
+            &mut maximum_size,
             PAGE_READWRITE,
             SEC_COMMIT,
             ptr::null_mut(),
@@ -436,10 +438,13 @@ fn create_backing_section(
         ));
     }
     let mut base: PVOID = ptr::null_mut();
-    let mut view_size = 4096usize;
+    let mut view_size = 4096u64;
     let status =
         unsafe { wdk_sys::ntddk::MmMapViewInSystemSpace(object, &mut base, &mut view_size) };
-    if status < 0 || base.is_null() || view_size < core::mem::size_of::<HeliosP06SectionRecord>() {
+    if status < 0
+        || base.is_null()
+        || view_size < core::mem::size_of::<HeliosP06SectionRecord>() as u64
+    {
         let mut retain_object_reference = false;
         if !base.is_null() {
             let unmap_status = unsafe { wdk_sys::ntddk::MmUnmapViewInSystemSpace(base) };
