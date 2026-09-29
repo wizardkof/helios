@@ -494,7 +494,7 @@ fn create(
     let Some(generation) = next_nonwrapping_generation() else {
         return wdk_sys::STATUS_INSUFFICIENT_RESOURCES;
     };
-    let Some(names) = section_carrier::section_names::make::<
+    let Some(names) = helios_kmd_logic::section_names::make::<
         { helios_protocol::HELIOS_P06_SECTION_NAME_CAP },
     >(probe_id, generation)
     else {
