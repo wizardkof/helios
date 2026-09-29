@@ -36,6 +36,8 @@ struct section_escape {
   uint32_t reserved, slot_index;
   uint64_t sequence, test_value;
   WCHAR object_name[SECTION_NAME_CAP];
+  WCHAR native_name[SECTION_NAME_CAP];
+  uint32_t lease_flags, reserved_tail;
 };
 struct section_record {
   uint64_t magic;
@@ -44,9 +46,11 @@ struct section_record {
   volatile LONG64 sequence;
   volatile LONG64 test_value;
 };
-static_assert(sizeof(section_escape) == 312, "escape ABI drift");
+static_assert(sizeof(section_escape) == 576, "escape ABI drift");
 static_assert(offsetof(section_escape, sequence) == 40, "escape sequence offset drift");
 static_assert(offsetof(section_escape, object_name) == 56, "escape name offset drift");
+static_assert(offsetof(section_escape, native_name) == 312, "native name offset drift");
+static_assert(offsetof(section_escape, lease_flags) == 568, "lease flags offset drift");
 static_assert(sizeof(section_record) == 48, "section record ABI drift");
 
 static D3DKMT_HANDLE g_adapter;
@@ -56,6 +60,16 @@ static uint64_t g_generation;
 static uint32_t g_slot;
 static WCHAR g_name[SECTION_NAME_CAP];
 static bool g_cleanup_ok = true;
+
+static size_t checked_name_length(const WCHAR* name) {
+  for (size_t i=0;i<SECTION_NAME_CAP;i++) if(name[i]==L'\0') return i;
+  return SECTION_NAME_CAP;
+}
+static void print_name(const char* label,const WCHAR* name) {
+  char narrow[SECTION_NAME_CAP*4]{};
+  int n=WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,name,-1,narrow,sizeof(narrow),nullptr,nullptr);
+  printf("%s=%s\n",label,n>0?narrow:"<invalid-utf16>");
+}
 
 static bool checked_close(const char* label,HANDLE h) {
   if(!h) return true;
@@ -87,8 +101,8 @@ static NTSTATUS escape(section_escape* r) {
   e.Type = D3DKMT_ESCAPE_DRIVERPRIVATE;
   e.pPrivateDriverData = r; e.PrivateDriverDataSize = sizeof(*r);
   NTSTATUS s = D3DKMTEscape(&e);
-  printf("ESCAPE op=%u status=0x%08lx reply_status=0x%08x id=%u generation=%llu sequence=%llu\n",
-      r->op, (unsigned long)s, r->reserved, r->probe_id, r->generation,
+  printf("ESCAPE op=%u status=0x%08lx reply_status=0x%08x id=%u generation=%llu slot=%u lease_flags=0x%08x sequence=%llu\n",
+      r->op, (unsigned long)s, r->reserved, r->probe_id, r->generation, r->slot_index, r->lease_flags,
          (unsigned long long)r->sequence);
   return s;
 }
@@ -118,7 +132,16 @@ static bool create_helios_section() {
     g_adapter = cd.hAdapter; g_device = cd.hDevice;
     section_escape r{}; init(&r, OP_CREATE);
     NTSTATUS s = escape(&r);
-    if (!s && r.probe_id && r.generation && r.object_name[0]) {
+    size_t win32_len=checked_name_length(r.object_name);
+    size_t native_len=checked_name_length(r.native_name);
+    bool names_valid=win32_len>0&&win32_len<SECTION_NAME_CAP&&native_len>0&&native_len<SECTION_NAME_CAP;
+    printf("SECTION_NAME_VALIDATION=%s win32_units=%llu win32_terminated=%s native_units=%llu native_terminated=%s\n",
+        names_valid?"PASS":"FAIL",(unsigned long long)win32_len,win32_len<SECTION_NAME_CAP?"YES":"NO",
+        (unsigned long long)native_len,native_len<SECTION_NAME_CAP?"YES":"NO");
+    if(names_valid) { print_name("SECTION_WIN32_NAME_RETURNED",r.object_name); print_name("SECTION_NATIVE_NAME_USED_BY_ZWCREATESECTION",r.native_name); }
+    bool retained=r.lease_flags==1u;
+    printf("SECTION_KERNEL_HANDLE_RETAINED_AT_CREATE_RETURN=%s flags=0x%08x\n",retained?"YES":"NO",r.lease_flags);
+    if (!s && r.probe_id && r.generation && names_valid && retained) {
       g_id = r.probe_id; g_generation = r.generation;
       g_slot = r.slot_index;
       memcpy(g_name, r.object_name, sizeof(g_name));
@@ -130,6 +153,7 @@ static bool create_helios_section() {
       printf("ACL_SOURCE_IMPLEMENTED=YES owner=SYSTEM dacl=non_null requestor=read_query_only\n");
       printf("SECTION_OBJECT_REFERENCE_GATE=PASS\n");
       printf("SECTION_SYSTEM_VIEW_GATE=PASS\n");
+      printf("SECTION_KERNEL_HANDLE_RETENTION_GATE=PASS\n");
       printf("SECTION_GLOBAL_NAMESPACE_MAPPING=PENDING_WINDOWS_RUNTIME\n");
       return true;
     }
@@ -163,13 +187,15 @@ static bool read_record(HANDLE mapping, section_record* out) {
   if (!p) { printf("SECTION_MAP_READ=FAIL error=%lu\n",GetLastError()); return false; }
   bool ok=false;
   for (unsigned i=0;i<1000;i++) {
-    LONG64 a=InterlockedCompareExchange64((volatile LONG64*)&p->sequence,0,0);
+    MemoryBarrier();
+    LONG64 a=p->sequence;
     if (a&1) { YieldProcessor(); continue; }
     out->magic=p->magic; out->version=p->version; out->size=p->size;
     out->probe_id=p->probe_id; out->generation=p->generation;
-    out->test_value=InterlockedCompareExchange64((volatile LONG64*)&p->test_value,0,0);
     MemoryBarrier();
-    LONG64 b=InterlockedCompareExchange64((volatile LONG64*)&p->sequence,0,0);
+    out->test_value=p->test_value;
+    MemoryBarrier();
+    LONG64 b=p->sequence;
     if (a==b && !(b&1)) { out->sequence=b; ok=true; break; }
   }
   bool unmap=checked_unmap("READ_RECORD",(const void*)p);
@@ -233,12 +259,15 @@ static int importer(HANDLE pipe,DWORD exporter_pid,uint32_t id,uint64_t gen,uint
   bool retained=released && matches(mapping,id,gen,2,0xE1A0000000000002ull);
   printf("SECTION_USER_HANDLE_RETAINS_OBJECT_AFTER_KMD_RELEASE=%s\n",retained?"PASS":"FAIL");
   section_escape temporary{}; init(&temporary,OP_CREATE);
-  bool temporary_created=escape(&temporary)==0;
-  bool temporary_other_slot=temporary_created&&temporary.slot_index!=slot;
+  bool temporary_created=released&&escape(&temporary)==0;
+  bool temporary_reused_slot=temporary_created&&temporary.slot_index==slot&&temporary.generation>gen;
+  printf("SECTION_TEMPORARY_SLOT_REUSE=%s old_slot=%u temporary_slot=%u old_generation=%llu temporary_generation=%llu\n",
+      temporary_reused_slot?"PASS":"FAIL",slot,temporary.slot_index,(unsigned long long)gen,
+      (unsigned long long)temporary.generation);
   bool temporary_released=temporary_created&&release_section(temporary.probe_id,temporary.generation,temporary.slot_index);
   section_escape replacement{}; init(&replacement,OP_CREATE);
   bool replacement_created=temporary_released&&escape(&replacement)==0;
-  bool reused=replacement_created&&replacement.slot_index==slot&&replacement.generation!=gen;
+  bool reused=replacement_created&&replacement.slot_index==slot&&replacement.generation>temporary.generation&&replacement.generation>gen;
   printf("SECTION_SLOT_REUSE_GATE=%s old_slot=%u new_slot=%u old_generation=%llu new_generation=%llu\n",
       reused?"PASS":"FAIL",slot,replacement.slot_index,(unsigned long long)gen,(unsigned long long)replacement.generation);
   bool stale_publish=reused&&stale_rejected(OP_PUBLISH,id,gen,slot);
@@ -272,7 +301,7 @@ static int importer(HANDLE pipe,DWORD exporter_pid,uint32_t id,uint64_t gen,uint
   if (reopened) checked_close("OLD_REOPEN",reopened);
   bool reclaimed=!reopened && reopen_error==ERROR_FILE_NOT_FOUND;
   printf("SECTION_KMD_LEAK_GATE=%s\n",reclaimed?"PASS":"FAIL");
-  bool all=late&&exporter_waited&&visible&&retained&&temporary_other_slot&&temporary_released&&reused&&stale_publish&&stale_query&&stale_release&&replacement_isolated&&replacement_reclaimed&&reclaimed&&g_cleanup_ok;
+  bool all=late&&exporter_waited&&visible&&retained&&temporary_reused_slot&&temporary_released&&reused&&stale_publish&&stale_query&&stale_release&&replacement_isolated&&replacement_reclaimed&&reclaimed&&g_cleanup_ok;
   printf("SECTION_OLD_FINAL_RECLAIM=%s error=%lu\n",reclaimed?"PASS":"FAIL",reopen_error);
   printf("OPTION_E_SECTION_CARRIER_FEASIBILITY=%s\n",all?"PASS":"FAIL");
   return all&&pipe_closed&&exporter_closed?0:22;
@@ -282,7 +311,14 @@ static int exporter() {
   HANDLE mapping=OpenFileMappingW(FILE_MAP_READ,FALSE,g_name);
   DWORD open_error=mapping?ERROR_SUCCESS:GetLastError();
   printf("SECTION_USER_OPEN=%s error=%lu\n",mapping?"PASS":"FAIL",open_error);
-  if (!mapping) { printf("SECTION_GLOBAL_NAMESPACE_MAPPING=FAIL error=%lu\n",open_error); release_section(g_id,g_generation,g_slot); close_kmt(); return 3; }
+  if (!mapping) {
+    printf("SECTION_GLOBAL_NAMESPACE_MAPPING=FAIL error=%lu\n",open_error);
+    bool release_ok=release_section(g_id,g_generation,g_slot);
+    printf("OPEN_FAILURE_KMD_RELEASE=%s\n",release_ok?"PASS":"FAIL");
+    close_kmt();
+    printf("OPEN_FAILURE_KMT_CLEANUP=%s\n",g_cleanup_ok?"PASS":"FAIL");
+    return 3;
+  }
   printf("SECTION_GLOBAL_NAMESPACE_MAPPING=PASS\n");
   auto* view=MapViewOfFile(mapping,FILE_MAP_READ,0,0,4096);
   section_record initial{};
