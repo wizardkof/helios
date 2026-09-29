@@ -9,7 +9,8 @@ use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use helios_kmd_logic::section_carrier::{self, BackingResources, Slot, State};
 use helios_protocol::{
-    HeliosP06SectionRecord, HELIOS_P06_SECTION_MAGIC, HELIOS_P06_SECTION_VERSION,
+    HeliosP06SectionRecord, HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED,
+    HELIOS_P06_SECTION_MAGIC, HELIOS_P06_SECTION_VERSION,
 };
 use wdk_sys::ntddk::{KeSetEvent, KeWaitForSingleObject};
 use wdk_sys::{HANDLE, NTSTATUS, PVOID};
