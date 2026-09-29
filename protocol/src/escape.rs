@@ -100,6 +100,8 @@ pub const HELIOS_P06_SECTION_NAME_CAP: usize = 128;
 pub const HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED: u32 = 1;
 pub const HELIOS_P06_SECTION_MAGIC: u64 = 0x5046_3653_4543_544e;
 pub const HELIOS_P06_SECTION_VERSION: u32 = 1;
+/// Production payload is distinct from the frozen diagnostic v1 record.
+pub const HELIOS_P06_PRODUCTION_SECTION_VERSION: u32 = 2;
 
 /// Diagnostic request/reply; returned names identify the exact Win32 and
 /// Object Manager names used for the read-only user bootstrap and ZwCreateSection.
@@ -135,6 +137,25 @@ pub struct HeliosP06SectionRecord {
     pub test_value: u64,
 }
 
+/// Versioned external semaphore state. The KMD is the sole writer; imported
+/// processes map it read-only and use `sequence` as a seqlock. A nonzero
+/// terminal response applies to targets at or above terminal_error_value.
+#[repr(C, align(8))]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct HeliosP06ProductionSectionRecord {
+    pub magic: u64,
+    pub version: u32,
+    pub size: u32,
+    pub carrier_id: u32,
+    pub reserved: u32,
+    pub generation: u64,
+    pub sequence: u64,
+    pub completed_value: u64,
+    pub terminal_error_value: u64,
+    pub terminal_response_type: u32,
+    pub reserved_tail: u32,
+}
+
 const _: () = {
     assert!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>() == 576);
     assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, sequence) == 40);
@@ -143,6 +164,8 @@ const _: () = {
     assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, lease_flags) == 568);
     assert!(core::mem::size_of::<HeliosP06SectionRecord>() == 48);
     assert!(core::mem::offset_of!(HeliosP06SectionRecord, sequence) == 32);
+    assert!(core::mem::size_of::<HeliosP06ProductionSectionRecord>() == 64);
+    assert!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, sequence) == 32);
 };
 
 pub const HELIOS_SNAPSHOT_BUSY: u32 = 0;
@@ -994,5 +1017,15 @@ mod p06_section_carrier_abi_tests {
         assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, lease_flags), 568);
         assert_eq!(core::mem::size_of::<HeliosP06SectionRecord>(), 48);
         assert_eq!(core::mem::offset_of!(HeliosP06SectionRecord, sequence), 32);
+    }
+
+    #[test]
+    fn production_carrier_record_has_explicit_versioned_fields() {
+        assert_eq!(HELIOS_P06_PRODUCTION_SECTION_VERSION, 2);
+        assert_eq!(core::mem::size_of::<HeliosP06ProductionSectionRecord>(), 64);
+        assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, sequence), 32);
+        assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, completed_value), 40);
+        assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, terminal_error_value), 48);
+        assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, terminal_response_type), 56);
     }
 }
