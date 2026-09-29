@@ -28,6 +28,7 @@ pub(crate) use locks::ControlSpaceWaiter;
 pub(crate) mod producer;
 mod read_ledger;
 mod scanout;
+pub(crate) mod section_probe;
 mod segments;
 mod tracking;
 
@@ -506,6 +507,11 @@ pub struct AdapterContext {
     /// drains and unmaps them. Has its own spinlock, independent of `virtio_lock`,
     /// so teardown works even after the transport is gone.
     pub mappings: crate::mapping::MappingTable,
+    /// Bounded, diagnostic-only E1 section leases. They are adapter-owned and
+    /// deliberately independent of any D3D device/context lifetime.
+    pub(crate) p06_section_mutex: UnsafeCell<KEVENT>,
+    pub(crate) p06_section_slots:
+        UnsafeCell<[section_probe::SectionSlot; section_probe::MAX_SLOTS]>,
     /// D4a scanout-read acquire (FIX-DESIGN-d4a.md §3): the per-resid READ
     /// LEDGER page + retirement-event table. Adapter-owned, NOT transport-owned
     /// — the page must survive transport swaps because user mappings of it
@@ -1086,6 +1092,12 @@ impl AdapterContext {
             // Zeroed placeholder — initialized in place by init_kernel_events.
             scanout_mutex: UnsafeCell::new(unsafe { core::mem::zeroed() }),
             mappings: crate::mapping::MappingTable::new(),
+            // Initialized as a PASSIVE synchronization-event mutex before the
+            // adapter context is published to Dxgkrnl.
+            p06_section_mutex: UnsafeCell::new(unsafe { core::mem::zeroed() }),
+            p06_section_slots: UnsafeCell::new(
+                [section_probe::SectionSlot::EMPTY; section_probe::MAX_SLOTS],
+            ),
             read_ledger: ReadLedger::new(),
             producer: producer::ProducerCompletion::new(),
             paging_pte_shadow: crate::ddi::PagingPteShadow::new(),
@@ -1632,6 +1644,9 @@ impl Drop for AdapterContext {
         self.stop_vsync();
         self.delete_vsync_ex_timer();
         self.stop_hpd();
+        // Diagnostic carrier leases are adapter-owned, bounded, and released
+        // at PASSIVE on final RemoveDevice even if a probe omitted RELEASE.
+        unsafe { section_probe::release_all(self) };
         // The transport owns callbacks into producer status. Drop it before
         // that page, including the RemoveDevice-without-StopDevice path.
         self.set_virtio(None);

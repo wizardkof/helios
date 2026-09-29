@@ -413,6 +413,10 @@ impl AdapterContext {
         // distinct lock order and purpose: scanout lifecycle operations never
         // hold this while acquiring it recursively.
         unsafe { KeInitializeEvent(self.scanout_mutex.get(), 1, 1) };
+        // Diagnostic section table mutex. Its holder may touch paging-file
+        // section views and call PASSIVE-only Object Manager routines; a spin
+        // lock here would raise faults and Zw APIs to DISPATCH_LEVEL.
+        unsafe { KeInitializeEvent(self.p06_section_mutex.get(), 1, 1) };
         // HPD worker wake event: SynchronizationEvent (auto-clears on a satisfied
         // wait), initially unsignaled — the worker's own timeout drives the first
         // indication; later signals come from the config-change DPC.

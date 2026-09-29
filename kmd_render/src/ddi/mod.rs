@@ -16,7 +16,7 @@ mod child;
 pub(crate) mod cpu_host_aperture;
 pub(crate) mod create_allocation;
 pub(crate) mod display;
-mod escape;
+pub(crate) mod escape;
 mod gpummu;
 pub(crate) mod hpd;
 pub(crate) mod interrupt;

@@ -85,6 +85,57 @@ pub const HELIOS_ESCAPE_PRESENT_BUFFER_READ: u32 = 0x0012;
 pub const HELIOS_ESCAPE_SNAPSHOT_STATUS: u32 = 0x0015;
 /// Read the host's negotiated Venus capset through the virtio control queue.
 pub const HELIOS_ESCAPE_QUERY_VENUS_CAPSET: u32 = 0x0016;
+/// Temporary carrier-only section probe. No submit/wait/retire association.
+pub const HELIOS_ESCAPE_P06_SECTION_CARRIER: u32 = 0x0017;
+pub const HELIOS_P06_SECTION_CREATE: u32 = 1;
+pub const HELIOS_P06_SECTION_PUBLISH: u32 = 2;
+pub const HELIOS_P06_SECTION_RELEASE: u32 = 3;
+pub const HELIOS_P06_SECTION_QUERY: u32 = 4;
+pub const HELIOS_P06_SECTION_STATUS_SUCCESS: u32 = 0;
+pub const HELIOS_P06_SECTION_STATUS_NOT_FOUND: u32 = 1;
+pub const HELIOS_P06_SECTION_STATUS_STALE_GENERATION: u32 = 2;
+pub const HELIOS_P06_SECTION_STATUS_INVALID_STATE: u32 = 3;
+pub const HELIOS_P06_SECTION_STATUS_FAILURE: u32 = 4;
+pub const HELIOS_P06_SECTION_NAME_CAP: usize = 128;
+pub const HELIOS_P06_SECTION_MAGIC: u64 = 0x5046_3653_4543_544e;
+pub const HELIOS_P06_SECTION_VERSION: u32 = 1;
+
+/// Diagnostic request/reply; the name bootstraps the first OpenFileMappingW.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct HeliosEscapeP06SectionCarrier {
+    pub hdr: HeliosEscapeHeader,
+    pub op: u32,
+    pub probe_id: u32,
+    pub generation: u64,
+    pub reserved: u32,
+    pub slot_index: u32,
+    pub sequence: u64,
+    pub test_value: u64,
+    pub object_name: [u16; HELIOS_P06_SECTION_NAME_CAP],
+}
+
+/// Read-only state carried by the diagnostic section.
+#[repr(C, align(8))]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct HeliosP06SectionRecord {
+    pub magic: u64,
+    pub version: u32,
+    pub size: u32,
+    pub probe_id: u32,
+    pub reserved: u32,
+    pub generation: u64,
+    pub sequence: u64,
+    pub test_value: u64,
+}
+
+const _: () = {
+    assert!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>() == 312);
+    assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, sequence) == 40);
+    assert!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, object_name) == 56);
+    assert!(core::mem::size_of::<HeliosP06SectionRecord>() == 48);
+    assert!(core::mem::offset_of!(HeliosP06SectionRecord, sequence) == 32);
+};
 
 pub const HELIOS_SNAPSHOT_BUSY: u32 = 0;
 pub const HELIOS_SNAPSHOT_IDLE: u32 = 1;
@@ -918,5 +969,20 @@ mod query_stats_v5_abi_tests {
         assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_unregister_fence), 384);
         assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV5, last_submit_previous_wire_fence), 416);
         assert_eq!(core::mem::offset_of!(HeliosEscapeQueryStatsV4, out_present_streams_live), 200);
+    }
+}
+
+#[cfg(test)]
+mod p06_section_carrier_abi_tests {
+    use super::*;
+
+    #[test]
+    fn section_carrier_abi_layout_is_fixed() {
+        assert_eq!(HELIOS_ESCAPE_P06_SECTION_CARRIER, 0x0017);
+        assert_eq!(core::mem::size_of::<HeliosEscapeP06SectionCarrier>(), 312);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, sequence), 40);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06SectionCarrier, object_name), 56);
+        assert_eq!(core::mem::size_of::<HeliosP06SectionRecord>(), 48);
+        assert_eq!(core::mem::offset_of!(HeliosP06SectionRecord, sequence), 32);
     }
 }

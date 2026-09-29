@@ -22,6 +22,7 @@ pub mod edid;
 pub mod producer_completion;
 pub mod execution_completion;
 pub mod fence_completion;
+pub mod section_carrier;
 mod p06_diagnostics;
 pub use p06_diagnostics::observe_result_preserving;
 

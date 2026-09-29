@@ -27,7 +27,7 @@ use helios_protocol::{
     HeliosEscapeMapReadLedger, HeliosEscapePresentBufferRead, HeliosEscapePresentStream,
     HeliosEscapeQueryScanout, HeliosEscapeQueryScanoutTimeline, HeliosEscapeQueryStats,
     HeliosEscapeQueryStatsV2, HeliosEscapeQueryStatsV3, HeliosEscapeQueryStatsV4,
-    HeliosEscapeQueryStatsV5,
+    HeliosEscapeQueryStatsV5, HELIOS_ESCAPE_P06_SECTION_CARRIER,
     HeliosEscapeReleaseBlob, HeliosEscapeScanoutEvent, HeliosEscapeSubmitVenus,
     HeliosEscapeWaitFence, HeliosEscapeWaitFenceLegacy, HELIOS_ESCAPE_ALLOC_BLOB,
     HELIOS_ESCAPE_ATTACH_RESOURCE, HELIOS_ESCAPE_CTX_CREATE, HELIOS_ESCAPE_CTX_DESTROY,
@@ -134,7 +134,7 @@ fn refuse_short_buffer() -> NTSTATUS {
 /// 40 while `PrivateDriverDataSize` covers 40 PLUS the Venus command stream. So
 /// [`Self::trailing`] is bounded by `buf.len()`, NEVER by `hdr.size` — bounding
 /// the stream on the declared header size breaks every submit.
-struct EscapeBuf<'a, T: bytemuck::Pod> {
+pub(crate) struct EscapeBuf<'a, T: bytemuck::Pod> {
     buf: &'a mut [u8],
     _wire: core::marker::PhantomData<T>,
 }
@@ -147,7 +147,7 @@ impl<'a, T: bytemuck::Pod> EscapeBuf<'a, T> {
     /// known sender: the ICD's `helios_hdr_init` sets `hdr.size = sizeof(req)`
     /// for every verb (`vn_renderer_helios.c:1534`). A caller that declares less
     /// than it asks the KMD to read is refused rather than served.
-    fn new(buf: &'a mut [u8], hdr: &HeliosEscapeHeader) -> Result<Self, NTSTATUS> {
+    pub(crate) fn new(buf: &'a mut [u8], hdr: &HeliosEscapeHeader) -> Result<Self, NTSTATUS> {
         if buf.len() < size_of::<T>() || (hdr.size as usize) < size_of::<T>() {
             return Err(refuse_short_buffer());
         }
@@ -159,12 +159,12 @@ impl<'a, T: bytemuck::Pod> EscapeBuf<'a, T> {
 
     /// The request, read unaligned — the guest buffer carries no alignment
     /// guarantee.
-    fn read(&self) -> T {
+    pub(crate) fn read(&self) -> T {
         pod_read_unaligned(&self.buf[..size_of::<T>()])
     }
 
     /// Write the reply back over the request.
-    fn write_back(&mut self, value: &T) {
+    pub(crate) fn write_back(&mut self, value: &T) {
         self.buf[..size_of::<T>()].copy_from_slice(bytes_of(value));
     }
 
@@ -407,6 +407,9 @@ pub unsafe extern "C" fn dxgkddi_escape(
         },
         HELIOS_ESCAPE_ATTACH_RESOURCE => escape_attach_resource(passive, adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_STATS => escape_query_stats(adapter, buf, &hdr),
+        HELIOS_ESCAPE_P06_SECTION_CARRIER => {
+            crate::adapter::section_probe::escape(adapter, buf, &hdr)
+        }
         HELIOS_ESCAPE_QUERY_VENUS_CAPSET => escape_query_venus_capset(passive, adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT => escape_query_scanout(adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT_TIMELINE => escape_query_scanout_timeline(buf, &hdr),
