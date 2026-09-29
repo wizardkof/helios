@@ -176,36 +176,6 @@ fn with_slots<R>(
     Ok(f(unsafe { &mut *adapter.p06_section_slots.get() }))
 }
 
-fn make_section_name(probe_id: u32, generation: u64, output: &mut [u16]) -> Option<usize> {
-    // Return the documented Win32 namespace spelling used by OpenFileMappingW.
-    let prefix = "Global\\HeliosP06Section_";
-    let mut len = 0;
-    for unit in prefix.encode_utf16() {
-        *output.get_mut(len)? = unit;
-        len += 1;
-    }
-    for (index, (value, digits)) in [(probe_id as u64, 8usize), (generation, 16usize)]
-        .into_iter()
-        .enumerate()
-    {
-        if index != 0 {
-            *output.get_mut(len)? = b'_' as u16;
-            len += 1;
-        }
-        for shift in (0..digits).rev() {
-            let nibble = ((value >> (shift * 4)) & 0xF) as u8;
-            *output.get_mut(len)? = if nibble < 10 {
-                (b'0' + nibble) as u16
-            } else {
-                (b'A' + nibble - 10) as u16
-            };
-            len += 1;
-        }
-    }
-    *output.get_mut(len)? = 0;
-    Some(len)
-}
-
 fn next_nonwrapping_id() -> Option<u32> {
     NEXT_PROBE_ID
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
@@ -339,33 +309,15 @@ fn create_security_descriptor(
 }
 
 fn create_backing_section(
-    name: &[u16],
+    native_name: &[u16],
     requestor_sid: PVOID,
 ) -> Result<(PVOID, PVOID), (u64, NTSTATUS)> {
-    let mut native_name = [0u16; helios_protocol::HELIOS_P06_SECTION_NAME_CAP];
-    // Global\ objects live below \BaseNamedObjects on the global namespace
-    // directory. A session-local BaseNamedObjects path would not be opened by
-    // OpenFileMappingW(Global\...).
-    let native_prefix = "\\BaseNamedObjects\\";
-    let mut native_len = 0;
-    for unit in native_prefix.encode_utf16() {
-        let Some(dst) = native_name.get_mut(native_len) else {
-            return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL));
-        };
-        *dst = unit;
-        native_len += 1;
-    }
-    for unit in name.iter().copied().take_while(|unit| *unit != 0) {
-        let Some(dst) = native_name.get_mut(native_len) else {
-            return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL));
-        };
-        *dst = unit;
-        native_len += 1;
-    }
-    if native_len >= native_name.len() {
+    let Some(native_len) = native_name.iter().position(|unit| *unit == 0) else {
+        return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL));
+    };
+    if native_len == 0 {
         return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL));
     }
-    native_name[native_len] = 0;
     let mut unicode: wdk_sys::UNICODE_STRING = unsafe { core::mem::zeroed() };
     unsafe { wdk_sys::ntddk::RtlInitUnicodeString(&mut unicode, native_name.as_ptr()) };
     let mut attributes: wdk_sys::OBJECT_ATTRIBUTES = unsafe { core::mem::zeroed() };
@@ -542,9 +494,14 @@ fn create(
     let Some(generation) = next_nonwrapping_generation() else {
         return wdk_sys::STATUS_INSUFFICIENT_RESOURCES;
     };
-    let Some(name_len) = make_section_name(probe_id, generation, &mut request.object_name) else {
+    let Some(names) = section_carrier::section_names::make::<
+        { helios_protocol::HELIOS_P06_SECTION_NAME_CAP },
+    >(probe_id, generation)
+    else {
         return wdk_sys::STATUS_BUFFER_TOO_SMALL;
     };
+    request.object_name = names.win32_name;
+    let name_len = names.win32_name_len;
     let reserved = match with_slots(adapter, |slots| {
         let Some(index) = slots
             .iter()
@@ -584,7 +541,7 @@ fn create(
         return discard_creating(adapter, index, lease, status);
     }
     let (object, view) = match create_backing_section(
-        &request.object_name[..=name_len],
+        &names.native_name,
         requestor_sid.as_mut_ptr() as PVOID,
     ) {
         Ok(pair) => pair,
