@@ -528,6 +528,10 @@ impl KnobName {
 pub mod knobs {
     use super::KnobName;
 
+    /// Diagnostic-only v2 carrier publication for GREEN-A qualification.
+    /// Default OFF; the KMD used-ring publisher in GREEN-B does not use this.
+    pub const P06_E1_TEST: KnobName = KnobName::new(b"P06E1Test");
+
     /// Breadcrumb ring level. 0 (default) = the `S<idx>` ring is off.
     pub const DIAG_LEVEL: KnobName = KnobName::new(b"DiagLevel");
     /// Segment topology. Legal values 0 and 10 only — see `BarSegTopology`.

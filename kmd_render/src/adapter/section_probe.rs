@@ -1,23 +1,30 @@
-//! Diagnostic-only P06 section carrier lease.
+//! P06 section carrier leases: frozen diagnostic v1 and explicit production v2.
 //!
 //! This is an adapter-lifetime bounded table, intentionally independent of
 //! device/context teardown. It creates no submit association and has no path
 //! from normal semaphore import, wait, or retirement code.
 
+use bytemuck::Zeroable;
 use core::ptr;
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
+use helios_kmd_logic::production_carrier::ProductionState;
 use helios_kmd_logic::section_carrier::{self, BackingResources, Slot, State};
 use helios_protocol::{
-    HeliosP06SectionRecord, HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED,
+    HeliosP06ProductionSectionRecord, HeliosP06SectionRecord,
+    HELIOS_P06_PRODUCTION_SECTION_VERSION, HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED,
     HELIOS_P06_SECTION_MAGIC, HELIOS_P06_SECTION_VERSION,
 };
 use wdk_sys::ntddk::{KeSetEvent, KeWaitForSingleObject};
 use wdk_sys::{HANDLE, NTSTATUS, PVOID};
 
+#[path = "section_attest.rs"]
+mod section_attest;
+
 use super::AdapterContext;
 
 pub(crate) const MAX_SLOTS: usize = section_carrier::MAX_PROBES;
+const MAX_PRODUCTION_EVENTS: usize = 16;
 const MAX_ORPHAN_RESERVATIONS: usize = MAX_SLOTS * 2;
 const OBJ_CASE_INSENSITIVE: u32 = 0x40;
 const OBJ_KERNEL_HANDLE: u32 = 0x200;
@@ -31,6 +38,35 @@ const ACL_REVISION: u32 = 2;
 const SECURITY_DESCRIPTOR_REVISION: u32 = 1;
 const KERNEL_MODE: i8 = 0;
 const SECTION_SYSTEM_SID: [u8; 12] = [1, 1, 0, 0, 0, 0, 0, 5, 18, 0, 0, 0];
+const SECTION_AUTHENTICATED_USERS_SID: [u8; 12] = [1, 1, 0, 0, 0, 0, 0, 5, 11, 0, 0, 0];
+const BCRYPT_USE_SYSTEM_PREFERRED_RNG: u32 = 2;
+const SE_DACL_PROTECTED: u16 = 0x1000;
+const PRODUCTION_NAME_ATTEMPTS: usize = 3;
+
+extern "system" {
+    fn BCryptGenRandom(algorithm: PVOID, buffer: *mut u8, len: u32, flags: u32) -> NTSTATUS;
+}
+
+fn random_carrier_id() -> Result<[u8; 16], NTSTATUS> {
+    let mut id = [0u8; 16];
+    // SAFETY: DxgkDdiEscape calls CREATE at PASSIVE_LEVEL; the system RNG
+    // writes exactly 16 bytes to this stack buffer and needs no provider handle.
+    let status = unsafe {
+        BCryptGenRandom(
+            ptr::null_mut(),
+            id.as_mut_ptr(),
+            id.len() as u32,
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        )
+    };
+    if status < 0 {
+        return Err(status);
+    }
+    if id.iter().all(|byte| *byte == 0) {
+        return Err(wdk_sys::STATUS_INVALID_PARAMETER);
+    }
+    Ok(id)
+}
 // TOKEN_INFORMATION_CLASS::TokenUser from ntifs.h / WDK.
 const TOKEN_USER_INFORMATION_CLASS: i32 = 1;
 const SID_AND_ATTRIBUTES_MAX: usize = 68;
@@ -80,6 +116,10 @@ fn diagnostic_result(status: NTSTATUS) -> u32 {
 #[derive(Clone, Copy)]
 pub(crate) struct SectionSlot {
     logic: Slot,
+    record_version: u32,
+    production_id: [u8; 16],
+    production: ProductionState,
+    production_events: [usize; MAX_PRODUCTION_EVENTS],
     name: [u16; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
     native_name: [u16; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
     size: usize,
@@ -89,6 +129,10 @@ pub(crate) struct SectionSlot {
 impl SectionSlot {
     pub(crate) const EMPTY: Self = Self {
         logic: Slot::EMPTY,
+        record_version: 0,
+        production_id: [0; 16],
+        production: ProductionState::EMPTY,
+        production_events: [0; MAX_PRODUCTION_EVENTS],
         name: [0; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
         native_name: [0; helios_protocol::HELIOS_P06_SECTION_NAME_CAP],
         size: 0,
@@ -405,13 +449,19 @@ fn create_security_descriptor(
     sd: &mut wdk_sys::SECURITY_DESCRIPTOR,
     acl_storage: &mut [u64; 32],
     requestor_sid: PVOID,
+    production: bool,
 ) -> NTSTATUS {
     // The owner is LocalSystem. The DACL grants full section access to
     // SYSTEM and only query/read-map/read-control to the captured caller SID.
-    if requestor_sid.is_null() || unsafe { wdk_sys::ntddk::RtlValidSid(requestor_sid) } == 0 {
+    let reader_sid = if production {
+        SECTION_AUTHENTICATED_USERS_SID.as_ptr() as PVOID
+    } else {
+        requestor_sid
+    };
+    if reader_sid.is_null() || unsafe { wdk_sys::ntddk::RtlValidSid(reader_sid) } == 0 {
         return wdk_sys::STATUS_INVALID_PARAMETER;
     }
-    let sid_len = unsafe { wdk_sys::ntddk::RtlLengthSid(requestor_sid) } as usize;
+    let sid_len = unsafe { wdk_sys::ntddk::RtlLengthSid(reader_sid) } as usize;
     let system_ace_size = 8 + SECTION_SYSTEM_SID.len();
     let requestor_ace_size = 8 + sid_len;
     let acl_len = 8usize
@@ -439,12 +489,7 @@ fn create_security_descriptor(
         return status;
     }
     status = unsafe {
-        wdk_sys::ntddk::RtlAddAccessAllowedAce(
-            acl,
-            ACL_REVISION,
-            SECTION_READ_ACCESS,
-            requestor_sid,
-        )
+        wdk_sys::ntddk::RtlAddAccessAllowedAce(acl, ACL_REVISION, SECTION_READ_ACCESS, reader_sid)
     };
     if status < 0 {
         return status;
@@ -468,12 +513,25 @@ fn create_security_descriptor(
     if status < 0 {
         return status;
     }
-    unsafe { wdk_sys::ntddk::RtlSetDaclSecurityDescriptor(sd as *mut _ as PVOID, 1, acl, 0) }
+    status =
+        unsafe { wdk_sys::ntddk::RtlSetDaclSecurityDescriptor(sd as *mut _ as PVOID, 1, acl, 0) };
+    if status < 0 {
+        return status;
+    }
+    if production {
+        // SECURITY_DESCRIPTOR.Control is a documented WDK field. The kernel
+        // RtlSetControlSecurityDescriptor has no supported kernel import lib;
+        // set only the documented SE_DACL_PROTECTED bit on this newly built
+        // absolute descriptor before ZwCreateSection receives it.
+        sd.Control |= SE_DACL_PROTECTED;
+    }
+    wdk_sys::STATUS_SUCCESS
 }
 
 fn create_backing_section(
     native_name: &[u16],
     requestor_sid: PVOID,
+    production: bool,
 ) -> Result<BackingResources, (u64, NTSTATUS, BackingResources)> {
     let Some(native_len) = native_name.iter().position(|unit| *unit == 0) else {
         return Err((1, wdk_sys::STATUS_BUFFER_TOO_SMALL, BackingResources::EMPTY));
@@ -489,7 +547,7 @@ fn create_backing_section(
     attributes.Attributes = OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE;
     let mut sd: wdk_sys::SECURITY_DESCRIPTOR = unsafe { core::mem::zeroed() };
     let mut acl = [0u64; 32];
-    let status = create_security_descriptor(&mut sd, &mut acl, requestor_sid);
+    let status = create_security_descriptor(&mut sd, &mut acl, requestor_sid, production);
     if status < 0 {
         return Err((1, status, BackingResources::EMPTY));
     }
@@ -551,7 +609,7 @@ fn create_backing_section(
         unsafe { wdk_sys::ntddk::MmMapViewInSystemSpace(object, &mut base, &mut view_size) };
     if status < 0
         || base.is_null()
-        || view_size < core::mem::size_of::<HeliosP06SectionRecord>() as u64
+        || view_size < core::mem::size_of::<HeliosP06ProductionSectionRecord>() as u64
     {
         resources.system_view = base as usize;
         return Err((
@@ -604,6 +662,49 @@ fn write_record(view: usize, probe_id: u32, generation: u64, sequence: u64, valu
     }
 }
 
+fn write_production_record(
+    view: usize,
+    carrier_id: [u8; 16],
+    sequence: u64,
+    state: ProductionState,
+) {
+    let record = view as *mut HeliosP06ProductionSectionRecord;
+    // SAFETY: the live slot owns an aligned system mapping of a full page;
+    // callers serialize all v2 writes under the adapter section mutex. An odd
+    // sequence excludes readers until the complete record is published.
+    unsafe {
+        if sequence != 0 {
+            ptr::write_volatile(ptr::addr_of_mut!((*record).sequence), sequence * 2 - 1);
+            core::sync::atomic::fence(Ordering::SeqCst);
+        }
+        ptr::write_volatile(ptr::addr_of_mut!((*record).magic), HELIOS_P06_SECTION_MAGIC);
+        ptr::write_volatile(
+            ptr::addr_of_mut!((*record).version),
+            HELIOS_P06_PRODUCTION_SECTION_VERSION,
+        );
+        ptr::write_volatile(
+            ptr::addr_of_mut!((*record).size),
+            core::mem::size_of::<HeliosP06ProductionSectionRecord>() as u32,
+        );
+        ptr::write_volatile(ptr::addr_of_mut!((*record).carrier_id), carrier_id);
+        ptr::write_volatile(
+            ptr::addr_of_mut!((*record).completed_value),
+            state.completed_value,
+        );
+        ptr::write_volatile(
+            ptr::addr_of_mut!((*record).terminal_error_value),
+            state.terminal_error_value,
+        );
+        ptr::write_volatile(
+            ptr::addr_of_mut!((*record).terminal_response_type),
+            state.terminal_response_type,
+        );
+        ptr::write_volatile(ptr::addr_of_mut!((*record).reserved_tail), 0);
+        core::sync::atomic::fence(Ordering::SeqCst);
+        ptr::write_volatile(ptr::addr_of_mut!((*record).sequence), sequence * 2);
+    }
+}
+
 pub(crate) fn escape(
     adapter: &AdapterContext,
     buf: &mut [u8],
@@ -617,9 +718,18 @@ pub(crate) fn escape(
         };
     let mut request = wire.read();
     let status = match request.op {
-        HELIOS_P06_SECTION_CREATE => create(adapter, &mut request),
+        HELIOS_P06_SECTION_CREATE => {
+            let initial_value = request.test_value;
+            create(
+                adapter,
+                &mut request,
+                HELIOS_P06_SECTION_VERSION,
+                initial_value,
+                None,
+            )
+        }
         HELIOS_P06_SECTION_PUBLISH => publish(adapter, &request),
-        HELIOS_P06_SECTION_RELEASE => release(adapter, &request),
+        HELIOS_P06_SECTION_RELEASE => release(adapter, &request, HELIOS_P06_SECTION_VERSION),
         HELIOS_P06_SECTION_QUERY => query(adapter, &mut request),
         _ => wdk_sys::STATUS_INVALID_PARAMETER,
     };
@@ -629,9 +739,243 @@ pub(crate) fn escape(
     status
 }
 
+pub(crate) fn escape_production(
+    adapter: &AdapterContext,
+    buf: &mut [u8],
+    hdr: &helios_protocol::HeliosEscapeHeader,
+) -> NTSTATUS {
+    use helios_protocol::*;
+    let mut wire =
+        match crate::ddi::escape::EscapeBuf::<HeliosEscapeP06ProductionCarrier>::new(buf, hdr) {
+            Ok(wire) => wire,
+            Err(status) => return status,
+        };
+    let mut request = wire.read();
+    let status = match request.op {
+        HELIOS_P06_PRODUCTION_CREATE => {
+            let mut diagnostic = HeliosEscapeP06SectionCarrier::zeroed();
+            diagnostic.hdr = request.hdr;
+            diagnostic.op = HELIOS_P06_SECTION_CREATE;
+            let mut status = wdk_sys::STATUS_OBJECT_NAME_COLLISION;
+            let mut id = [0u8; 16];
+            for _ in 0..PRODUCTION_NAME_ATTEMPTS {
+                id = match random_carrier_id() {
+                    Ok(id) => id,
+                    Err(error) => {
+                        status = error;
+                        break;
+                    }
+                };
+                status = create(
+                    adapter,
+                    &mut diagnostic,
+                    HELIOS_P06_PRODUCTION_SECTION_VERSION,
+                    request.value,
+                    Some(id),
+                );
+                if status != wdk_sys::STATUS_OBJECT_NAME_COLLISION {
+                    break;
+                }
+            }
+            if status >= 0 {
+                request.carrier_id = id;
+            }
+            request.generation = diagnostic.generation;
+            request.slot_index = diagnostic.slot_index;
+            request.lease_flags = diagnostic.lease_flags;
+            request.object_name = diagnostic.object_name;
+            request.native_name = diagnostic.native_name;
+            status
+        }
+        HELIOS_P06_PRODUCTION_PUBLISH_SUCCESS | HELIOS_P06_PRODUCTION_PUBLISH_ERROR => {
+            production_publish(adapter, &request)
+        }
+        HELIOS_P06_PRODUCTION_ATTEST_HANDLE => section_attest::attest(&mut request),
+        HELIOS_P06_PRODUCTION_VALIDATE => wdk_sys::STATUS_NOT_SUPPORTED,
+        HELIOS_P06_PRODUCTION_RELEASE => {
+            let mut diagnostic = HeliosEscapeP06SectionCarrier::zeroed();
+            let probe_id = match with_slots(adapter, |slots| {
+                production_slot(slots, &request).map(|slot| slot.logic.probe_id)
+            }) {
+                Ok(Ok(id)) => id,
+                Ok(Err(error)) | Err(error) => {
+                    request.status = diagnostic_result(error);
+                    wire.write_back(&request);
+                    return error;
+                }
+            };
+            diagnostic.probe_id = probe_id;
+            diagnostic.generation = request.generation;
+            diagnostic.slot_index = request.slot_index;
+            release(adapter, &diagnostic, HELIOS_P06_PRODUCTION_SECTION_VERSION)
+        }
+        HELIOS_P06_PRODUCTION_QUERY => production_query(adapter, &mut request),
+        HELIOS_P06_PRODUCTION_REGISTER_EVENT | HELIOS_P06_PRODUCTION_UNREGISTER_EVENT => {
+            production_event(adapter, &request)
+        }
+        _ => wdk_sys::STATUS_INVALID_PARAMETER,
+    };
+    if request.op != HELIOS_P06_PRODUCTION_ATTEST_HANDLE {
+        request.status = diagnostic_result(status);
+    }
+    wire.write_back(&request);
+    status
+}
+
+fn production_slot<'a>(
+    slots: &'a mut [SectionSlot; MAX_SLOTS],
+    request: &helios_protocol::HeliosEscapeP06ProductionCarrier,
+) -> Result<&'a mut SectionSlot, NTSTATUS> {
+    let Some(slot) = slots.get_mut(request.slot_index as usize) else {
+        return Err(wdk_sys::STATUS_NOT_FOUND);
+    };
+    if slot.logic.state != State::Live {
+        return Err(wdk_sys::STATUS_NOT_FOUND);
+    }
+    if slot.logic.generation != request.generation {
+        return Err(wdk_sys::STATUS_REVISION_MISMATCH);
+    }
+    if slot.production_id != request.carrier_id || request.carrier_id.iter().all(|byte| *byte == 0)
+    {
+        return Err(wdk_sys::STATUS_NOT_FOUND);
+    }
+    if slot.record_version != helios_protocol::HELIOS_P06_PRODUCTION_SECTION_VERSION {
+        return Err(wdk_sys::STATUS_REVISION_MISMATCH);
+    }
+    Ok(slot)
+}
+
+fn production_publish(
+    adapter: &AdapterContext,
+    request: &helios_protocol::HeliosEscapeP06ProductionCarrier,
+) -> NTSTATUS {
+    if crate::diag::read_config_dword(crate::diag::knobs::P06_E1_TEST, 0) != 1 {
+        return wdk_sys::STATUS_ACCESS_DENIED;
+    }
+    match with_slots(adapter, |slots| {
+        let slot = production_slot(slots, request)?;
+        if slot.logic.sequence >= (u64::MAX - 1) / 2 {
+            return Err(wdk_sys::STATUS_INTEGER_OVERFLOW);
+        }
+        let mut next = slot.production;
+        if request.op == helios_protocol::HELIOS_P06_PRODUCTION_PUBLISH_SUCCESS {
+            if request.response_type != 0 {
+                return Err(wdk_sys::STATUS_INVALID_PARAMETER);
+            }
+            next.publish_success(request.value);
+        } else {
+            if request.response_type != 0x1200 {
+                return Err(wdk_sys::STATUS_INVALID_PARAMETER);
+            }
+            next.publish_error(request.value, request.response_type)
+                .map_err(|_| wdk_sys::STATUS_INVALID_PARAMETER)?;
+        }
+        slot.logic.sequence += 1;
+        write_production_record(
+            slot.logic.resources.system_view,
+            slot.production_id,
+            slot.logic.sequence,
+            next,
+        );
+        slot.production = next;
+        for &event in slot.production_events.iter() {
+            if event != 0 {
+                // SAFETY: registration owns an event-object reference and
+                // this PASSIVE writer holds the section table mutex.
+                unsafe { KeSetEvent(event as *mut wdk_sys::KEVENT, 0, 0) };
+            }
+        }
+        Ok(())
+    }) {
+        Ok(Ok(())) => wdk_sys::STATUS_SUCCESS,
+        Ok(Err(status)) | Err(status) => status,
+    }
+}
+
+fn production_event(
+    adapter: &AdapterContext,
+    request: &helios_protocol::HeliosEscapeP06ProductionCarrier,
+) -> NTSTATUS {
+    let Some(event) = crate::ddi::escape::reference_user_event(request.user_handle) else {
+        return wdk_sys::STATUS_INVALID_HANDLE;
+    };
+    let result = with_slots(adapter, |slots| {
+        let slot = production_slot(slots, request)?;
+        if request.op == helios_protocol::HELIOS_P06_PRODUCTION_REGISTER_EVENT {
+            if slot
+                .production_events
+                .iter()
+                .any(|&entry| entry == event.as_ptr() as usize)
+            {
+                return Err(wdk_sys::STATUS_OBJECT_NAME_COLLISION);
+            }
+            let Some(empty) = slot.production_events.iter_mut().find(|entry| **entry == 0) else {
+                return Err(wdk_sys::STATUS_INSUFFICIENT_RESOURCES);
+            };
+            *empty = event.as_ptr() as usize;
+            Ok(true)
+        } else {
+            let Some(entry) = slot
+                .production_events
+                .iter_mut()
+                .find(|entry| **entry == event.as_ptr() as usize)
+            else {
+                return Err(wdk_sys::STATUS_NOT_FOUND);
+            };
+            *entry = 0;
+            Ok(false)
+        }
+    });
+    let registered = matches!(result, Ok(Ok(true)));
+    if !registered {
+        // Drop the lookup reference; on UNREGISTER also drop the table's
+        // reference after it has been removed under the section mutex.
+        crate::ddi::escape::dereference_user_event(event);
+        if matches!(result, Ok(Ok(false))) {
+            crate::ddi::escape::dereference_user_event(event);
+        }
+    }
+    match result {
+        Ok(Ok(_)) => wdk_sys::STATUS_SUCCESS,
+        Ok(Err(status)) | Err(status) => status,
+    }
+}
+
+fn release_production_events(slot: &mut SectionSlot) {
+    for entry in slot.production_events.iter_mut() {
+        if let Some(event) = core::ptr::NonNull::new(*entry as *mut wdk_sys::KEVENT) {
+            crate::ddi::escape::dereference_user_event(event);
+            *entry = 0;
+        }
+    }
+}
+
+fn production_query(
+    adapter: &AdapterContext,
+    request: &mut helios_protocol::HeliosEscapeP06ProductionCarrier,
+) -> NTSTATUS {
+    match with_slots(adapter, |slots| {
+        let slot = production_slot(slots, request)?;
+        request.object_name = slot.name;
+        request.native_name = slot.native_name;
+        request.lease_flags = if slot.logic.resources.kernel_handle != 0 {
+            helios_protocol::HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
+        } else {
+            0
+        };
+        Ok(())
+    }) {
+        Ok(Ok(())) => wdk_sys::STATUS_SUCCESS,
+        Ok(Err(status)) | Err(status) => status,
+    }
+}
+
 fn create(
     adapter: &AdapterContext,
     request: &mut helios_protocol::HeliosEscapeP06SectionCarrier,
+    record_version: u32,
+    initial_value: u64,
+    production_id: Option<[u8; 16]>,
 ) -> NTSTATUS {
     retry_orphans();
     let Some(probe_id) = next_nonwrapping_id() else {
@@ -640,9 +984,15 @@ fn create(
     let Some(generation) = next_nonwrapping_generation() else {
         return wdk_sys::STATUS_INSUFFICIENT_RESOURCES;
     };
-    let Some(names) = helios_kmd_logic::section_names::make::<
-        { helios_protocol::HELIOS_P06_SECTION_NAME_CAP },
-    >(probe_id, generation) else {
+    let names = match production_id {
+        Some(id) => helios_kmd_logic::section_names::make_production::<
+            { helios_protocol::HELIOS_P06_SECTION_NAME_CAP },
+        >(&id),
+        None => helios_kmd_logic::section_names::make::<
+            { helios_protocol::HELIOS_P06_SECTION_NAME_CAP },
+        >(probe_id, generation),
+    };
+    let Some(names) = names else {
         return wdk_sys::STATUS_BUFFER_TOO_SMALL;
     };
     request.object_name = names.win32_name;
@@ -672,6 +1022,8 @@ fn create(
         request.slot_index = index as u32;
         slots[index].name = names.win32_name;
         slots[index].native_name = names.native_name;
+        slots[index].record_version = record_version;
+        slots[index].production_id = production_id.unwrap_or([0; 16]);
         slots[index].size = 4096;
         slots[index].orphan_reservation = orphan_reservation;
         Some(Ok(index))
@@ -699,31 +1051,51 @@ fn create(
         generation,
     };
     let mut requestor_sid = [0u64; 9];
-    if let Err((stage, status)) = capture_requestor_sid(&mut requestor_sid) {
-        request.sequence = stage;
-        return discard_creating(adapter, index, lease, status, request);
+    if production_id.is_none() {
+        if let Err((stage, status)) = capture_requestor_sid(&mut requestor_sid) {
+            request.sequence = stage;
+            return discard_creating(adapter, index, lease, status, request);
+        }
     }
-    let resources =
-        match create_backing_section(&names.native_name, requestor_sid.as_mut_ptr() as PVOID) {
-            Ok(resources) => resources,
-            Err((stage, status, resources)) => {
-                request.sequence = stage;
-                request.lease_flags = if resources.kernel_handle != 0 {
-                    HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
-                } else {
-                    0
-                };
-                let _ = with_slots(adapter, |slots| {
-                    slots[index].logic.resources = resources;
-                });
-                return discard_creating(adapter, index, lease, status, request);
-            }
-        };
+    let resources = match create_backing_section(
+        &names.native_name,
+        requestor_sid.as_mut_ptr() as PVOID,
+        production_id.is_some(),
+    ) {
+        Ok(resources) => resources,
+        Err((stage, status, resources)) => {
+            request.sequence = stage;
+            request.lease_flags = if resources.kernel_handle != 0 {
+                HELIOS_P06_SECTION_LEASE_KERNEL_HANDLE_RETAINED
+            } else {
+                0
+            };
+            let _ = with_slots(adapter, |slots| {
+                slots[index].logic.resources = resources;
+            });
+            return discard_creating(adapter, index, lease, status, request);
+        }
+    };
     let view = resources.system_view as PVOID;
-    write_record(view as usize, probe_id, generation, 0, request.test_value);
+    if record_version == HELIOS_P06_PRODUCTION_SECTION_VERSION {
+        write_production_record(
+            view as usize,
+            production_id.unwrap_or([0; 16]),
+            0,
+            ProductionState {
+                completed_value: initial_value,
+                ..ProductionState::EMPTY
+            },
+        );
+    } else {
+        write_record(view as usize, probe_id, generation, 0, initial_value);
+    }
     let committed = with_slots(adapter, |slots| {
         let slot = &mut slots[index];
         slot.logic.resources = resources;
+        if record_version == HELIOS_P06_PRODUCTION_SECTION_VERSION {
+            slot.production.completed_value = initial_value;
+        }
         section_carrier::acquire_live_slot(&mut slot.logic, lease).map_err(slot_status)?;
         Ok(())
     });
@@ -758,6 +1130,9 @@ fn publish(
         }
         if slot.logic.probe_id != request.probe_id {
             return Err(wdk_sys::STATUS_NOT_FOUND);
+        }
+        if slot.record_version != HELIOS_P06_SECTION_VERSION {
+            return Err(wdk_sys::STATUS_REVISION_MISMATCH);
         }
         let lease = section_carrier::Lease {
             index,
@@ -805,6 +1180,9 @@ fn query(
         if slot.logic.probe_id != request.probe_id {
             return Err(wdk_sys::STATUS_NOT_FOUND);
         }
+        if slot.record_version != HELIOS_P06_SECTION_VERSION {
+            return Err(wdk_sys::STATUS_REVISION_MISMATCH);
+        }
         let lease = section_carrier::Lease {
             index,
             probe_id: request.probe_id,
@@ -831,6 +1209,7 @@ fn query(
 fn release(
     adapter: &AdapterContext,
     request: &helios_protocol::HeliosEscapeP06SectionCarrier,
+    record_version: u32,
 ) -> NTSTATUS {
     match with_slots(adapter, |slots| {
         let index = request.slot_index as usize;
@@ -846,12 +1225,16 @@ fn release(
         if slot.logic.probe_id != request.probe_id {
             return Err(wdk_sys::STATUS_NOT_FOUND);
         }
+        if slot.record_version != record_version {
+            return Err(wdk_sys::STATUS_REVISION_MISMATCH);
+        }
         let lease = section_carrier::Lease {
             index,
             probe_id: request.probe_id,
             generation: request.generation,
         };
         section_carrier::begin_release_slot(&mut slots[index].logic, lease).map_err(slot_status)?;
+        release_production_events(&mut slots[index]);
         let cleanup_status = cleanup_backing_resources(&mut slots[index].logic.resources);
         if cleanup_status < 0 {
             unsafe { crate::diag::record_named_bytes(b"P06Rel", cleanup_status as u32) };
@@ -876,6 +1259,7 @@ pub(crate) unsafe fn release_all(adapter: &AdapterContext) {
             if slot.logic.state == State::Free {
                 continue;
             }
+            release_production_events(slot);
             let cleanup_status = cleanup_backing_resources(&mut slot.logic.resources);
             if cleanup_status < 0 {
                 store_orphan(slot.orphan_reservation, slot.logic.resources);
