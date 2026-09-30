@@ -2,6 +2,11 @@ name: Windows graphics and compute bundle
 
 on:
   workflow_dispatch:
+    inputs:
+      mesa_only:
+        description: 'Build/qualify only Mesa x64/x86; preserve installed KMD/UMDs'
+        type: boolean
+        default: false
   push:
     branches: [master]
     tags: ['v*']
@@ -33,6 +38,7 @@ env:
 
 jobs:
   driver:
+    if: ${{ inputs.mesa_only != true }}
     name: WDDM driver and x64/x86 Direct3D 11/12 UMDs (${{ matrix.configuration }})
     runs-on: windows-2022
     timeout-minutes: 120
@@ -147,6 +153,17 @@ jobs:
             mingw-w64-ucrt-x86_64-vulkan-loader
             bison
             flex
+      - name: Qualify focal carrier producer and record contract
+        if: ${{ inputs.mesa_only == true }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git -C icd/mesa rev-parse HEAD
+          git ls-tree HEAD icd/mesa
+          python icd/mesa/src/virtio/vulkan/test_helios_carrier_producer.py --cc gcc --output "$RUNNER_TEMP/carrier-producer-test.exe"
+          gcc -std=c11 -Wall -Wextra icd/mesa/src/virtio/vulkan/test_helios_carrier_v2.c -o "$RUNNER_TEMP/carrier-record-test.exe"
+          "$RUNNER_TEMP/carrier-record-test.exe"
       - name: Build Mesa runtime
         shell: msys2 {0}
         run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa"
@@ -187,6 +204,17 @@ jobs:
             mingw-w64-i686-vulkan-loader
             bison
             flex
+      - name: Qualify focal carrier producer and record contract
+        if: ${{ inputs.mesa_only == true }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git -C icd/mesa rev-parse HEAD
+          git ls-tree HEAD icd/mesa
+          python icd/mesa/src/virtio/vulkan/test_helios_carrier_producer.py --cc gcc --output "$RUNNER_TEMP/carrier-producer-test.exe"
+          gcc -std=c11 -Wall -Wextra icd/mesa/src/virtio/vulkan/test_helios_carrier_v2.c -o "$RUNNER_TEMP/carrier-record-test.exe"
+          "$RUNNER_TEMP/carrier-record-test.exe"
       - name: Build WoW64 Mesa runtime
         shell: msys2 {0}
         run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa-x86"
@@ -198,6 +226,7 @@ jobs:
           retention-days: 14
 
   opencl:
+    if: ${{ inputs.mesa_only != true }}
     name: CLVK with embedded clspv
     runs-on: windows-2022
     timeout-minutes: 180
@@ -238,6 +267,7 @@ jobs:
           retention-days: 14
 
   loaders:
+    if: ${{ inputs.mesa_only != true }}
     name: Khronos loaders and smoke probes
     runs-on: windows-2022
     timeout-minutes: 60
@@ -264,6 +294,7 @@ jobs:
           retention-days: 14
 
   compatibility:
+    if: ${{ inputs.mesa_only != true }}
     name: Application compatibility shims
     runs-on: windows-2022
     timeout-minutes: 15
@@ -286,6 +317,7 @@ jobs:
           retention-days: 14
 
   package:
+    if: ${{ inputs.mesa_only != true }}
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     needs: [driver, mesa, mesa_x86, opencl, loaders, compatibility]
     runs-on: windows-2022
@@ -384,7 +416,7 @@ jobs:
 
   release:
     name: Publish tagged release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: inputs.mesa_only != true && startsWith(github.ref, 'refs/tags/v')
     needs: [package]
     runs-on: ubuntu-latest
     permissions:
