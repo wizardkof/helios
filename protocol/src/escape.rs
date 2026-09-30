@@ -87,6 +87,26 @@ pub const HELIOS_ESCAPE_SNAPSHOT_STATUS: u32 = 0x0015;
 pub const HELIOS_ESCAPE_QUERY_VENUS_CAPSET: u32 = 0x0016;
 /// Temporary carrier-only section probe. No submit/wait/retire association.
 pub const HELIOS_ESCAPE_P06_SECTION_CARRIER: u32 = 0x0017;
+/// Versioned production section-carrier control, distinct from diagnostic v1.
+pub const HELIOS_ESCAPE_P06_PRODUCTION_CARRIER: u32 = 0x0018;
+pub const HELIOS_P06_PRODUCTION_CREATE: u32 = 1;
+pub const HELIOS_P06_PRODUCTION_PUBLISH_SUCCESS: u32 = 2;
+pub const HELIOS_P06_PRODUCTION_PUBLISH_ERROR: u32 = 3;
+pub const HELIOS_P06_PRODUCTION_VALIDATE: u32 = 4;
+pub const HELIOS_P06_PRODUCTION_RELEASE: u32 = 5;
+pub const HELIOS_P06_PRODUCTION_QUERY: u32 = 6;
+pub const HELIOS_P06_PRODUCTION_REGISTER_EVENT: u32 = 7;
+pub const HELIOS_P06_PRODUCTION_UNREGISTER_EVENT: u32 = 8;
+/// One-shot Object Manager provenance check; no live-slot lookup or retained ref.
+pub const HELIOS_P06_PRODUCTION_ATTEST_HANDLE: u32 = 9;
+pub const HELIOS_P06_ATTEST_SUCCESS: u32 = 0;
+pub const HELIOS_P06_ATTEST_INVALID_HANDLE: u32 = 1;
+pub const HELIOS_P06_ATTEST_WRONG_OBJECT_TYPE: u32 = 2;
+pub const HELIOS_P06_ATTEST_WRONG_OBJECT_NAME: u32 = 3;
+pub const HELIOS_P06_ATTEST_CARRIER_ID_MISMATCH: u32 = 4;
+pub const HELIOS_P06_ATTEST_WRONG_OWNER: u32 = 5;
+pub const HELIOS_P06_ATTEST_WRONG_DACL: u32 = 6;
+pub const HELIOS_P06_ATTEST_UNSUPPORTED_VERSION: u32 = 7;
 pub const HELIOS_P06_SECTION_CREATE: u32 = 1;
 pub const HELIOS_P06_SECTION_PUBLISH: u32 = 2;
 pub const HELIOS_P06_SECTION_RELEASE: u32 = 3;
@@ -123,6 +143,30 @@ pub struct HeliosEscapeP06SectionCarrier {
     pub reserved_tail: u32,
 }
 
+/// Control request for a production v2 carrier. `generation` and `slot_index`
+/// are KMD lease tokens, never external payload identity. ATTEST references
+/// `user_handle` in the caller process and validates object metadata without
+/// requiring the original producer lease or slot to remain live.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct HeliosEscapeP06ProductionCarrier {
+    pub hdr: HeliosEscapeHeader,
+    pub op: u32,
+    pub reserved_op: u32,
+    pub carrier_id: [u8; 16],
+    pub generation: u64,
+    pub slot_index: u32,
+    pub lease_flags: u32,
+    pub value: u64,
+    pub response_type: u32,
+    pub status: u32,
+    pub expected_record_version: u32,
+    pub reserved: u32,
+    pub user_handle: u64,
+    pub object_name: [u16; HELIOS_P06_SECTION_NAME_CAP],
+    pub native_name: [u16; HELIOS_P06_SECTION_NAME_CAP],
+}
+
 /// Read-only state carried by the diagnostic section.
 #[repr(C, align(8))]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -146,9 +190,8 @@ pub struct HeliosP06ProductionSectionRecord {
     pub magic: u64,
     pub version: u32,
     pub size: u32,
-    pub carrier_id: u32,
-    pub reserved: u32,
-    pub generation: u64,
+    /// KMD-generated external identity; not a slot or lease generation.
+    pub carrier_id: [u8; 16],
     pub sequence: u64,
     pub completed_value: u64,
     pub terminal_error_value: u64,
@@ -166,6 +209,7 @@ const _: () = {
     assert!(core::mem::offset_of!(HeliosP06SectionRecord, sequence) == 32);
     assert!(core::mem::size_of::<HeliosP06ProductionSectionRecord>() == 64);
     assert!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, sequence) == 32);
+    assert!(core::mem::size_of::<HeliosEscapeP06ProductionCarrier>() == 600);
 };
 
 pub const HELIOS_SNAPSHOT_BUSY: u32 = 0;
@@ -1027,5 +1071,29 @@ mod p06_section_carrier_abi_tests {
         assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, completed_value), 40);
         assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, terminal_error_value), 48);
         assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, terminal_response_type), 56);
+    }
+
+    #[test]
+    fn external_identity_is_a_record_field_independent_of_kmd_generation() {
+        let mut old = HeliosP06ProductionSectionRecord::zeroed();
+        old.carrier_id = [0x41; 16];
+        let mut reused_slot = HeliosP06ProductionSectionRecord::zeroed();
+        reused_slot.carrier_id = [0x42; 16];
+        assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, carrier_id), 16);
+        assert_eq!(core::mem::offset_of!(HeliosP06ProductionSectionRecord, sequence), 32);
+        assert_ne!(old.carrier_id, reused_slot.carrier_id);
+    }
+
+    #[test]
+    fn production_escape_is_disjoint_from_diagnostic_v1() {
+        assert_eq!(HELIOS_ESCAPE_P06_PRODUCTION_CARRIER, 0x0018);
+        assert_ne!(HELIOS_ESCAPE_P06_PRODUCTION_CARRIER, HELIOS_ESCAPE_P06_SECTION_CARRIER);
+        assert_eq!(core::mem::size_of::<HeliosEscapeP06ProductionCarrier>(), 600);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06ProductionCarrier, value), 56);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06ProductionCarrier, user_handle), 80);
+        assert_eq!(core::mem::offset_of!(HeliosEscapeP06ProductionCarrier, object_name), 88);
+        assert_eq!(HELIOS_P06_PRODUCTION_REGISTER_EVENT, 7);
+        assert_eq!(HELIOS_P06_PRODUCTION_UNREGISTER_EVENT, 8);
+        assert_eq!(HELIOS_P06_PRODUCTION_ATTEST_HANDLE, 9);
     }
 }

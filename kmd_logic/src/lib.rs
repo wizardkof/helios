@@ -24,6 +24,8 @@ pub mod execution_completion;
 pub mod fence_completion;
 pub mod section_carrier;
 pub mod production_carrier;
+pub mod production_carrier_lifetime_contract;
+pub mod production_carrier_provenance;
 pub mod section_names;
 mod p06_diagnostics;
 pub use p06_diagnostics::observe_result_preserving;
