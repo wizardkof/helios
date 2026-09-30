@@ -3,6 +3,7 @@
 const BASE_PREFIX: &str = "HeliosP06Section_";
 const WIN32_PREFIX: &str = "Global\\";
 const NATIVE_PREFIX: &str = "\\BaseNamedObjects\\";
+const PRODUCTION_PREFIX: &str = "HeliosP06Carrier_";
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SectionNames<const N: usize> {
@@ -104,11 +105,61 @@ pub fn make<const N: usize>(probe_id: u32, generation: u64) -> Option<SectionNam
     Some(names)
 }
 
+/// Names one production Section object with the same 128-bit identity carried
+/// in its v2 record. Slot and lease generation are deliberately absent.
+pub fn make_production<const N: usize>(id: &[u8; 16]) -> Option<SectionNames<N>> {
+    if id.iter().all(|byte| *byte == 0) {
+        return None;
+    }
+    let mut names = SectionNames {
+        object_base_name: [0; N],
+        object_base_name_len: 0,
+        win32_name: [0; N],
+        win32_name_len: 0,
+        native_name: [0; N],
+        native_name_len: 0,
+    };
+    append(
+        &mut names.object_base_name,
+        &mut names.object_base_name_len,
+        PRODUCTION_PREFIX,
+    )?;
+    for byte in id {
+        for nibble in [byte >> 4, byte & 0x0f] {
+            let digit = b"0123456789abcdef"[nibble as usize] as u16;
+            *names.object_base_name.get_mut(names.object_base_name_len)? = digit;
+            names.object_base_name_len += 1;
+        }
+    }
+    *names.object_base_name.get_mut(names.object_base_name_len)? = 0;
+    append(
+        &mut names.win32_name,
+        &mut names.win32_name_len,
+        WIN32_PREFIX,
+    )?;
+    for &unit in &names.object_base_name[..names.object_base_name_len] {
+        *names.win32_name.get_mut(names.win32_name_len)? = unit;
+        names.win32_name_len += 1;
+    }
+    *names.win32_name.get_mut(names.win32_name_len)? = 0;
+    append(
+        &mut names.native_name,
+        &mut names.native_name_len,
+        NATIVE_PREFIX,
+    )?;
+    for &unit in &names.object_base_name[..names.object_base_name_len] {
+        *names.native_name.get_mut(names.native_name_len)? = unit;
+        names.native_name_len += 1;
+    }
+    *names.native_name.get_mut(names.native_name_len)? = 0;
+    Some(names)
+}
+
 #[cfg(test)]
 mod tests {
     extern crate std;
 
-    use super::make;
+    use super::{make, make_production};
 
     fn string(units: &[u16], len: usize) -> std::string::String {
         std::string::String::from_utf16(&units[..len]).unwrap()
@@ -150,5 +201,28 @@ mod tests {
     fn names_fail_when_any_output_cannot_fit_with_nul_terminator() {
         assert!(make::<32>(1, 1).is_none());
         assert!(make::<96>(1, 1).is_some());
+    }
+
+    #[test]
+    fn production_names_encode_full_identity_without_slot_or_generation() {
+        let id = [0xab; 16];
+        let names = make_production::<128>(&id).unwrap();
+        assert_eq!(
+            string(&names.object_base_name, names.object_base_name_len),
+            "HeliosP06Carrier_abababababababababababababababab"
+        );
+        assert_eq!(
+            string(&names.win32_name, names.win32_name_len),
+            "Global\\HeliosP06Carrier_abababababababababababababababab"
+        );
+        assert_eq!(
+            string(&names.native_name, names.native_name_len),
+            "\\BaseNamedObjects\\HeliosP06Carrier_abababababababababababababababab"
+        );
+        assert!(make_production::<128>(&[0; 16]).is_none());
+        let mut attested = [0u16; 128];
+        let attested_len =
+            crate::production_carrier_provenance::write_name(&id, &mut attested).unwrap();
+        assert_eq!(&names.native_name[..names.native_name_len], &attested[..attested_len]);
     }
 }
