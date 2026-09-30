@@ -1,6 +1,8 @@
 name: P06 ATTEST observer KMD only
 
 on:
+  push:
+    branches: [p06-e1-kernel-observation-20260930]
   workflow_dispatch:
 
 permissions:
