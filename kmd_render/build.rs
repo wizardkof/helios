@@ -74,6 +74,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // hal, wmilib, ...) but not the display-miniport import lib, so add it here.
     // Its directory is already on the linker search path (km\<ver>\x64).
     println!("cargo:rustc-link-lib=static=displib");
+    // BCryptGenRandom is a kernel CNG import. The WDK's km/x64 Cng.lib is
+    // needed in addition to wdk-build's base kernel libraries.
+    println!("cargo:rustc-link-lib=static=Cng");
     Ok(())
 }
 

@@ -28,6 +28,7 @@ use helios_protocol::{
     HeliosEscapeQueryScanout, HeliosEscapeQueryScanoutTimeline, HeliosEscapeQueryStats,
     HeliosEscapeQueryStatsV2, HeliosEscapeQueryStatsV3, HeliosEscapeQueryStatsV4,
     HeliosEscapeQueryStatsV5, HELIOS_ESCAPE_P06_SECTION_CARRIER,
+    HELIOS_ESCAPE_P06_PRODUCTION_CARRIER,
     HeliosEscapeReleaseBlob, HeliosEscapeScanoutEvent, HeliosEscapeSubmitVenus,
     HeliosEscapeWaitFence, HeliosEscapeWaitFenceLegacy, HELIOS_ESCAPE_ALLOC_BLOB,
     HELIOS_ESCAPE_ATTACH_RESOURCE, HELIOS_ESCAPE_CTX_CREATE, HELIOS_ESCAPE_CTX_DESTROY,
@@ -410,6 +411,9 @@ pub unsafe extern "C" fn dxgkddi_escape(
         HELIOS_ESCAPE_P06_SECTION_CARRIER => {
             crate::adapter::section_probe::escape(adapter, buf, &hdr)
         }
+        HELIOS_ESCAPE_P06_PRODUCTION_CARRIER => {
+            crate::adapter::section_probe::escape_production(adapter, buf, &hdr)
+        }
         HELIOS_ESCAPE_QUERY_VENUS_CAPSET => escape_query_venus_capset(passive, adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT => escape_query_scanout(adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT_TIMELINE => escape_query_scanout_timeline(buf, &hdr),
@@ -664,7 +668,7 @@ extern "C" {
 /// Resolve a guest-supplied event handle to a referenced KEVENT. PASSIVE, in
 /// the calling process (DxgkDdiEscape runs in the caller's context — the same
 /// contract MAP_BLOB relies on). Returns `None` (counted) on any failure.
-fn reference_user_event(event_handle: u64) -> Option<core::ptr::NonNull<wdk_sys::KEVENT>> {
+pub(crate) fn reference_user_event(event_handle: u64) -> Option<core::ptr::NonNull<wdk_sys::KEVENT>> {
     use core::sync::atomic::Ordering;
     let mut object: wdk_sys::PVOID = core::ptr::null_mut();
     // SAFETY: PASSIVE_LEVEL escape in the caller's process. UserMode access
@@ -690,7 +694,7 @@ fn reference_user_event(event_handle: u64) -> Option<core::ptr::NonNull<wdk_sys:
 
 /// Drop an event reference at PASSIVE (registration-failure / unregister
 /// paths; the DISPATCH drain path uses ObDereferenceObjectDeferDelete).
-fn dereference_user_event(event: core::ptr::NonNull<wdk_sys::KEVENT>) {
+pub(crate) fn dereference_user_event(event: core::ptr::NonNull<wdk_sys::KEVENT>) {
     // SAFETY: `event` holds a reference we own; PASSIVE_LEVEL.
     unsafe { wdk_sys::ntddk::ObfDereferenceObject(event.as_ptr() as wdk_sys::PVOID) };
 }
