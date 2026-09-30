@@ -15,6 +15,7 @@ use crate::dxgk::*;
 /// DriverEntry. All devices have been removed by now, so release the cached BAR
 /// MMIO mappings that `WdkHal` reused across stop/start cycles.
 pub unsafe extern "C" fn dxgkddi_unload() {
+    crate::attest_observe::shutdown();
     crate::kmsg(c"Helios: Unload\n");
     crate::virtio::hal::WdkHal::unmap_all();
 }

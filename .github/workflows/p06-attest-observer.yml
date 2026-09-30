@@ -1,0 +1,74 @@
+name: P06 ATTEST observer KMD only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p06-attest-observer-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUST_TOOLCHAIN: nightly-2026-07-14
+  CARGO_MAKE_VERSION: '0.37.24'
+  RUST_SCRIPT_VERSION: '0.36.0'
+  LLVM_VERSION: '22.1.8'
+
+jobs:
+  kmd:
+    if: github.repository == 'wizardkof/helios'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+          fetch-depth: 1
+      - name: Parse KMD wrapper before provisioning
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$env:GITHUB_WORKSPACE/ci/windows/Build-AttestObserverKmd.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+        with:
+          version: ${{ env.LLVM_VERSION }}
+          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rust-src
+      - name: Install Rust build helpers
+        shell: pwsh
+        run: |
+          cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
+          if ($LASTEXITCODE) { throw 'cargo-make installation failed' }
+          cargo install rust-script --locked --version $env:RUST_SCRIPT_VERSION
+          if ($LASTEXITCODE) { throw 'rust-script installation failed' }
+      - name: Install WDK
+        shell: pwsh
+        run: ./ci/windows/Install-WindowsDriverKit.ps1
+      - name: Build and qualify only KMD
+        shell: pwsh
+        run: |
+          git clone --no-hardlinks --no-recurse-submodules $env:GITHUB_WORKSPACE C:\helios-observer
+          if ($LASTEXITCODE) { throw 'Local C: source clone failed' }
+          $actual = (git -C C:\helios-observer rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -or $actual -ne $env:GITHUB_SHA) { throw 'Local source identity mismatch' }
+          ./ci/windows/Build-AttestObserverKmd.ps1 -RepoRoot C:\helios-observer -OutputDir "$env:RUNNER_TEMP/attest-observer" -Configuration ${{ matrix.configuration }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: p06-attest-observer-kmd-${{ matrix.configuration }}-${{ github.sha }}
+          path: ${{ runner.temp }}/attest-observer
+          if-no-files-found: error
+          retention-days: 30

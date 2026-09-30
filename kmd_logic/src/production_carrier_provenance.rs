@@ -85,23 +85,33 @@ fn exact_name(name: &[u16], id: &[u8; 16]) -> bool {
 /// Check the normalized metadata and record identity. The WDK caller must
 /// first use UserMode HANDLE access validation, require a Section object, and
 /// release its temporary object/security references on every return path.
-pub fn attest(
+pub fn attest(metadata: &Metadata<'_>, expected_id: &[u8;16], expected_version: u32,
+              record_id: &[u8;16], record_version: u32) -> Result<(),Refusal> {
+    attest_observed(metadata, expected_id, expected_version, record_id, record_version, |_| {})
+}
+
+/// Identical policy with a bounded observer for the selected branch.
+pub fn attest_observed(
     metadata: &Metadata<'_>,
     expected_id: &[u8; 16],
     expected_version: u32,
     record_id: &[u8; 16],
     record_version: u32,
+    mut observer: impl FnMut(u32),
 ) -> Result<(), Refusal> {
     if metadata.kind != ObjectKind::Section {
+        observer(21);
         return Err(Refusal::WrongObjectType);
     }
     if expected_id.iter().all(|byte| *byte == 0) {
+        observer(22);
         return Err(Refusal::InvalidIdentity);
     }
     if expected_version != CARRIER_RECORD_VERSION
         || record_version != CARRIER_RECORD_VERSION
         || record_id != expected_id
     {
+        observer(23);
         return Err(Refusal::WrongRecord);
     }
     if !exact_name(metadata.name_utf16, expected_id) {
@@ -115,26 +125,33 @@ pub fn attest(
             && (name.len() == NAME_PREFIX.len() + 32
                 || (name.len() == NAME_PREFIX.len() + 33 && name[name.len() - 1] == 0))
         {
+            observer(24);
             return Err(Refusal::CarrierIdMismatch);
         }
+        observer(25);
         return Err(Refusal::WrongName);
     }
     if metadata.owner_sid != SYSTEM_SID {
+        observer(26);
         return Err(Refusal::WrongOwner);
     }
     if !metadata.dacl_present {
+        observer(31);
         return Err(Refusal::WrongDacl);
     }
     let Some(aces) = metadata.dacl else {
+        observer(32);
         return Err(Refusal::WrongDacl);
     };
     if !metadata.dacl_protected || aces.len() != 2 {
+        observer(33);
         return Err(Refusal::WrongDacl);
     }
     let mut system = false;
     let mut readers = false;
     for ace in aces {
         if ace.kind != AceType::Allow || ace.flags != 0 {
+            observer(34);
             return Err(Refusal::WrongDacl);
         }
         if ace.sid == SYSTEM_SID && ace.mask == SECTION_ALL_ACCESS && !system {
@@ -142,12 +159,15 @@ pub fn attest(
         } else if ace.sid == AUTHENTICATED_USERS_SID && ace.mask == READER_ACCESS && !readers {
             readers = true;
         } else {
+            observer(35);
             return Err(Refusal::WrongDacl);
         }
     }
     if !system || !readers {
+        observer(36);
         return Err(Refusal::WrongDacl);
     }
+    observer(0);
     Ok(())
 }
 
@@ -306,4 +326,33 @@ mod tests {
         metadata.dacl = Some(&broad);
         assert_eq!(attest(&metadata, &ID, 2, &ID, 2), Err(Refusal::WrongDacl));
     }
+}
+
+#[cfg(test)]
+mod observation_tests {
+ use super::*;
+ #[test]
+ fn observed_mask_refusal_preserves_policy_and_reports_actual_branch(){
+  let id=[0x12;16];let name:[u16;NAME_PREFIX.len()+32]={let mut n=[0;NAME_PREFIX.len()+32];let mut i=0;while i<NAME_PREFIX.len(){n[i]=NAME_PREFIX[i]as u16;i+=1;}while i<NAME_PREFIX.len()+32{n[i]=if(i-NAME_PREFIX.len())%2==0{b'1' as u16}else{b'2' as u16};i+=1;}n};
+  let aces=[Ace{kind:AceType::Allow,sid:&SYSTEM_SID,mask:SECTION_ALL_ACCESS,flags:0},Ace{kind:AceType::Allow,sid:&AUTHENTICATED_USERS_SID,mask:7,flags:0}];
+  let metadata=Metadata{kind:ObjectKind::Section,name_utf16:&name,owner_sid:&SYSTEM_SID,dacl_present:true,dacl_protected:true,dacl:Some(&aces)};
+  let expected=attest(&metadata,&id,2,&id,2);assert_eq!(expected,Err(Refusal::WrongDacl));
+  let mut observed=None;assert_eq!(attest_observed(&metadata,&id,2,&id,2,|branch|observed=Some(branch)),expected);assert_eq!(observed,Some(35));
+  // Exercise the actual observed policy with no-op and recording observers.
+  for (m, expected_branch, refusal) in [
+   (Metadata{kind:ObjectKind::Other,..metadata},21,Refusal::WrongObjectType),
+   (Metadata{name_utf16:&[],..metadata},25,Refusal::WrongName),
+   (Metadata{owner_sid:&AUTHENTICATED_USERS_SID,..metadata},26,Refusal::WrongOwner),
+   (Metadata{dacl_present:false,..metadata},31,Refusal::WrongDacl),
+   (Metadata{dacl:None,..metadata},32,Refusal::WrongDacl),
+   (Metadata{dacl_protected:false,..metadata},33,Refusal::WrongDacl),
+  ] {
+   let mut seen=None;
+   assert_eq!(attest_observed(&m,&id,2,&id,2,|b|seen=Some(b)),Err(refusal));
+   assert_eq!(seen,Some(expected_branch));assert_eq!(attest(&m,&id,2,&id,2),Err(refusal));
+  }
+  let good=[aces[0],Ace{mask:5,..aces[1]}];let valid=Metadata{dacl:Some(&good),..metadata};
+  let mut seen=None;assert_eq!(attest_observed(&valid,&id,2,&id,2,|b|seen=Some(b)),Ok(()));assert_eq!(seen,Some(0));
+
+ }
 }

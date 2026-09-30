@@ -59,6 +59,8 @@ pub(crate) fn kmsg(msg: &core::ffi::CStr) {
     }
 }
 
+mod attest_observe;
+
 /// Driver entry point (named "DriverEntry" so the INF/loader finds it).
 ///
 /// # Safety
@@ -72,12 +74,14 @@ pub unsafe extern "system" fn driver_entry(
     kmsg(c"Helios: DriverEntry\n");
     diag::record(0x0D00_0001);
 
+    attest_observe::initialize();
     let mut init = build_ddi_table();
     // SAFETY: pointers are valid for the call; `init` outlives the call on this
     // stack frame, and DxgkInitialize copies what it needs.
     let status = unsafe { DxgkInitialize(driver_object, registry_path, &mut init) };
     diag::record(0x0D00_0002);
     diag::record(status as u32);
+    if status < 0 { attest_observe::shutdown(); }
     status
 }
 

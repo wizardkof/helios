@@ -90,8 +90,9 @@ impl Drop for ObjectSecurity {
     }
 }
 
-fn classified(request: &mut HeliosEscapeP06ProductionCarrier, code: u32) -> NTSTATUS {
+fn classified(request: &mut HeliosEscapeP06ProductionCarrier, code: u32, observation: Option<&crate::attest_observe::Call>, branch: u32) -> NTSTATUS {
     request.status = code;
+    if let Some(o) = observation { o.classified(branch, request.status, wdk_sys::STATUS_INVALID_HANDLE); }
     wdk_sys::STATUS_INVALID_HANDLE
 }
 
@@ -225,12 +226,12 @@ fn refusal_code(refusal: Refusal) -> u32 {
     }
 }
 
-pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS {
+pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier, observation: Option<&crate::attest_observe::Call>) -> NTSTATUS {
     if request.expected_record_version != HELIOS_P06_PRODUCTION_SECTION_VERSION {
-        return classified(request, HELIOS_P06_ATTEST_UNSUPPORTED_VERSION);
+        return classified(request, HELIOS_P06_ATTEST_UNSUPPORTED_VERSION, observation, 1);
     }
     if request.user_handle == 0 || request.user_handle > usize::MAX as u64 {
-        return classified(request, HELIOS_P06_ATTEST_INVALID_HANDLE);
+        return classified(request, HELIOS_P06_ATTEST_INVALID_HANDLE, observation, 2);
     }
     let mut object: PVOID = ptr::null_mut();
     // SAFETY: escape runs synchronously in the caller process at PASSIVE;
@@ -246,7 +247,7 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
         )
     };
     if status < 0 || object.is_null() {
-        return classified(request, HELIOS_P06_ATTEST_INVALID_HANDLE);
+        return classified(request, HELIOS_P06_ATTEST_INVALID_HANDLE, observation, 3);
     }
     let object = ObjectRef(object);
     let mut kernel_handle: HANDLE = ptr::null_mut();
@@ -264,7 +265,7 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
         )
     };
     if status < 0 || kernel_handle.is_null() {
-        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_TYPE);
+        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_TYPE, observation, 4);
     }
     let kernel_handle = KernelHandle(kernel_handle);
     let mut type_buffer = [0u64; 64];
@@ -282,7 +283,7 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
     };
     let section_name: [u16; 7] = [83, 101, 99, 116, 105, 111, 110];
     if status < 0 || name_in_buffer(&type_buffer) != Some(section_name.as_slice()) {
-        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_TYPE);
+        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_TYPE, observation, 5);
     }
     let mut name_buffer = [0u64; 64];
     // SAFETY: object.0 stays referenced; ObQueryNameString writes only within
@@ -296,24 +297,24 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
         )
     };
     if status < 0 {
-        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_NAME);
+        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_NAME, observation, 6);
     }
     let Some(name) = name_in_buffer(&name_buffer) else {
-        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_NAME);
+        return classified(request, HELIOS_P06_ATTEST_WRONG_OBJECT_NAME, observation, 7);
     };
     let mut descriptor: PVOID = ptr::null_mut();
     let mut allocated = 0u8;
     // SAFETY: object.0 is referenced; the successful pair is released by guard.
     let status = unsafe { ObGetObjectSecurity(object.0, &mut descriptor, &mut allocated) };
     if status < 0 || descriptor.is_null() {
-        return classified(request, HELIOS_P06_ATTEST_WRONG_DACL);
+        return classified(request, HELIOS_P06_ATTEST_WRONG_DACL, observation, 8);
     }
     let security = ObjectSecurity {
         descriptor,
         allocated,
     };
     let Some((owner, aces, protected)) = security_metadata(security.descriptor) else {
-        return classified(request, HELIOS_P06_ATTEST_WRONG_DACL);
+        return classified(request, HELIOS_P06_ATTEST_WRONG_DACL, observation, 9);
     };
     let metadata = Metadata {
         kind: ObjectKind::Section,
@@ -323,17 +324,20 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
         dacl: Some(&aces),
         dacl_protected: protected,
     };
-    match policy::attest(
+    let mut policy_branch = 0;
+    match policy::attest_observed(
         &metadata,
         &request.carrier_id,
         request.expected_record_version,
         &request.carrier_id,
         HELIOS_P06_PRODUCTION_SECTION_VERSION,
+        |branch| policy_branch = branch,
     ) {
         Ok(()) => {
             request.status = HELIOS_P06_ATTEST_SUCCESS;
+            if let Some(o) = observation { o.classified(policy_branch, request.status, wdk_sys::STATUS_SUCCESS); }
             wdk_sys::STATUS_SUCCESS
         }
-        Err(refusal) => classified(request, refusal_code(refusal)),
+        Err(refusal) => classified(request, refusal_code(refusal), observation, policy_branch),
     }
 }

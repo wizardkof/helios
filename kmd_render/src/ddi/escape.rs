@@ -169,6 +169,9 @@ impl<'a, T: bytemuck::Pod> EscapeBuf<'a, T> {
         self.buf[..size_of::<T>()].copy_from_slice(bytes_of(value));
     }
 
+    /// Read-only view for diagnostic readback of the actual destination.
+    pub(crate) fn observed_bytes(&self) -> &[u8] { self.buf }
+
     /// Everything after `T`, bounded by the length the RUNTIME supplied.
     ///
     /// This is SUBMIT_VENUS's command stream. See the type docs for why the
@@ -412,7 +415,11 @@ pub unsafe extern "C" fn dxgkddi_escape(
             crate::adapter::section_probe::escape(adapter, buf, &hdr)
         }
         HELIOS_ESCAPE_P06_PRODUCTION_CARRIER => {
-            crate::adapter::section_probe::escape_production(adapter, buf, &hdr)
+            let observation = crate::attest_observe::begin(buf);
+            let status = crate::adapter::section_probe::escape_production(adapter, buf, &hdr, observation.as_ref());
+            helios_kmd_logic::observe_result_preserving(status, |returned| {
+                if let Some(o) = observation.as_ref() { o.phase(5, o.local(), Some(buf), *returned); }
+            })
         }
         HELIOS_ESCAPE_QUERY_VENUS_CAPSET => escape_query_venus_capset(passive, adapter, buf, &hdr),
         HELIOS_ESCAPE_QUERY_SCANOUT => escape_query_scanout(adapter, buf, &hdr),

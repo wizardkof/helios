@@ -5921,3 +5921,5 @@ mod present_stream_boundary_tests {
         assert!(slot_handle(GENERATION_MAX, MAX_STREAMS - 1) < (1 << 31));
     }
 }
+
+pub mod attest_observation;

@@ -743,6 +743,7 @@ pub(crate) fn escape_production(
     adapter: &AdapterContext,
     buf: &mut [u8],
     hdr: &helios_protocol::HeliosEscapeHeader,
+    observation: Option<&crate::attest_observe::Call>,
 ) -> NTSTATUS {
     use helios_protocol::*;
     let mut wire =
@@ -790,7 +791,11 @@ pub(crate) fn escape_production(
         HELIOS_P06_PRODUCTION_PUBLISH_SUCCESS | HELIOS_P06_PRODUCTION_PUBLISH_ERROR => {
             production_publish(adapter, &request)
         }
-        HELIOS_P06_PRODUCTION_ATTEST_HANDLE => section_attest::attest(&mut request),
+        HELIOS_P06_PRODUCTION_ATTEST_HANDLE => {
+            let status = section_attest::attest(&mut request, observation);
+            if let Some(o) = observation { o.phase(3, request.status, Some(wire.observed_bytes()), status); }
+            status
+        },
         HELIOS_P06_PRODUCTION_VALIDATE => wdk_sys::STATUS_NOT_SUPPORTED,
         HELIOS_P06_PRODUCTION_RELEASE => {
             let mut diagnostic = HeliosEscapeP06SectionCarrier::zeroed();
@@ -819,6 +824,7 @@ pub(crate) fn escape_production(
         request.status = diagnostic_result(status);
     }
     wire.write_back(&request);
+    if let Some(o) = observation { o.phase(4, request.status, Some(wire.observed_bytes()), status); }
     status
 }
 
