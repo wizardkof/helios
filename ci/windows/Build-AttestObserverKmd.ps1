@@ -14,7 +14,9 @@ $OutputDir = (Resolve-Path -LiteralPath $OutputDir).Path
 Start-Transcript -Path (Join-Path $OutputDir 'build-transcript.txt') | Out-Null
 try {
     Import-VisualStudioEnvironment -Architecture x64
-    $clang = Assert-Command 'clang-cl.exe'
+    # VS environment prepends its bundled LLVM; select the pinned installation explicitly.
+    $clang = Join-Path $env:LLVM_PATH 'bin/clang-cl.exe'
+    if (-not (Test-Path -LiteralPath $clang)) { throw 'Pinned LLVM executable missing.' }
     $stampInf = Find-WindowsKitTool 'stampinf.exe'
     $env:LIBCLANG_PATH = Split-Path -Parent $clang
     $env:PATH = "$(Split-Path -Parent $stampInf);$env:PATH"
@@ -23,13 +25,13 @@ try {
     $env:RUSTUP_TOOLCHAIN = 'nightly-2026-07-14'
     $env:HELIOS_WDK_INCLUDE = Find-WindowsKitInclude
     $clangVersion = (& $clang --version) -join "`n"
-    if ($LASTEXITCODE -ne 0 -or $clangVersion -notmatch '22\.1\.8') { throw 'LLVM 22.1.8 is required.' }
+    if ($LASTEXITCODE -ne 0 -or $clangVersion -notmatch '22\.1\.8') { throw "LLVM 22.1.8 is required: path=$clang; output=$clangVersion" }
     $source = (& git -C $RepoRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source identity.' }
     $mesa = (& git -C $RepoRoot rev-parse 'HEAD:icd/mesa').Trim()
     if ($LASTEXITCODE -ne 0 -or $mesa -ne '7d678f31c485b647eed81610491af61c0a0fac65') { throw 'Preserved Mesa gitlink mismatch.' }
     $version = (Get-Content (Join-Path $RepoRoot 'kmd_render/driver-version.env') | Where-Object { $_ -match '^HELIOS_KMD_VERSION=' }) -replace '^HELIOS_KMD_VERSION=', ''
-    if ($version -ne '22.22.290.0') { throw 'Unexpected baseline version; diagnostic identity is the source SHA and binary hash.' }
+    if ($version -ne '22.22.291.0') { throw 'Unexpected diagnostic KMD version.' }
     $profile = if ($Configuration -eq 'Debug') { 'dev' } else { 'release' }
     $profileDir = if ($Configuration -eq 'Debug') { 'debug' } else { 'release' }
     # These pure crates exercise real protocol and KMD logic on Windows.
@@ -88,7 +90,7 @@ try {
         source_sha = $source; configuration = $Configuration; driver_version = $version
         preserved_mesa_gitlink = $mesa; qualification = 'WINDOWS_BUILD_AND_PURE_TESTS_ONLY'
         signed = $false; catalog = 'NOT_CREATED'; guest_activation = 'NOT_RUN'
-        identity_note = 'Same version preserves qualified UMD packaging; source SHA and SYS hash identify a new diagnostic KMD. Sign/catalog with reused UMDs only at deployment.'
+        identity_note = 'Diagnostic KMD/INF .291; reuse qualified .290 UMDs without rebuilding. Record any canonical re-signing separately. Source SHA and SYS hash identify this KMD.'
         rustc = ((& rustc.exe --version) -join "`n"); cargo = ((& cargo.exe --version) -join "`n")
         clang = $clangVersion; libclang = (Get-Item (Join-Path $env:LIBCLANG_PATH 'libclang.dll')).VersionInfo.FileVersion
         wdk_include = $env:HELIOS_WDK_INCLUDE; stampinf = $stampInf
