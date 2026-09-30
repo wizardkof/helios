@@ -72,7 +72,10 @@ struct KernelHandle(HANDLE);
 impl Drop for KernelHandle {
     fn drop(&mut self) {
         // SAFETY: constructed only after successful ObOpenObjectByPointer.
-        unsafe { wdk_sys::ntddk::ZwClose(self.0) };
+        let status = unsafe { wdk_sys::ntddk::ZwClose(self.0) };
+        if status < 0 {
+            crate::diag::record_named_bytes(b"P06AtCl", status as u32);
+        }
     }
 }
 
