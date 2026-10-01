@@ -29,9 +29,9 @@ try {
     $source = (& git -C $RepoRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source identity.' }
     $mesa = (& git -C $RepoRoot rev-parse 'HEAD:icd/mesa').Trim()
-    if ($LASTEXITCODE -ne 0 -or $mesa -ne '7d678f31c485b647eed81610491af61c0a0fac65') { throw 'Preserved Mesa gitlink mismatch.' }
+    if ($LASTEXITCODE -ne 0 -or $mesa -ne 'ef0be6df84f572dd4e7018dbe4eedc2b47dc48b1') { throw 'Qualified transport Mesa gitlink mismatch.' }
     $version = (Get-Content (Join-Path $RepoRoot 'kmd_render/driver-version.env') | Where-Object { $_ -match '^HELIOS_KMD_VERSION=' }) -replace '^HELIOS_KMD_VERSION=', ''
-    if ($version -ne '22.22.291.0') { throw 'Unexpected diagnostic KMD version.' }
+    if ($version -ne '22.22.292.0') { throw 'Unexpected diagnostic KMD version.' }
     $profile = if ($Configuration -eq 'Debug') { 'dev' } else { 'release' }
     $profileDir = if ($Configuration -eq 'Debug') { 'debug' } else { 'release' }
     # These pure crates exercise real protocol and KMD logic on Windows.
@@ -90,7 +90,7 @@ try {
         source_sha = $source; configuration = $Configuration; driver_version = $version
         preserved_mesa_gitlink = $mesa; qualification = 'WINDOWS_BUILD_AND_PURE_TESTS_ONLY'
         signed = $false; catalog = 'NOT_CREATED'; guest_activation = 'NOT_RUN'
-        identity_note = 'Diagnostic KMD/INF .291; reuse qualified .290 UMDs without rebuilding. Record any canonical re-signing separately. Source SHA and SYS hash identify this KMD.'
+        identity_note = 'Versioned ATTEST KMD/INF .292; reuse qualified .290 UMDs without rebuilding. Record any canonical re-signing separately. Source SHA and SYS hash identify this KMD.'
         rustc = ((& rustc.exe --version) -join "`n"); cargo = ((& cargo.exe --version) -join "`n")
         clang = $clangVersion; libclang = (Get-Item (Join-Path $env:LIBCLANG_PATH 'libclang.dll')).VersionInfo.FileVersion
         wdk_include = $env:HELIOS_WDK_INCLUDE; stampinf = $stampInf

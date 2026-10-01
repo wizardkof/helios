@@ -164,6 +164,8 @@ jobs:
           python icd/mesa/src/virtio/vulkan/test_helios_carrier_producer.py --cc gcc --output "$RUNNER_TEMP/carrier-producer-test.exe"
           gcc -std=c11 -Wall -Wextra icd/mesa/src/virtio/vulkan/test_helios_carrier_v2.c -o "$RUNNER_TEMP/carrier-record-test.exe"
           "$RUNNER_TEMP/carrier-record-test.exe"
+          gcc -std=c11 -Wall -Wextra -Werror icd/mesa/src/virtio/vulkan/test_helios_attest_transport.c -o "$RUNNER_TEMP/attest-transport-test.exe"
+          "$RUNNER_TEMP/attest-transport-test.exe"
       - name: Build Mesa runtime
         shell: msys2 {0}
         run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa"
@@ -215,6 +217,8 @@ jobs:
           python icd/mesa/src/virtio/vulkan/test_helios_carrier_producer.py --cc gcc --output "$RUNNER_TEMP/carrier-producer-test.exe"
           gcc -std=c11 -Wall -Wextra icd/mesa/src/virtio/vulkan/test_helios_carrier_v2.c -o "$RUNNER_TEMP/carrier-record-test.exe"
           "$RUNNER_TEMP/carrier-record-test.exe"
+          gcc -std=c11 -Wall -Wextra -Werror icd/mesa/src/virtio/vulkan/test_helios_attest_transport.c -o "$RUNNER_TEMP/attest-transport-test.exe"
+          "$RUNNER_TEMP/attest-transport-test.exe"
       - name: Build WoW64 Mesa runtime
         shell: msys2 {0}
         run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa-x86"
