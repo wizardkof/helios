@@ -1285,6 +1285,7 @@ pub(crate) unsafe fn release_all(adapter: &AdapterContext) {
 /// Only a fully classified result changes transport status; op9 is untouched.
 pub(crate) fn escape_attest_transport(
     buf: &mut [u8], hdr: &helios_protocol::HeliosEscapeHeader,
+    observation: Option<&crate::attest_observe::Call>,
 ) -> NTSTATUS {
     use helios_protocol::attest_transport::{AttestTransport, ATTEST};
     let actual = buf.len();
@@ -1304,7 +1305,8 @@ pub(crate) fn escape_attest_transport(
         decision.carrier_id = request.carrier_id;
         decision.expected_record_version = request.expected_record_version;
         decision.status = u32::MAX;
-        let status = section_attest::attest(&mut decision, None);
+        let status = section_attest::attest(&mut decision, observation);
+        if let Some(o) = observation { o.phase(3, decision.status, Some(wire.observed_bytes()), status); }
         class = decision.status;
         if !((status == wdk_sys::STATUS_SUCCESS && class == 0)
             || (status == wdk_sys::STATUS_INVALID_HANDLE && (1..=7).contains(&class))) {
@@ -1312,7 +1314,11 @@ pub(crate) fn escape_attest_transport(
         }
     }
     match request.complete(class) {
-        Some(response) => { wire.write_back(&response); wdk_sys::STATUS_SUCCESS }
+        Some(response) => {
+            wire.write_back(&response);
+            if let Some(o) = observation { o.phase(4, class, Some(wire.observed_bytes()), wdk_sys::STATUS_SUCCESS); }
+            wdk_sys::STATUS_SUCCESS
+        }
         None => wdk_sys::STATUS_UNSUCCESSFUL,
     }
 }

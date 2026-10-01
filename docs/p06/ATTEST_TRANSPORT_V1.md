@@ -88,3 +88,13 @@ System32, without a DLL-local sequence namespace. RNG failure/all-zero output
 refuses before dispatch. Random identities have probabilistic uniqueness,
 not an authorization or global uniqueness guarantee. API authority:
 https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptgenrandom
+
+## Optional existing observer
+
+The existing 128-byte ETW event stays unchanged. New ATTEST reads actual
+refusal_class at offset108; legacy op9 reads status at68. Phase2/3 retain
+provenance decision NTSTATUS (negative for a refusal); phase4/5 report completed
+transport NTSTATUS0 and the actual new destination class. Query produces no
+ATTEST events. Correlation must distinguish decision and transport statuses,
+and match actual caller PID/TID/HANDLE/carrier/QPC. Events remain optional;
+observer disabled/failing cannot change verdict or response bytes.

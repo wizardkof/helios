@@ -3,6 +3,15 @@
 mod tests {
     use super::*;
     #[test]
+    fn classified_transport_reads_class_offset_and_rejects_short_or_overflow() {
+        let mut wire = [0xa5u8; 120];
+        wire[108..112].copy_from_slice(&6u32.to_le_bytes());
+        assert_eq!(read_status_at(&wire,108),Some(6));
+        assert_eq!(read_status(&wire),Some(0xa5a5a5a5));
+        assert_eq!(read_status_at(&wire[..111],108),None);
+        assert_eq!(read_status_at(&wire,usize::MAX),None);
+    }
+    #[test]
     fn output_status_is_read_from_actual_buffer_not_local_request() {
         let mut wire = [0u8; 600];
         wire[68..72].copy_from_slice(&0xa5a5a5a5u32.to_le_bytes());
@@ -91,7 +100,10 @@ pub struct Event {
     pub frequency: u64,
 }
 pub fn read_status(wire: &[u8]) -> Option<u32> {
-    let bytes = wire.get(68..72)?;
+    read_status_at(wire,68)
+}
+pub fn read_status_at(wire: &[u8], offset:usize) -> Option<u32> {
+    let bytes = wire.get(offset..offset.checked_add(4)?)?;
     let mut value = [0u8;4];
     for (i,out) in value.iter_mut().enumerate() {
         // SAFETY: bounds checked four-byte slice lives through these reads.

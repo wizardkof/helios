@@ -5,7 +5,7 @@ use core::{
     ptr,
     sync::atomic::{AtomicU64, Ordering},
 };
-use helios_kmd_logic::attest_observation::{read_status, Event};
+use helios_kmd_logic::attest_observation::{read_status_at, Event};
 use helios_protocol::HeliosEscapeP06ProductionCarrier;
 use wdk_sys::GUID;
 const PROVIDER: GUID = GUID {
@@ -122,6 +122,7 @@ pub(crate) struct Call {
     branch: Cell<u32>,
     local: Cell<u32>,
     registration: u64,
+    status_offset: usize,
 }
 pub(crate) fn begin(buf: &[u8]) -> Option<Call> {
     let h = HANDLE.load(Ordering::Acquire);
@@ -129,15 +130,18 @@ pub(crate) fn begin(buf: &[u8]) -> Option<Call> {
     if h == 0 || unsafe { EtwEventEnabled(h, &DESC) } == 0 {
         return None;
     }
-    if buf.len() < core::mem::size_of::<HeliosEscapeP06ProductionCarrier>() {
-        return None;
-    }
-    let r: HeliosEscapeP06ProductionCarrier = bytemuck::pod_read_unaligned(
-        &buf[..core::mem::size_of::<HeliosEscapeP06ProductionCarrier>()],
-    );
-    if r.op != helios_protocol::HELIOS_P06_PRODUCTION_ATTEST_HANDLE {
-        return None;
-    }
+    let (version, handle, id, status, status_offset) = if buf.len() == 120 {
+        let r: helios_protocol::attest_transport::AttestTransport = bytemuck::pod_read_unaligned(buf);
+        if r.operation != helios_protocol::attest_transport::ATTEST || !r.valid_request(buf.len()) {
+            return None;
+        }
+        (r.expected_record_version,r.user_handle,r.carrier_id,r.refusal_class,108)
+    } else {
+        let bytes = buf.get(..core::mem::size_of::<HeliosEscapeP06ProductionCarrier>())?;
+        let r: HeliosEscapeP06ProductionCarrier = bytemuck::pod_read_unaligned(bytes);
+        if r.op != helios_protocol::HELIOS_P06_PRODUCTION_ATTEST_HANDLE { return None; }
+        (r.expected_record_version,r.user_handle,r.carrier_id,r.status,68)
+    };
     // SAFETY: these APIs return scalar caller PID/TID, not object addresses.
     let (pid, tid) = unsafe {
         (
@@ -150,15 +154,16 @@ pub(crate) fn begin(buf: &[u8]) -> Option<Call> {
         call: CALL.fetch_add(1, Ordering::Relaxed),
         pid,
         tid,
-        version: r.expected_record_version,
-        handle: r.user_handle,
-        id: r.carrier_id,
+        version,
+        handle,
+        id,
         epoch: EPOCH.load(Ordering::Relaxed),
         branch: Cell::new(0),
-        local: Cell::new(r.status),
+        local: Cell::new(status),
         registration: h,
+        status_offset,
     };
-    call.phase(1, r.status, Some(buf), 0);
+    call.phase(1, status, Some(buf), 0);
     Some(call)
 }
 impl Call {
@@ -184,7 +189,7 @@ impl Call {
             handle: self.handle,
             id: self.id,
             local,
-            buffer: buffer.and_then(read_status),
+            buffer: buffer.and_then(|bytes| read_status_at(bytes,self.status_offset)),
             external: status as u32,
             failures: FAILURES.load(Ordering::Relaxed),
             epoch: self.epoch,

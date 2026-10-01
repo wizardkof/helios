@@ -415,7 +415,13 @@ pub unsafe extern "C" fn dxgkddi_escape(
             crate::adapter::section_probe::escape(adapter, buf, &hdr)
         }
         helios_protocol::attest_transport::QUERY | helios_protocol::attest_transport::ATTEST => match owner {
-            Some(_) => crate::adapter::section_probe::escape_attest_transport(buf, &hdr),
+            Some(_) => {
+                let observation = crate::attest_observe::begin(buf);
+                let status = crate::adapter::section_probe::escape_attest_transport(buf, &hdr, observation.as_ref());
+                helios_kmd_logic::observe_result_preserving(status, |returned| {
+                    if let Some(o) = observation.as_ref() { o.phase(5, o.local(), Some(buf), *returned); }
+                })
+            },
             None => refuse_no_device(),
         },
         HELIOS_ESCAPE_P06_PRODUCTION_CARRIER => {
