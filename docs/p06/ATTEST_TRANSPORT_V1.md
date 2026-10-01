@@ -19,7 +19,7 @@ No implicit padding. Both commands use the same envelope. Offsets:
 |0|header magic, command, global version, declared size|4 u32|
 |16|transport_version (=1)|u32|
 |20|operation (=command)|u32|
-|24|request_id, nonzero unique for each process call|16 bytes|
+|24|request_id, fresh nonzero random128 for each call|16 bytes|
 |40|user_handle (zero for query)|u64|
 |48|carrier_id (zero for query)|16 bytes|
 |64|expected_record_version (zero for query)|u32|
@@ -82,3 +82,9 @@ import/export, legacy/E1, all fixtures, lifetime/reuse, pending timeout0 and
 controlled COMPLETE/ERROR. P06E1Test absent except controlled cases, restored
 and independently checked. No Green B, blocking wait, fault5, end-to-end
 SUCCESS_CONTROL or P09. Aggregate remains PARTIAL until complete.
+
+Identity generation uses BCryptGenRandom system-preferred RNG, loaded from
+System32, without a DLL-local sequence namespace. RNG failure/all-zero output
+refuses before dispatch. Random identities have probabilistic uniqueness,
+not an authorization or global uniqueness guarantee. API authority:
+https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptgenrandom

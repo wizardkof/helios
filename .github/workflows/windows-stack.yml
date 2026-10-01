@@ -166,6 +166,7 @@ jobs:
           "$RUNNER_TEMP/carrier-record-test.exe"
           gcc -std=c11 -Wall -Wextra -Werror icd/mesa/src/virtio/vulkan/test_helios_attest_transport.c -o "$RUNNER_TEMP/attest-transport-test.exe"
           "$RUNNER_TEMP/attest-transport-test.exe"
+          python icd/mesa/src/virtio/vulkan/test_helios_attest_flow.py --cc gcc --output "$RUNNER_TEMP/attest-flow-test.exe"
       - name: Build Mesa runtime
         shell: msys2 {0}
         run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa"
@@ -219,6 +220,7 @@ jobs:
           "$RUNNER_TEMP/carrier-record-test.exe"
           gcc -std=c11 -Wall -Wextra -Werror icd/mesa/src/virtio/vulkan/test_helios_attest_transport.c -o "$RUNNER_TEMP/attest-transport-test.exe"
           "$RUNNER_TEMP/attest-transport-test.exe"
+          python icd/mesa/src/virtio/vulkan/test_helios_attest_flow.py --cc gcc --output "$RUNNER_TEMP/attest-flow-test.exe"
       - name: Build WoW64 Mesa runtime
         shell: msys2 {0}
         run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa-x86"

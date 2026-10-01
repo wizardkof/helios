@@ -3,6 +3,7 @@ name: P06 versioned ATTEST KMD only
 on:
   push:
     branches: [p06/e1-attest-transport-20260930]
+    paths: ["kmd_render/**", "kmd_logic/**", "protocol/**"]
   workflow_dispatch:
 
 permissions:
