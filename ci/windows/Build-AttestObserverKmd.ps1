@@ -29,7 +29,7 @@ try {
     $source = (& git -C $RepoRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source identity.' }
     $mesa = (& git -C $RepoRoot rev-parse 'HEAD:icd/mesa').Trim()
-    if ($LASTEXITCODE -ne 0 -or $mesa -ne 'c7c76a293460a3281b4207c21f5b0d80f8157921') { throw 'Qualified transport Mesa gitlink mismatch.' }
+    if ($LASTEXITCODE -ne 0 -or $mesa -ne 'eeb1ca0b80009f1c9090eed333517588eab4f806') { throw 'Qualified transport Mesa gitlink mismatch.' }
     $version = (Get-Content (Join-Path $RepoRoot 'kmd_render/driver-version.env') | Where-Object { $_ -match '^HELIOS_KMD_VERSION=' }) -replace '^HELIOS_KMD_VERSION=', ''
     if ($version -ne '22.22.292.0') { throw 'Unexpected diagnostic KMD version.' }
     $profile = if ($Configuration -eq 'Debug') { 'dev' } else { 'release' }
