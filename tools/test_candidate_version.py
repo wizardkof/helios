@@ -94,6 +94,23 @@ class CandidateVersionTests(unittest.TestCase):
             self.assertEqual(candidate_version.next_version(root), "22.22.294.0")
             self.assertTrue(lock["reservationRef"].endswith("22.22.293.0"))
 
+    def test_fingerprint_uses_clean_git_blobs_across_crlf_checkouts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "source"
+            self._init_remote_repo(root)
+            before = candidate_version.source_fingerprint(root)
+            subprocess.run(["git", "-C", str(root), "config", "core.autocrlf", "true"], check=True)
+            for relative in ("kmd_render/driver-version.env", ".github/workflows/windows-stack.yml",
+                             "tools/candidate_version.py", "icd/mesa/input.txt"):
+                path = root / relative
+                raw = path.read_bytes()
+                normalized = raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                path.write_bytes(normalized)
+                if relative == "icd/mesa/input.txt":
+                    subprocess.run(["git", "-C", str(root / "icd/mesa"), "config",
+                                    "core.autocrlf", "true"], check=True)
+            self.assertEqual(candidate_version.source_fingerprint(root), before)
+
     def test_source_locked_candidate_verifies_in_fresh_ci_clone_mode(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

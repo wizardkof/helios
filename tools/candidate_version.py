@@ -113,6 +113,11 @@ def _git_files(root: Path, prefix: str | None = None) -> set[str]:
     return {p.decode() for p in _git(root, *args).split(b"\0") if p}
 
 
+def _worktree_blob(root: Path, git_path: str, source: Path) -> str:
+    """Hash a worktree file using the same clean filters as its Git path."""
+    return _git(root, "hash-object", f"--path={git_path}", "--", str(source)).decode().strip()
+
+
 def _hash_file_tree(root: Path, prefix: str) -> list[tuple[str, str]]:
     base = root / prefix
     if not base.exists():
@@ -168,8 +173,10 @@ def _hash_file_tree(root: Path, prefix: str) -> list[tuple[str, str]]:
             if source.is_symlink():
                 digest = hashlib.sha256(os.readlink(source).encode()).hexdigest()
             else:
-                digest = _git(repo, "hash-object", "--", str(source)).decode().strip()
-            mode = "100755" if stat.S_IMODE(source.stat().st_mode) & 0o111 else "100644"
+                git_path = rel if nested_repo else f"{prefix}/{rel}"
+                digest = _worktree_blob(repo, git_path, source)
+            if rel not in entries:
+                mode = "100755" if stat.S_IMODE(source.stat().st_mode) & 0o111 else "100644"
         else:
             digest = oid
         output.append((f"{prefix}/{rel}", f"{mode}:{digest}"))
@@ -179,7 +186,8 @@ def _hash_file_tree(root: Path, prefix: str) -> list[tuple[str, str]]:
             continue
         source = base / rel if nested_repo else root / prefix / rel
         if source.is_file():
-            digest = _git(repo, "hash-object", "--", str(source)).decode().strip()
+            git_path = rel if nested_repo else full_rel
+            digest = _worktree_blob(repo, git_path, source)
             mode = "100755" if stat.S_IMODE(source.stat().st_mode) & 0o111 else "100644"
             output.append((f"{prefix}/{rel}", f"{mode}:{digest}"))
     return output
@@ -193,7 +201,7 @@ def source_fingerprint(root: Path) -> str:
     for rel in ROOT_FILES:
         path = root / rel
         if path.is_file():
-            files.append((rel, hashlib.sha256(path.read_bytes()).hexdigest()))
+            files.append((rel, _worktree_blob(root, rel, path)))
     digest = hashlib.sha256()
     for name, content_hash in sorted(set(files)):
         digest.update(name.encode())
@@ -465,7 +473,8 @@ def verify(root: Path, portable: bool = False, remote: str | None = None,
         raise ValueError("candidate reservation version differs from driver-version.env")
     fingerprint = source_fingerprint(root)
     if lock.get("sourceFingerprint") != fingerprint:
-        raise ValueError("candidate source changed after reservation; reserve a new version")
+        raise ValueError("candidate source changed after reservation; reserve a new version "
+                         f"(reserved={lock.get('sourceFingerprint')}, actual={fingerprint})")
     current_commits = _source_commits(root)
     for component in ("mesa", "dxvk", "vkd3d"):
         if current_commits.get(component) != lock.get("sourceCommits", {}).get(component):
