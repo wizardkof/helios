@@ -51,18 +51,25 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
-      - name: Initialize DXVK and vkd3d sources
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize release source-lock submodules
         shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios
+        run: |
+          git submodule update --init --recursive dxvk-helios vkd3d-proton-helios
+          if ($LASTEXITCODE -ne 0) { throw 'DXVK/vkd3d submodule initialization failed.' }
+          git submodule update --init icd/mesa
+          if ($LASTEXITCODE -ne 0) { throw 'Mesa submodule initialization failed.' }
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration '${{ matrix.configuration }}' -Architecture 'x64+x86'
       - name: Check registry snapshot preservation (PowerShell 7)
         shell: pwsh
         run: ./packaging/windows/Test-HeliosRegistrySnapshots.ps1
       - name: Check registry snapshot preservation (Windows PowerShell)
         shell: powershell
         run: ./packaging/windows/Test-HeliosRegistrySnapshots.ps1
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
       - name: Install Meson and Ninja
         shell: pwsh
         run: python -m pip install "meson==${env:MESON_VERSION}" ninja
@@ -132,9 +139,18 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
-      - name: Initialize Mesa fork
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
         shell: pwsh
-        run: git submodule update --init icd/mesa
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration shared -Architecture x64
+      - name: Test candidate version reservations and clean snapshot reproducibility
+        shell: pwsh
+        run: python tools/test_candidate_version.py
       - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
         with:
           msystem: UCRT64
@@ -153,14 +169,10 @@ jobs:
             mingw-w64-ucrt-x86_64-vulkan-loader
             bison
             flex
-      - name: Qualify focal carrier producer and record contract
-        if: ${{ inputs.mesa_only == true }}
+      - name: Qualify GREEN-A carrier producer and record contract (x64)
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          git rev-parse HEAD
-          git -C icd/mesa rev-parse HEAD
-          git ls-tree HEAD icd/mesa
           python icd/mesa/src/virtio/vulkan/test_helios_carrier_producer.py --cc gcc --output "$RUNNER_TEMP/carrier-producer-test.exe"
           gcc -std=c11 -Wall -Wextra icd/mesa/src/virtio/vulkan/test_helios_carrier_v2.c -o "$RUNNER_TEMP/carrier-record-test.exe"
           "$RUNNER_TEMP/carrier-record-test.exe"
@@ -183,9 +195,15 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
-      - name: Initialize Mesa fork
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
         shell: pwsh
-        run: git submodule update --init icd/mesa
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration shared -Architecture x86
       - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
         with:
           msystem: MINGW32
@@ -204,14 +222,10 @@ jobs:
             mingw-w64-i686-vulkan-loader
             bison
             flex
-      - name: Qualify focal carrier producer and record contract
-        if: ${{ inputs.mesa_only == true }}
+      - name: Qualify GREEN-A carrier producer and record contract (x86)
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          git rev-parse HEAD
-          git -C icd/mesa rev-parse HEAD
-          git ls-tree HEAD icd/mesa
           python icd/mesa/src/virtio/vulkan/test_helios_carrier_producer.py --cc gcc --output "$RUNNER_TEMP/carrier-producer-test.exe"
           gcc -std=c11 -Wall -Wextra icd/mesa/src/virtio/vulkan/test_helios_carrier_v2.c -o "$RUNNER_TEMP/carrier-record-test.exe"
           "$RUNNER_TEMP/carrier-record-test.exe"
@@ -238,6 +252,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
+        shell: pwsh
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration shared -Architecture x64
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@7e868db0f3406270dd46e1dac26c65f621456723
       - name: Set up MSVC for Ninja
@@ -276,6 +296,15 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
+        shell: pwsh
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration shared -Architecture x64
       - name: Build official loaders and probes
         shell: pwsh
         run: >-
@@ -303,6 +332,15 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
+        shell: pwsh
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration shared -Architecture x64
       - name: Build and validate compatibility shims
         shell: pwsh
         run: >-
@@ -331,6 +369,15 @@ jobs:
         with:
           submodules: false
           fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
+        shell: pwsh
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration '${{ matrix.configuration }}' -Architecture 'x64+x86'
       - uses: actions/download-artifact@v8
         with:
           name: helios-driver-${{ matrix.configuration }}
@@ -411,17 +458,30 @@ jobs:
           path: |
             ${{ runner.temp }}/helios-package/*.zip
             ${{ runner.temp }}/helios-package/*.sha256
+            ${{ runner.temp }}/helios-package/*.release.json
           if-no-files-found: error
           retention-days: 30
 
   release:
     name: Publish tagged release
-    if: inputs.mesa_only != true && startsWith(github.ref, 'refs/tags/v')
+    if: ${{ inputs.mesa_only != true && startsWith(github.ref, 'refs/tags/v') }}
     needs: [package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Initialize candidate source-lock submodules
+        run: git submodule update --init icd/mesa dxvk-helios vkd3d-proton-helios
+      - name: Verify frozen candidate source
+        shell: pwsh
+        run: ./ci/windows/Verify-CandidateSource.ps1 -RepoRoot $env:GITHUB_WORKSPACE -Configuration Release -Architecture 'x64+x86'
       - uses: actions/download-artifact@v8
         with:
           pattern: helios-windows-x64-*

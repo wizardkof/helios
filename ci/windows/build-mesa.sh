@@ -81,6 +81,23 @@ done
 mkdir -p "${output_dir}/licenses/mesa"
 cp -R "${mesa_src}/licenses/." "${output_dir}/licenses/mesa/"
 
+mesa_commit="$(git -C "${mesa_src}" rev-parse HEAD)"
+mesa_version="$(git -C "${mesa_src}" describe --tags --always --dirty)"
+mesa_dirty="$(git -C "${mesa_src}" status --porcelain=v1 --untracked-files=all)"
+if [[ -n "${mesa_dirty}" ]]; then
+  printf 'Refusing to package a Mesa worktree that differs from its locked commit.\n%s\n' "${mesa_dirty}" >&2
+  exit 1
+fi
+python - "${output_dir}/source.json" "${mesa_commit}" "${mesa_version}" <<'PY'
+import json, pathlib, sys
+path, commit, version = sys.argv[1:]
+pathlib.Path(path).write_text(json.dumps({
+    "component": "mesa",
+    "upstreamVersion": version,
+    "sourceCommit": commit,
+}, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+
 {
   for dll in "${output_dir}"/*.dll; do
     echo "=== $(basename "${dll}") ==="

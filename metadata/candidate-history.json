@@ -1,0 +1,60 @@
+{
+  "observed": [
+    {
+      "evidence": "GitHub winboat-org/helios Windows graphics and compute bundle artifact listing; candidate is also present on wizardkof/helios",
+      "status": "published-build-artifact",
+      "version": "22.22.289.0"
+    },
+    {
+      "evidence": "wizardkof/helios artifact listing plus .fullstack/artifacts/p06/e1-bin-preflight-20261001/SET_MANIFEST.json and PREFLIGHT_REPORT.md",
+      "status": "published-build-artifact-and-signed-release-package",
+      "version": "22.22.290.0"
+    },
+    {
+      "evidence": ".fullstack/artifacts/p06/e1-bin-preflight-20261001/SET_MANIFEST.json records the raw Release KMD artifact and current service image as 22.22.292.0",
+      "status": "built-and-observed",
+      "version": "22.22.292.0"
+    },
+    {
+      "reservationDigest": "6909eff5a5eebca742786c838fee590aeb4fd2c9bb5d006d49287fcfe746813d",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.293.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "2c78270ff3b3144b6724746918ff69990c5406e1",
+        "mesa": "913491b03946fe7ae7819a7fc49dbbddaac3ee2b",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "d6ebede7f0ce6f5ee6a6863b4bc34e9e693d01e79236fbce02df90cefa7f9105",
+      "status": "reserved",
+      "version": "22.22.293.0"
+    },
+    {
+      "reservationDigest": "9773c580089d687bec8e0b6e1a02af4249ef91ba6defcdc73a9ebb074c9a8473",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.294.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "2c78270ff3b3144b6724746918ff69990c5406e1",
+        "mesa": "913491b03946fe7ae7819a7fc49dbbddaac3ee2b",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "221fcd74b6322b29d3259aef70e56dd9bf6399f6f96f02490aafb2afb4373268",
+      "status": "reserved",
+      "version": "22.22.294.0"
+    },
+    {
+      "reservationDigest": "06b2390991128310def441f8758eae13240a82f2157df16536b1024aef913b2f",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.295.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "d728326deab77c1a60f5773cc6a20d7e22ea85ea",
+        "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "3c9ff10dd28a5828297ab1287fa7692c1476989a2a25d56e3431bf2c1cdeac89",
+      "status": "reserved",
+      "version": "22.22.295.0"
+    }
+  ],
+  "reconciledAt": "2026-10-01",
+  "schemaVersion": 1
+}

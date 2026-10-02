@@ -16,6 +16,10 @@ $profileDir = if ($Configuration -eq "Debug") { "debug" } else { "release" }
 $mesonBuildType = if ($Configuration -eq "Debug") { "debug" } else { "release" }
 
 $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
+# Candidate version allocation happens once before the Release/Debug matrix.
+# Each build worker verifies the same immutable lock and never allocates a number.
+& (Join-Path $RepoRoot "ci\windows\Verify-CandidateSource.ps1") -RepoRoot $RepoRoot `
+    -Configuration $Configuration -Architecture "x64+x86"
 # Reject stale checked-in INF/Cargo descriptions before starting engine builds.
 & python (Join-Path $RepoRoot "tools\sync-metadata.py") --check
 if ($LASTEXITCODE -ne 0) { throw "Metadata is stale; run tools/sync-metadata.py." }
@@ -184,6 +188,11 @@ foreach ($architecture in @("x64", "x86")) {
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+$alreadyBuilt = @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll", "helios_umd32.dll", "helios_umd12_32.dll") |
+    Where-Object { Test-Path -LiteralPath (Join-Path $OutputDir $_) -PathType Leaf }
+if ($alreadyBuilt.Count -gt 0) {
+    throw "Build output already contains a candidate artifact identity: $($alreadyBuilt -join ', '). Use a new output directory."
+}
 Copy-Item -Path (Join-Path $package "*") -Destination $OutputDir -Recurse -Force
 
 foreach ($crate in @("umd", "umd12")) {
@@ -236,5 +245,43 @@ $toolchain = [ordered]@{
 }
 $toolchain | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $OutputDir "toolchain.json") -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $OutputDir "configuration.txt") -Value $Configuration -Encoding ascii
+
+$candidateLock = Get-Content -LiteralPath (Join-Path $RepoRoot "metadata\candidate-reservation.json") -Raw | ConvertFrom-Json
+$imageNames = @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll", "helios_umd32.dll", "helios_umd12_32.dll")
+$imageRecords = foreach ($name in $imageNames) {
+    $path = Join-Path $OutputDir $name
+    $architecture = if ($name -in @("helios_umd32.dll", "helios_umd12_32.dll")) { "x86" } else { "x64" }
+    [ordered]@{ name = $name; architecture = $architecture; size = (Get-Item -LiteralPath $path).Length; sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
+}
+[ordered]@{
+    schemaVersion = 1
+    version = $candidateLock.version
+    component = "helios-driver"
+    configuration = $Configuration
+    architectures = @("x64", "x86")
+    sourceFingerprint = $candidateLock.sourceFingerprint
+    sourceCommits = $candidateLock.sourceCommits
+    files = @($imageRecords)
+} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputDir "candidate-artifact.json") -Encoding UTF8
+
+$candidateIdentityDir = Join-Path $OutputDir "artifact-identities"
+New-Item -ItemType Directory -Force -Path $candidateIdentityDir | Out-Null
+foreach ($image in $imageRecords) {
+    $identityPath = Join-Path $env:TEMP ("helios-candidate-identity-" + [guid]::NewGuid().ToString("N") + ".json")
+    try {
+        [ordered]@{
+            version = $candidateLock.version
+            component = "helios-driver-image"
+            name = $image.name
+            architecture = $image.architecture
+            configuration = $Configuration
+        } | ConvertTo-Json -Compress | Set-Content -LiteralPath $identityPath -Encoding ascii
+        $recordPath = Join-Path $candidateIdentityDir ($image.name + ".json")
+        & python (Join-Path $RepoRoot "tools\candidate_version.py") seal --identity-file $identityPath --artifact-file (Join-Path $OutputDir $image.name) --record-file $recordPath
+        if ($LASTEXITCODE -ne 0) { throw "Could not seal artifact identity for $($image.name)." }
+    } finally {
+        Remove-Item -LiteralPath $identityPath -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Write-Host "Driver artifact ($Configuration) staged at $OutputDir"

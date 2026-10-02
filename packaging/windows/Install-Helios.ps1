@@ -93,6 +93,7 @@ $bundleRoot = $PSScriptRoot
 $manifest = Read-HeliosManifest $bundleRoot
 Write-Host "Verifying $(@($manifest.files).Count) package files..."
 Test-HeliosManifest $bundleRoot $manifest
+$manifestPayloadDigest = Get-HeliosManifestPayloadDigest $manifest
 Write-HeliosProgress 7 "Verified $($manifest.version) package files"
 
 if ($Automatic) { Initialize-HeliosAutomaticProvisioning $bundleRoot }
@@ -105,11 +106,16 @@ if (-not (Test-Path -LiteralPath $provisioningStatusPath -PathType Leaf)) {
 $previousState = $null
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
     $existingState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+    $existingPreparedVersion = if ($existingState.PSObject.Properties["preparedVersion"] -and $existingState.preparedVersion) {
+        [string]$existingState.preparedVersion
+    } else { [string]$existingState.version }
+    $existingPayloadDigest = if ($existingState.PSObject.Properties["candidatePayloadDigest"]) { [string]$existingState.candidatePayloadDigest } else { "" }
+    $versionOrder = Assert-HeliosCandidateTransition $existingPreparedVersion $existingPayloadDigest ([string]$manifest.version) $manifestPayloadDigest
     # `-Automatic` over an existing install is the post-reboot completion step
     # ONLY when the bundle version matches. A different version is an update and
     # must go through the re-apply path, or shipping a newer OEM bundle would be
     # a silent no-op that just reports `finished`.
-    $isUpdate = $Repair -or ([string]$existingState.version -ne [string]$manifest.version)
+    $isUpdate = $Repair -or ($versionOrder -gt 0)
     if ($isUpdate) {
         $previousState = $existingState
         Write-Host "Re-applying $($manifest.version) over the existing installation ($($existingState.version))."
@@ -246,10 +252,16 @@ $openClLoaderHash = [string](Get-PreviousStateValue "systemOpenClLoaderHash" "")
 $replacedViogpudoBefore = [bool](Get-PreviousStateValue "replacedViogpudo" $replacedViogpudo)
 
 $state = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     packageId = [string]$manifest.packageId
     publisher = Get-HeliosPackagePublisher $manifest
     version = [string]$manifest.version
+    candidateVersion = [string]$manifest.version
+    preparedVersion = [string]$manifest.version
+    activeVersionObserved = [string](Get-PreviousStateValue "activeVersionObserved" "")
+    candidatePayloadDigest = $manifestPayloadDigest
+    restartPending = $true
+    versionState = "PREPARED"
     installedAtUtc = $installedAtUtc
     installRoot = $installRoot
     instanceId = $instanceId
@@ -496,7 +508,7 @@ foreach ($extra in @("licenses", "compatibility")) {
 Write-HeliosJson $state $statePath
 
 Write-Host ""
-Write-Host "Helios $($manifest.version) is installed system-wide with x64 and WoW64 Direct3D 11/12, OpenGL, and Vulkan support."
+Write-Host "Helios candidate $($manifest.version) is prepared. Active-version status comes from the following PnP/service/file verification."
 Write-HeliosProgress 94 "Verifying the installation"
 if ($RunSmokeTests) {
     & (Join-Path $stateRoot "Verify-Helios.ps1") -RunSmokeTests

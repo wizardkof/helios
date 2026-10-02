@@ -41,6 +41,36 @@ function Assert-UnrelatedState([string]$Path) {
     Assert-True ((Get-Item -LiteralPath $child).GetValue("Keep") -ceq "child-value") "unrelated child value survived"
 }
 
+Assert-True ((Compare-HeliosProductVersion "22.22.293.0" "22.22.292.0") -eq 1) "candidate increments from 292 to 293 numerically"
+Assert-True ((Compare-HeliosProductVersion "22.22.1000.0" "22.22.999.0") -eq 1) "version order handles 999 to 1000 numerically"
+Assert-True ((Assert-HeliosCandidateTransition "22.22.293.0" "a" "22.22.293.0" "a") -eq 0) "same exact candidate is idempotent"
+$downgradeRejected = $false
+try { [void](Assert-HeliosCandidateTransition "22.22.293.0" "a" "22.22.292.0" "a") } catch { $downgradeRejected = $true }
+Assert-True $downgradeRejected "candidate downgrade is refused"
+$replacementRejected = $false
+try { [void](Assert-HeliosCandidateTransition "22.22.293.0" "a" "22.22.293.0" "b") } catch { $replacementRejected = $true }
+Assert-True $replacementRejected "same-version payload replacement is refused"
+$manifestFixture = [pscustomobject]@{ files = @(
+    [pscustomobject]@{ path = "payload/driver/a.sys"; size = 4; sha256 = "aaaa" },
+    [pscustomobject]@{ path = "payload/driver/b.dll"; size = 5; sha256 = "bbbbb" }
+) }
+$digest = Get-HeliosManifestPayloadDigest $manifestFixture
+$manifestFixture.files[1].sha256 = "ccccc"
+Assert-True ($digest -ne (Get-HeliosManifestPayloadDigest $manifestFixture)) "manifest payload digest changes when bytes change"
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+foreach ($script in @(
+    (Join-Path $PSScriptRoot "Install-Helios.ps1"),
+    (Join-Path $PSScriptRoot "Verify-Helios.ps1"),
+    (Join-Path $PSScriptRoot "Helios-PackageCommon.ps1"),
+    (Join-Path $repoRoot "ci\windows\Build-Driver.ps1"),
+    (Join-Path $repoRoot "ci\windows\Assemble-Package.ps1")
+)) {
+    $tokens = $null; $parseErrors = $null
+    $null = [Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$parseErrors)
+    Assert-True ($parseErrors.Count -eq 0) "PowerShell syntax parses: $script"
+}
+
 $relativeRoot = "Software\Helios.RegistryRegression." + [guid]::NewGuid().ToString("N")
 $root = "HKCU:\$relativeRoot"
 Assert-True (-not (Test-Path -LiteralPath $root)) "fixture root must be new"
@@ -143,7 +173,7 @@ try {
     New-ItemProperty -LiteralPath $icdKey -Name "OtherVendor" -Value 88 -PropertyType DWord | Out-Null
     Ensure-HeliosIcdRegistryKey $icdKey
     Assert-True ((Get-Item -LiteralPath $icdKey).GetValue("OtherVendor") -eq 88) "standalone ICD initializer preserves existing values"
-    Write-Host "PASS: real HKCU sequential/serialized/repeated snapshot restoration, unrelated values/subkeys, missing keys, and all three installer registrations."
+    Write-Host "PASS: numeric candidate ordering, no downgrade/same-version replacement, payload digest, modified PowerShell parse, and real HKCU registration snapshot tests."
 } finally {
     # The randomized subtree is the only cleanup target, even on an assertion.
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }

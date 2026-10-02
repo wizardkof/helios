@@ -1,0 +1,14 @@
+{
+  "reservationDigest": "06b2390991128310def441f8758eae13240a82f2157df16536b1024aef913b2f",
+  "reservationRef": "refs/helios/candidate-reservations/22.22.295.0",
+  "reservedAtUtc": "2026-10-02T03:22:43.390226+00:00",
+  "schemaVersion": 1,
+  "sourceCommits": {
+    "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+    "helios": "d728326deab77c1a60f5773cc6a20d7e22ea85ea",
+    "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+    "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+  },
+  "sourceFingerprint": "3c9ff10dd28a5828297ab1287fa7692c1476989a2a25d56e3431bf2c1cdeac89",
+  "version": "22.22.295.0"
+}

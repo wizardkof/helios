@@ -102,6 +102,8 @@ struct State {
     prepared_once: bool,
     installed: bool,
     installed_version: String,
+    active_version_observed: String,
+    version_state: String,
     bundle_version: String,
     has_install: bool,
     updating: bool,
@@ -372,6 +374,16 @@ fn json_string(text: &str, key: &str) -> String {
     rest[open + 1..open + 1 + close].to_string()
 }
 
+fn json_bool(text: &str, key: &str) -> Option<bool> {
+    let needle = format!("\"{key}\"");
+    let k = text.find(&needle)?;
+    let colon = text[k + needle.len()..].find(':')?;
+    let rest = text[k + needle.len() + colon + 1..].trim_start();
+    if rest.starts_with("true") { Some(true) }
+    else if rest.starts_with("false") { Some(false) }
+    else { None }
+}
+
 fn read_manifest_version(dir: &Path) -> String {
     std::fs::read_to_string(dir.join("manifest.json"))
         .map(|t| json_string(&t, "version"))
@@ -381,10 +393,15 @@ fn read_manifest_version(dir: &Path) -> String {
 fn refresh(state: &mut State) {
     let state_path = crate::helios_data_dir().join("install-state.json");
     state.installed = state_path.is_file();
-    state.installed_version = std::fs::read_to_string(&state_path)
-        .map(|t| json_string(&t, "version"))
-        .map(|v| if v.is_empty() { v } else { format!("v{v}") })
-        .unwrap_or_default();
+    let install_state = std::fs::read_to_string(&state_path).unwrap_or_default();
+    let prepared = json_string(&install_state, "preparedVersion");
+    let legacy_candidate = json_string(&install_state, "version");
+    let prepared = if prepared.is_empty() { legacy_candidate } else { prepared };
+    state.installed_version = if prepared.is_empty() { String::new() } else { format!("v{prepared}") };
+    state.active_version_observed = json_string(&install_state, "activeVersionObserved");
+    state.version_state = json_string(&install_state, "versionState");
+    state.reboot_pending = json_bool(&install_state, "restartPending")
+        .unwrap_or(state.installed && state.active_version_observed.is_empty());
     let install = state.payload_dir.join("Install-Helios.ps1").is_file();
     let uninstall = state.payload_dir.join("Uninstall-Helios.ps1").is_file();
     state.has_install = install;
@@ -499,10 +516,23 @@ fn paint(state: &State, hdc: HDC, client_w: i32, client_h: i32) {
     }
     let card_text_x = state.card.x + 40.0 * s;
     let card_w = state.card.w - 56.0 * s;
-    let installed_label = if state.installed_version.is_empty() {
-        "Helios is installed".to_string()
+    let installed_label = if !state.version_state.is_empty() && state.version_state == "MIXED_OR_DIVERGENT" {
+        format!("Helios versions diverge (prepared {}, active {})", state.installed_version, state.active_version_observed)
+    } else if state.reboot_pending {
+        let active = if state.active_version_observed.is_empty() {
+            "not observed".to_string()
+        } else {
+            format!("v{}", state.active_version_observed)
+        };
+        format!("Prepared {}; active {}; restart pending", state.installed_version, active)
+    } else if !state.active_version_observed.is_empty() && state.active_version_observed == state.installed_version.trim_start_matches('v') {
+        format!("Helios {} is active", state.installed_version)
+    } else if !state.active_version_observed.is_empty() {
+        format!("Prepared {}, active v{}", state.installed_version, state.active_version_observed)
+    } else if state.installed_version.is_empty() {
+        "Helios is prepared; active version not observed".to_string()
     } else {
-        format!("Helios {} is installed", state.installed_version)
+        format!("Helios {} is prepared; restart or active version not observed", state.installed_version)
     };
     let card_state = if state.installed { installed_label } else { "Helios is not installed".to_string() };
     text(
@@ -517,6 +547,8 @@ fn paint(state: &State, hdc: HDC, client_w: i32, client_h: i32) {
         "This is the stored installer. Uninstall is available; run a full bundle to update.".to_string()
     } else if state.updating {
         format!("Update {} to {} installs the newer driver and registrations.", state.installed_version, state.bundle_version)
+    } else if state.installed && state.reboot_pending {
+        "The candidate is prepared. The active driver version is pending restart or remains divergent.".to_string()
     } else if state.installed {
         "Repair re-applies the driver and registrations; Uninstall removes them.".to_string()
     } else if !state.has_install {
@@ -1008,6 +1040,8 @@ pub fn run(exe: &Path, automatic: bool) -> i32 {
                 prepared_once: false,
                 installed: false,
                 installed_version: String::new(),
+                active_version_observed: String::new(),
+                version_state: String::new(),
                 bundle_version: String::new(),
                 has_install: false,
                 updating: false,
@@ -1152,4 +1186,3 @@ pub fn console_line(value: &str) {
          }
      }
 }
-

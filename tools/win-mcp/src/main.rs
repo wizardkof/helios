@@ -502,13 +502,12 @@ struct WinInstallUmdArgs {
 
 #[derive(Deserialize, schemars::JsonSchema)]
 struct WinBuildKmdArgs {
-    /// Explicit new version as "a.b.c.d" (e.g. "22.22.52.0"). Default: bump the
-    /// third component of the current version by one.
+    /// Explicit next version in the Helios line (22.22.N.0). Default: reserve
+    /// the next globally unused candidate number from the local Git reservation refs.
     #[serde(default)]
     version: Option<String>,
-    /// Rebuild at the CURRENT version without bumping (e.g. after a failed
-    /// build of an already-bumped tree). Coherence across the three sites is
-    /// still verified.
+    /// Rebuild this exact reserved candidate without allocating another number.
+    /// The source lock and immutable reservation must still match.
     #[serde(default)]
     no_bump: bool,
     /// Extra build environment, including explicit HELIOS_DXVK_BUILD_X86 and
@@ -741,74 +740,40 @@ fn bump_kmd_version_at(
     no_bump: bool,
 ) -> Result<(String, String), String> {
     let version_path = format!("{root}/kmd_render/driver-version.env");
-    let version_file =
-        std::fs::read_to_string(&version_path).map_err(|e| format!("read {version_path}: {e}"))?;
-
-    // Current version: parse `HELIOS_KMD_VERSION=a.b.c.d` from driver-version.env.
-    let cur_raw = version_file
-        .lines()
-        .map(str::trim)
-        .find_map(|l| l.strip_prefix(KMD_VERSION_KEY))
-        .ok_or("no HELIOS_KMD_VERSION line in kmd_render/driver-version.env")?
-        .trim();
-    let cur: Vec<u32> = cur_raw
-        .split('.')
-        .map(|p| p.trim().parse::<u32>())
-        .collect::<Result<_, _>>()
-        .map_err(|e| format!("unparsable HELIOS_KMD_VERSION: {e}"))?;
-    if cur.len() != 4 {
-        return Err(format!(
-            "HELIOS_KMD_VERSION has {} fields, expected 4",
-            cur.len()
-        ));
-    }
-    let cur_dotted = format!("{}.{}.{}.{}", cur[0], cur[1], cur[2], cur[3]);
-
-    if no_bump {
-        return Ok((cur_dotted.clone(), cur_dotted));
-    }
-
-    let new: Vec<u32> = match explicit {
-        Some(v) => {
-            let parts: Vec<u32> = v
-                .split('.')
-                .map(|p| p.parse::<u32>())
-                .collect::<Result<_, _>>()
-                .map_err(|e| format!("bad explicit version {v:?}: {e}"))?;
-            if parts.len() != 4 {
-                return Err(format!("explicit version {v:?} must be a.b.c.d"));
-            }
-            parts
+    let read_version = || -> Result<String, String> {
+        let contents = std::fs::read_to_string(&version_path)
+            .map_err(|e| format!("read {version_path}: {e}"))?;
+        let values: Vec<_> = contents
+            .lines()
+            .map(str::trim)
+            .filter_map(|line| line.strip_prefix(KMD_VERSION_KEY))
+            .map(str::trim)
+            .collect();
+        if values.len() != 1 {
+            return Err("driver-version.env must contain exactly one HELIOS_KMD_VERSION".into());
         }
-        None => vec![cur[0], cur[1], cur[2] + 1, cur[3]],
+        Ok(values[0].to_owned())
     };
-    let new_dotted = format!("{}.{}.{}.{}", new[0], new[1], new[2], new[3]);
-    if new_dotted == cur_dotted {
-        return Err(format!("new version equals current ({cur_dotted})"));
-    }
-
-    // Rewrite only the HELIOS_KMD_VERSION line, so the file's comments survive a
-    // bump and a version string appearing inside one is not rewritten.
-    let mut rewritten = false;
-    let mut new_version_file = String::with_capacity(version_file.len());
-    for line in version_file.lines() {
-        if !rewritten && line.trim().starts_with(KMD_VERSION_KEY) {
-            new_version_file.push_str(KMD_VERSION_KEY);
-            new_version_file.push_str(&new_dotted);
-            rewritten = true;
-        } else {
-            new_version_file.push_str(line);
+    let old = read_version()?;
+    let script = format!("{root}/tools/candidate_version.py");
+    let mut command = std::process::Command::new("python3");
+    command
+        .arg(script)
+        .arg(if no_bump { "verify" } else { "reserve" });
+    command.arg("--root").arg(root);
+    if !no_bump {
+        if let Some(version) = explicit {
+            command.arg("--version").arg(version);
         }
-        new_version_file.push('\n');
     }
-    if !rewritten {
-        return Err(format!(
-            "no HELIOS_KMD_VERSION line to rewrite in {version_path}"
-        ));
+    let result = command
+        .output()
+        .map_err(|e| format!("run candidate version manager: {e}"))?;
+    if !result.status.success() {
+        return Err(String::from_utf8_lossy(&result.stderr).trim().to_owned());
     }
-    std::fs::write(&version_path, new_version_file)
-        .map_err(|e| format!("write {version_path}: {e}"))?;
-    Ok((cur_dotted, new_dotted))
+    let new = read_version()?;
+    Ok((old, new))
 }
 
 fn ps_join_path(root: &str, rel: &str) -> String {
@@ -1328,8 +1293,8 @@ impl WinHost {
             Ok(v) => v,
             Err(e) => return format!("win_build_kmd: version bump failed: {e}"),
         };
-        let header = if a.no_bump {
-            format!("KMD version: {old_v} (no bump, coherence verified)\n")
+        let header = if a.no_bump || old_v == new_v {
+            format!("KMD version: {new_v} (existing reservation verified; no new number)\n")
         } else {
             format!("KMD version: {old_v} -> {new_v}\n")
         };
@@ -1812,11 +1777,12 @@ mod tests {
         }));
     }
 
-    /// Copy the real kmd_render version-site files into a temp root and
-    /// exercise verify (no_bump), auto-bump, and explicit-bump against them.
+    /// Copy the candidate metadata flow into a temporary Git repository and
+    /// exercise reservation, idempotent verification and refusal of stale numbers.
     #[test]
     fn kmd_version_bump_roundtrip() {
         let tmp = std::env::temp_dir().join(format!("winmcp-bump-test-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
         let kmd = tmp.join("kmd_render");
         std::fs::create_dir_all(&kmd).unwrap();
         for f in ["driver-version.env", "build.rs", "Cargo.make.toml"] {
@@ -1829,20 +1795,65 @@ mod tests {
             )
             .unwrap();
         }
+        let version_path = kmd.join("driver-version.env");
+        let source_version = std::fs::read_to_string(&version_path).unwrap();
+        let fixture_version = source_version
+            .lines()
+            .map(|line| {
+                if line.trim_start().starts_with(super::KMD_VERSION_KEY) {
+                    format!("{}22.22.288.0", super::KMD_VERSION_KEY)
+                } else {
+                    line.to_owned()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        std::fs::write(version_path, fixture_version).unwrap();
+        for directory in [
+            "metadata",
+            "tools",
+            "umd",
+            "umd12",
+            "umd_common",
+            "kmd_logic",
+            "protocol",
+            "installer",
+            "packaging/windows",
+            "ci/windows",
+        ] {
+            std::fs::create_dir_all(tmp.join(directory)).unwrap();
+        }
+        for f in ["candidate_version.py"] {
+            std::fs::copy(
+                format!("{}/../../tools/{f}", env!("CARGO_MANIFEST_DIR")),
+                tmp.join("tools").join(f),
+            )
+            .unwrap();
+        }
+        // Keep this fixture at the historical input state. Copying the live
+        // ledger would import reservations made by unrelated workspace runs.
+        std::fs::write(
+            tmp.join("metadata/candidate-history.json"),
+            r#"{"schemaVersion":1,"observed":[{"version":"22.22.292.0","status":"built-and-observed"}]}"#,
+        )
+        .unwrap();
+        for directory in ["icd/mesa", "dxvk-helios", "vkd3d-proton-helios"] {
+            let path = tmp.join(directory);
+            std::fs::create_dir_all(&path).unwrap();
+            assert!(std::process::Command::new("git").args(["init", "-q"]).current_dir(&path).status().unwrap().success());
+            assert!(std::process::Command::new("git").args(["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-qm", "seed"]).current_dir(&path).status().unwrap().success());
+        }
+        assert!(std::process::Command::new("git").args(["init", "-q"]).current_dir(&tmp).status().unwrap().success());
+        assert!(std::process::Command::new("git").args(["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-qm", "seed"]).current_dir(&tmp).status().unwrap().success());
         let root = tmp.to_str().unwrap();
 
-        // Verify-only: real tree must be coherent.
-        let (old_v, same) = bump_kmd_version_at(root, None, true).unwrap();
-        assert_eq!(old_v, same);
-
-        // Auto-bump increments the third component.
+        // The published and local history reaches .292; the first reservation is .293.
         let (from, to) = bump_kmd_version_at(root, None, false).unwrap();
-        assert_eq!(from, old_v);
-        let f: Vec<u32> = from.split('.').map(|p| p.parse().unwrap()).collect();
-        let t: Vec<u32> = to.split('.').map(|p| p.parse().unwrap()).collect();
-        assert_eq!((t[0], t[1], t[2], t[3]), (f[0], f[1], f[2] + 1, f[3]));
+        assert_eq!(from, "22.22.288.0");
+        assert_eq!(to, "22.22.293.0");
 
-        // The bumped tree is coherent at the new version; no old remnants.
+        // Verify-only checks the immutable reservation/source lock.
         let (v2, _) = bump_kmd_version_at(root, None, true).unwrap();
         assert_eq!(v2, to);
         // The single source now carries only the new version, and the bump left
@@ -1874,12 +1885,12 @@ mod tests {
         );
         assert!(make.contains("\"-v\", \"${HELIOS_KMD_VERSION}\""), "{make}");
 
-        // Explicit version.
-        let (_, v3) = bump_kmd_version_at(root, Some("30.0.1.2"), false).unwrap();
-        assert_eq!(v3, "30.0.1.2");
+        // Explicit version must be the next unused number.
+        let (_, v3) = bump_kmd_version_at(root, Some("22.22.294.0"), false).unwrap();
+        assert_eq!(v3, "22.22.294.0");
 
-        // Bad explicit version is rejected.
-        assert!(bump_kmd_version_at(root, Some("30.0.1"), false).is_err());
+        // A number from outside the Helios version line is rejected.
+        assert!(bump_kmd_version_at(root, Some("22.22.293.0"), false).is_err());
 
         // A malformed single source is rejected in verify mode, before anything
         // is written — this is the case that used to reach install as
@@ -1890,10 +1901,10 @@ mod tests {
         )
         .unwrap();
         let err = bump_kmd_version_at(root, None, true).unwrap_err();
-        assert!(err.contains("expected 4"), "{err}");
+        assert!(err.contains("expected 22.22.N.0"), "{err}");
         std::fs::write(kmd.join("driver-version.env"), "# no version here\n").unwrap();
         let err = bump_kmd_version_at(root, None, true).unwrap_err();
-        assert!(err.contains("no HELIOS_KMD_VERSION line"), "{err}");
+        assert!(err.contains("exactly one HELIOS_KMD_VERSION"), "{err}");
 
         std::fs::remove_dir_all(&tmp).unwrap();
     }

@@ -79,6 +79,7 @@ try {
 # Windows loads an absolute DriverStore path from each slot; validate both the
 # selected architecture and installed bytes against the bundle's recorded hash.
 $driverDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$driverDirectory = $null
 foreach ($registration in @(
     @{ name = "UserModeDriverName"; architecture = "x64"; files = @("helios_umd.dll", "helios_umd.dll", "helios_umd.dll", "helios_umd12.dll") },
     @{ name = "UserModeDriverNameWoW"; architecture = "x86"; files = @("helios_umd32.dll", "helios_umd32.dll", "helios_umd32.dll", "helios_umd12_32.dll") }
@@ -122,6 +123,70 @@ if ($classKey) {
     if ($installedDrivers.Count -ne 4 -or (Compare-Object $expectedDrivers $installedDrivers)) {
         $failures.Add("InstalledDisplayDrivers does not list all four distinct Helios UMDs.")
     }
+}
+
+$candidateVersion = if ($state.PSObject.Properties["candidateVersion"] -and $state.candidateVersion) {
+    [string]$state.candidateVersion
+} else { [string]$state.version }
+$observed = [ordered]@{
+    pnp = if ($instanceId) { Get-HeliosPnpDriverVersion $instanceId } else { "" }
+    serviceImage = Get-HeliosServiceDriverVersion
+    serviceState = Get-HeliosServiceState
+    inf = ""
+    sys = ""
+    umd11X64 = ""
+    umd12X64 = ""
+    umd11X86 = ""
+    umd12X86 = ""
+}
+$activeInf = if ($instanceId) { Get-HeliosActiveInf $instanceId } else { "" }
+if ($activeInf -match "^oem\d+\.inf$") {
+    $activeInfPath = Join-Path $env:windir "INF\$activeInf"
+    if (Test-Path -LiteralPath $activeInfPath -PathType Leaf) {
+        $activeInfText = Get-Content -LiteralPath $activeInfPath -Raw
+        if ($activeInfText -match "(?im)^\s*DriverVer\s*=\s*[^,\r\n]+,\s*([^\r\n]+)") {
+            $observed.inf = $Matches[1].Trim()
+        }
+    }
+}
+if ($driverDirectory) {
+    foreach ($file in @(
+        @{ name = "helios_kmd_render.sys"; key = "sys" },
+        @{ name = "helios_umd.dll"; key = "umd11X64" },
+        @{ name = "helios_umd12.dll"; key = "umd12X64" },
+        @{ name = "helios_umd32.dll"; key = "umd11X86" },
+        @{ name = "helios_umd12_32.dll"; key = "umd12X86" }
+    )) {
+        $path = Join-Path $driverDirectory $file.name
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $observed[$file.key] = [string](Get-Item -LiteralPath $path).VersionInfo.FileVersion
+        }
+    }
+}
+$versionObservations = @($observed.GetEnumerator() | Where-Object { $_.Key -ne "serviceState" } | ForEach-Object { [string]$_.Value })
+$knownVersions = @($versionObservations | Where-Object { $_ } | Select-Object -Unique)
+$unknownVersion = $versionObservations -contains ""
+$problemCode = -1
+if ($instanceId) {
+    $problemProperty = Get-PnpDeviceProperty -InstanceId $instanceId -KeyName DEVPKEY_Device_ProblemCode -ErrorAction SilentlyContinue
+    if ($problemProperty -and $problemProperty.PSObject.Properties["Data"]) { $problemCode = [int]$problemProperty.Data }
+}
+$versionPending = ($knownVersions.Count -ne 1 -or $knownVersions[0] -ne $candidateVersion -or
+    $unknownVersion -or $observed.serviceState -ne "Running" -or $problemCode -ne 0)
+$mixedVersions = $knownVersions.Count -gt 1
+$state.candidateVersion = $candidateVersion
+$state.preparedVersion = if ($state.PSObject.Properties["preparedVersion"]) { [string]$state.preparedVersion } else { $candidateVersion }
+$state.activeVersionObserved = if ($observed.serviceState -eq "Running") { [string]$observed.serviceImage } else { "" }
+$state.observedComponentVersions = $observed
+$state.restartPending = [bool]$versionPending
+$state.versionState = if ($mixedVersions) { "MIXED_OR_DIVERGENT" } elseif ($versionPending) { "RESTART_PENDING" } else { "ACTIVE" }
+Write-HeliosJson $state $statePath
+if ($versionPending) {
+    $description = "Candidate $candidateVersion; service state=$($observed.serviceState), service image=$($observed.serviceImage), PnP=$($observed.pnp), INF=$($observed.inf); state=$($state.versionState)."
+    if ($AllowPendingReboot) { Write-Warning $description }
+    else { $failures.Add($description) }
+} else {
+    Write-Host "Helios active version observed: $candidateVersion (service running, PnP, service image, INF, SYS and four UMDs agree)."
 }
 
 $vulkanRegistry = "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers"
@@ -218,4 +283,8 @@ if ($failures.Count -gt 0) {
     foreach ($failure in $failures) { Write-Error $failure -ErrorAction Continue }
     throw "Helios verification failed with $($failures.Count) problem(s)."
 }
-Write-Host "Helios x64/WoW64 Direct3D 11/12, Vulkan and OpenGL, and x64 OpenCL registrations and files are healthy."
+if ($state.versionState -eq "ACTIVE") {
+    Write-Host "Helios x64/WoW64 Direct3D 11/12, Vulkan and OpenGL, and x64 OpenCL registrations are healthy; active version $candidateVersion was observed."
+} else {
+    Write-Warning "The package and registrations were checked, but active version is not qualified: state=$($state.versionState), candidate=$candidateVersion, active=$($state.activeVersionObserved)."
+}

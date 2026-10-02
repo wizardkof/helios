@@ -14,6 +14,38 @@ function Get-HeliosSha256([Parameter(Mandatory)][string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
 }
 
+function Compare-HeliosProductVersion([Parameter(Mandatory)][string]$Left, [Parameter(Mandatory)][string]$Right) {
+    foreach ($value in @($Left, $Right)) {
+        if ($value -notmatch '^22\.22\.\d+\.0$') { throw "Invalid Helios candidate version: $value" }
+    }
+    return ([Version]::Parse($Left)).CompareTo([Version]::Parse($Right))
+}
+
+function Get-HeliosManifestPayloadDigest([Parameter(Mandatory)]$Manifest) {
+    $canonical = @($Manifest.files | Sort-Object path | ForEach-Object {
+        "{0}`t{1}`t{2}" -f [string]$_.path, [int64]$_.size, ([string]$_.sha256).ToLowerInvariant()
+    }) -join "`n"
+    $bytes = [Text.Encoding]::UTF8.GetBytes($canonical)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { $sha = $algorithm.ComputeHash($bytes) } finally { $algorithm.Dispose() }
+    return ([BitConverter]::ToString($sha).Replace("-", "")).ToLowerInvariant()
+}
+
+function Assert-HeliosCandidateTransition(
+    [Parameter(Mandatory)][string]$ExistingVersion,
+    [Parameter(Mandatory)][string]$ExistingPayloadDigest,
+    [Parameter(Mandatory)][string]$CandidateVersion,
+    [Parameter(Mandatory)][string]$CandidatePayloadDigest
+) {
+    $order = Compare-HeliosProductVersion $CandidateVersion $ExistingVersion
+    if ($order -lt 0) { throw "Refusing candidate downgrade from $ExistingVersion to $CandidateVersion." }
+    if ($order -eq 0 -and
+        (-not $ExistingPayloadDigest -or $ExistingPayloadDigest -ine $CandidatePayloadDigest)) {
+        throw "Same-version candidate payload differs from the prepared identity; a new Helios candidate version is required."
+    }
+    return $order
+}
+
 # Copy a payload tree, skipping files whose destination already has identical
 # content. Re-applying the same package cannot overwrite runtime DLLs that
 # running processes have loaded (vulkan_virtio.dll is the recorded case), and it
@@ -75,6 +107,14 @@ function Read-HeliosManifest([Parameter(Mandatory)][string]$BundleRoot) {
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if ($manifest.schemaVersion -ne 1 -or $manifest.architecture -ne "x64") {
         throw "Unsupported Helios package schema or architecture."
+    }
+    $candidateLockValid = -not $manifest.PSObject.Properties["candidate"] -or
+        ([string]$manifest.candidate.sourceFingerprint -match '^[0-9a-f]{64}$')
+    if ($manifest.version -notmatch '^22\.22\.\d+\.0$' -or
+        $manifest.components.driver.version -ne $manifest.version -or
+        -not $candidateLockValid -or
+        $manifest.packageId -notmatch [regex]::Escape([string]$manifest.version)) {
+        throw "Helios package candidate metadata is absent or inconsistent."
     }
     return $manifest
 }
@@ -158,6 +198,33 @@ function Get-HeliosActiveInf([Parameter(Mandatory)][string]$InstanceId) {
     if ($property -and $property.PSObject.Properties["Data"] -and $property.Data) {
         return [string]$property.Data
     }
+    return ""
+}
+
+function Get-HeliosServiceDriverVersion([string]$ServiceName = "helios_kmd_render") {
+    $servicePath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    if (-not (Test-Path -LiteralPath $servicePath)) { return "" }
+    $imagePath = [string](Get-ItemProperty -LiteralPath $servicePath -Name ImagePath -ErrorAction SilentlyContinue).ImagePath
+    if (-not $imagePath) { return "" }
+    $imagePath = [Environment]::ExpandEnvironmentVariables($imagePath.Trim('"'))
+    if ($imagePath.StartsWith("\SystemRoot\", [StringComparison]::OrdinalIgnoreCase)) {
+        $imagePath = Join-Path $env:windir $imagePath.Substring("\SystemRoot\".Length)
+    } elseif ($imagePath.StartsWith("\??\", [StringComparison]::OrdinalIgnoreCase)) {
+        $imagePath = $imagePath.Substring(4)
+    }
+    if (-not (Test-Path -LiteralPath $imagePath -PathType Leaf)) { return "" }
+    return [string](Get-Item -LiteralPath $imagePath).VersionInfo.FileVersion
+}
+
+function Get-HeliosServiceState([string]$ServiceName = "helios_kmd_render") {
+    $service = Get-CimInstance Win32_SystemDriver -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+    if ($service) { return [string]$service.State }
+    return ""
+}
+
+function Get-HeliosPnpDriverVersion([Parameter(Mandatory)][string]$InstanceId) {
+    $property = Get-PnpDeviceProperty -InstanceId $InstanceId -KeyName DEVPKEY_Device_DriverVersion -ErrorAction SilentlyContinue
+    if ($property -and $property.PSObject.Properties["Data"]) { return [string]$property.Data }
     return ""
 }
 
