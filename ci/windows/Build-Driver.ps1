@@ -190,7 +190,7 @@ foreach ($architecture in @("x64", "x86")) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $alreadyBuilt = @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll", "helios_umd32.dll", "helios_umd12_32.dll") |
     Where-Object { Test-Path -LiteralPath (Join-Path $OutputDir $_) -PathType Leaf }
-if ($alreadyBuilt.Count -gt 0) {
+if (@($alreadyBuilt).Count -gt 0) {
     throw "Build output already contains a candidate artifact identity: $($alreadyBuilt -join ', '). Use a new output directory."
 }
 Copy-Item -Path (Join-Path $package "*") -Destination $OutputDir -Recurse -Force
