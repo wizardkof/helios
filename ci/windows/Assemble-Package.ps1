@@ -176,7 +176,7 @@ $driverDate = $Matches[1].Trim()
 $infVersion = $Matches[2].Trim()
 if ($infVersion -ne $Version) { throw "INF DriverVer version $infVersion differs from candidate $Version." }
 try {
-    $driverDateValue = [DateTime]::ParseExact($driverDate, @("M/d/yyyy", "MM/dd/yyyy"), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None)
+    $driverDateValue = [DateTime]::ParseExact($driverDate, @("M/d/yyyy", "M/dd/yyyy", "MM/d/yyyy", "MM/dd/yyyy"), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None)
 } catch { throw "INF DriverVer date is invalid: $driverDate" }
 foreach ($name in @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll")) {
     Assert-HeliosPeArchitecture (Join-Path $driverOut $name) x64
