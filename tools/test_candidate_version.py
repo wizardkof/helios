@@ -129,6 +129,7 @@ class CandidateVersionTests(unittest.TestCase):
             base = Path(directory)
             root = base / "source"
             self._init_repo(root)
+            self._configure_git(root)
             for directory in ("umd", "umd12", "umd_common", "kmd_logic", "protocol",
                               "installer", "packaging/windows", "ci/windows", "tools/win-mcp"):
                 (root / directory / "input.txt").write_text(directory + "\n", encoding="utf-8")

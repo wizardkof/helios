@@ -25,6 +25,7 @@ ROOT_FILES = (
     ".github/workflows/windows-stack.yml",
     ".gitmodules",
     "tools/candidate_version.py",
+    "tools/test_candidate_version.py",
     "tools/sync-metadata.py",
 )
 EXCLUDED_SOURCE_FILES = {
