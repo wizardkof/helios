@@ -33,7 +33,7 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         steps = workflow['jobs']['driver']['steps']
         ids = [step['id'] for step in steps if 'id' in step]
         self.assertEqual(len(ids), len(set(ids)))
-        for name in ('Install Rust nightly', 'Install Rust build helpers', 'Install Meson', 'Install and validate Vulkan SDK'):
+        for name in ('Install Rust nightly', 'Install Rust build helpers', 'Initialize isolated host and private WDK producers', 'Install Meson', 'Install and validate Vulkan SDK'):
             step = next(step for step in steps if step.get('name') == name)
             self.assertIn('always()', step.get('if', 'always()'), name)
         for name in ('Build pinned Wine 11.12 WIDL from official source', 'Capture Mesa MSYS2 package and Ninja consumer preflight'):
@@ -44,7 +44,7 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         from pathlib import Path
         script = Path(__file__).with_name('build-pinned-widl.sh').read_text()
         self.assertIn('./configure --enable-win64 --without-x --without-freetype --disable-tests', script)
-        self.assertIn('mingw32-make -C tools/widl -j2', script)
+        self.assertIn('make -C tools/widl -j2', script)
 
     def test_cargo_make_is_invoked_as_pinned_cargo_subcommand(self):
         from pathlib import Path
@@ -65,3 +65,6 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         checker = Path(__file__).with_name('Assert-CIToolchain.ps1').read_text()
         self.assertIn("$env:VULKAN_SDK = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)
         self.assertIn("$expectedVulkanRoot = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)
+        self.assertIn("$Expected = ([string]$Expected).Replace('\\\\','/').TrimEnd('/')", checker)
+        component = Path(__file__).with_name('Assert-ComponentToolchain.ps1').read_text()
+        self.assertIn("$vulkanRoot.TrimEnd('\\\\','/')", component)

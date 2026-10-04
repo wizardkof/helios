@@ -183,6 +183,7 @@ jobs:
         '
       id: s14
     - name: Initialize isolated host and private WDK producers
+      if: always()
       shell: pwsh
       run: ./ci/windows/Initialize-CIIsolation.ps1
       id: s16

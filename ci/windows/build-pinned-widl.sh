@@ -69,7 +69,7 @@ export CONFIG_SITE=/dev/null
 ./configure --enable-win64 --without-x --without-freetype --disable-tests > "$output/configure.log" 2>&1
 configure_rc=$?
 [[ "$configure_rc" -eq 0 ]] || fail CONFIGURE_FAILED
-mingw32-make -C tools/widl -j2 > "$output/build.log" 2>&1
+make -C tools/widl -j2 > "$output/build.log" 2>&1
 build_rc=$?
 [[ "$build_rc" -eq 0 ]] || fail WIDL_BUILD_FAILED
 built="$source_dir/tools/widl/widl.exe"

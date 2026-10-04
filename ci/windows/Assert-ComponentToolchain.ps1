@@ -81,7 +81,7 @@ if($rcPath){
 $psPath=[string]$pins.powerShell7.installPath
 $checks.Add((Invoke-CIToolCheck -Name 'pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString()') -ExpectedVersion $pins.powerShell7.version -VersionPattern ('^'+[regex]::Escape($pins.powerShell7.version)+'$') -Phase $Phase -ExpectedResolvedPath $psPath))
 if($Component -eq 'opencl'){
-    $vulkanRoot=[string]$env:VULKAN_SDK;$vulkanPass=$vulkanRoot -and (Split-Path $vulkanRoot -Leaf) -ceq $pins.vulkanSdkVersion -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Include/vulkan/vulkan.h') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Lib/vulkan-1.lib') -PathType Leaf)
+    $vulkanRoot=[string]$env:VULKAN_SDK;$vulkanPass=$vulkanRoot -and (Split-Path $vulkanRoot.TrimEnd('\\','/')) -ceq $pins.vulkanSdkVersion -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Include/vulkan/vulkan.h') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Lib/vulkan-1.lib') -PathType Leaf)
     Add-ComponentValueCheck 'VULKAN_SDK' $pins.vulkanSdkVersion $vulkanRoot ([bool]$vulkanPass) $vulkanRoot
 }
 if($Component -eq 'driver'){
