@@ -102,14 +102,16 @@ jobs:
       shell: pwsh
       run: python -m pip install "meson==${env:MESON_VERSION}" "ninja==${env:NINJA_VERSION}"
       id: s07
-      if: ${{ !inputs.infrastructure_only }}
+    - name: Observe Ninja after Python package installation
+      shell: pwsh
+      run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-python-package-install -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
+      id: ninja_after_install
     - name: Install Wine IDL compiler
       id: widl
       uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
       with:
         msystem: UCRT64
         install: mingw-w64-ucrt-x86_64-tools
-      if: ${{ !inputs.infrastructure_only }}
     - name: Expose native widl to Meson
       shell: pwsh
       env:
@@ -118,26 +120,22 @@ jobs:
 
         '
       id: s09
-      if: ${{ !inputs.infrastructure_only }}
     - name: Install LLVM
       uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
       with:
         version: ${{ env.LLVM_VERSION }}
         force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
       id: s10
-      if: ${{ !inputs.infrastructure_only }}
     - name: Restore Vulkan SDK
       uses: actions/cache@v4
       with:
         path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
         key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
       id: s11
-      if: ${{ !inputs.infrastructure_only }}
     - name: Install and validate Vulkan SDK
       shell: pwsh
       run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
       id: s12
-      if: ${{ !inputs.infrastructure_only }}
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
       with:
@@ -145,7 +143,6 @@ jobs:
         components: rust-src
         targets: i686-pc-windows-msvc
       id: s13
-      if: ${{ !inputs.infrastructure_only }}
     - name: Install Rust build helpers
       shell: pwsh
       run: 'cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
@@ -154,22 +151,28 @@ jobs:
 
         '
       id: s14
-      if: ${{ !inputs.infrastructure_only }}
     - name: Initialize isolated host and private WDK producers
       shell: pwsh
       run: ./ci/windows/Initialize-CIIsolation.ps1
       id: s16
-      if: ${{ !inputs.infrastructure_only }}
+    - name: Observe Ninja after all driver bootstrap path changes
+      shell: pwsh
+      run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-driver-bootstrap-before-vs-import -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
+      id: ninja_after_bootstrap
     - name: Enforce exact native toolchain pins
       shell: pwsh
       run: ./ci/windows/Assert-CIToolchain.ps1 -ReceiptDir C:/hb/qualification
       id: s17
-      if: ${{ !inputs.infrastructure_only }}
+    - name: Test toolchain failure receipt persistence
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Test-CIToolchainFailureReceipt.ps1 -ReceiptDir C:/hb/ninja-receipt-control
+      id: ninja_receipt_control
     - name: Enforce current producer pins
+      if: always()
       shell: pwsh
       run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component driver -ReceiptDir C:/hb/qualification
       id: s18
-      if: ${{ !inputs.infrastructure_only }}
     - name: Candidate regressions before Release
       shell: pwsh
       run: ./ci/windows/Run-CandidateRegressions.ps1 -RepoRoot $env:GITHUB_WORKSPACE

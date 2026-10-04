@@ -1,7 +1,9 @@
 param([Parameter(Mandatory)][ValidateSet('driver','opencl','loaders','compatibility','package')][string]$Component,[Parameter(Mandatory)][string]$ReceiptDir,[ValidateSet('pre','post')][string]$Phase='pre')
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Initialize-HeliosBuild.ps1')
+& (Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1') -Phase "immediately-before-component-$Component-vs-import" -ReceiptDir $ReceiptDir
 Import-VisualStudioEnvironment
+& (Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1') -Phase "immediately-after-component-$Component-vs-import" -ReceiptDir $ReceiptDir
 $pins=Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw|ConvertFrom-Json
 $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $vsRows=(& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json)|ConvertFrom-Json

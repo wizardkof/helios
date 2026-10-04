@@ -1,7 +1,9 @@
 param([Parameter(Mandatory)][string]$ReceiptDir)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Initialize-HeliosBuild.ps1')
+& (Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1') -Phase 'immediately-before-citoolchain-vs-import' -ReceiptDir $ReceiptDir
 Import-VisualStudioEnvironment
+& (Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1') -Phase 'immediately-after-citoolchain-vs-import' -ReceiptDir $ReceiptDir
 & (Join-Path $PSScriptRoot 'Assert-WindowsKitPins.ps1') -ReceiptDir $ReceiptDir
 $tools=[ordered]@{}
 foreach($test in @(

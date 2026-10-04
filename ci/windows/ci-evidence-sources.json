@@ -7,6 +7,12 @@
       "required": true
     },
     {
+      "name": "ninja-resolution",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_install",
+      "required": true
+    },
+    {
       "name": "kit",
       "source": "{TEMP}/component-qualification",
       "step": "s15",
@@ -47,6 +53,12 @@
       "source": "C:/hb/qualification",
       "step": "s17",
       "required": true
+    },
+    {
+      "name": "ninja-receipt-control",
+      "source": "C:/hb/ninja-receipt-control",
+      "step": "ninja_receipt_control",
+      "required": false
     },
     {
       "name": "regressions",
