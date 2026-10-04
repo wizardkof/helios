@@ -1,26 +1,28 @@
-param([Parameter(Mandatory)][string]$ReceiptDir)
+param([Parameter(Mandatory)][string]$ReceiptDir,[string]$Phase='current')
 $ErrorActionPreference='Stop'
-$pins=Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw|ConvertFrom-Json
-$inventory=@(foreach($root in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
- Get-ItemProperty $root -ErrorAction SilentlyContinue|Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -and ($_.DisplayName -match 'Windows Software Development Kit|Windows Driver Kit|Windows SDK Desktop (Headers|Libs)') }|Select-Object DisplayName,DisplayVersion,PSPath
-})
-$sdk=@($inventory|Where-Object {$_.DisplayName -match 'Windows Software Development Kit'}|ForEach-Object {$_.DisplayVersion}|Sort-Object -Unique)
-$wdk=@($inventory|Where-Object {$_.DisplayName -match '^Windows Driver Kit - Windows 10\.0\.26100\.'}|ForEach-Object {$_.DisplayVersion}|Sort-Object -Unique)
-$expectedSdk=@($pins.qualifiedObservedTools.windowsSdkVersion.Split(',')|Sort-Object -Unique)
-$expectedWdk=@($pins.windowsKit.wdkVersion)
-$componentFailures=@()
-foreach($kind in @('SDK','WDK')) {
- $pattern=if($kind -eq 'SDK'){'^Windows SDK Desktop (Headers|Libs) (x64|x86)$'}else{'^Windows Driver Kit (Headers and Libs|Binaries)$'}
- $components=@($inventory|Where-Object {$_.DisplayName -match $pattern})
- $expected=if($kind -eq 'SDK'){'10.1.26100.7705'}else{$pins.windowsKit.wdkVersion}
- if(-not $components.Count -or @($components|Where-Object {$_.DisplayVersion -notin @($expected,($expected -replace '^10\.1\.','10.0.'))}).Count){$componentFailures+=$kind}
-}
-
 New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
-$receipt=@{requested=$pins.windowsKit;observed=$inventory;qualifiedSdk=$expectedSdk;qualifiedWdk=$expectedWdk;status='FAIL'}
-if ($componentFailures.Count -or ($sdk -join ',') -ne ($expectedSdk -join ',') -or ($wdk -join ',') -ne ($expectedWdk -join ',')) {
- $receipt|ConvertTo-Json -Depth 8|Set-Content (Join-Path $ReceiptDir 'windows-kit.json') -Encoding UTF8
- throw 'SDK/WDK product inventory differs from the qualified compatibility model; directory versions do not establish QFE identity'
+$pinsPath=Join-Path $PSScriptRoot 'ci-toolchain-pins.json'
+$kit=(Get-Content $pinsPath -Raw|ConvertFrom-Json).windowsKit
+$root=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
+$inventory=@();$queries=@();$files=@()
+foreach($key in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')) {
+ try {
+  foreach($item in Get-ChildItem -LiteralPath $key -ErrorAction Stop) {
+   $v=Get-ItemProperty -LiteralPath $item.PSPath -ErrorAction Stop
+   if($v.PSObject.Properties['DisplayName'] -and $v.DisplayName -match 'Windows.*(SDK|Kit|CRT)') {
+    $inventory+=@{DisplayName=$v.DisplayName;DisplayVersion=$v.DisplayVersion;productCode=$item.PSChildName;registryPath=$item.Name;uninstall=$(if($v.PSObject.Properties['QuietUninstallString']){$v.QuietUninstallString}elseif($v.PSObject.Properties['UninstallString']){$v.UninstallString}else{''})}
+   }
+  }
+  $queries+=@{path=$key;status='PASS'}
+ } catch {$queries+=@{path=$key;status='FAIL';reason=$_.Exception.Message}}
 }
-$receipt.status='PASS'
-$receipt|ConvertTo-Json -Depth 8|Set-Content (Join-Path $ReceiptDir 'windows-kit.json') -Encoding UTF8
+foreach($f in $kit.selectedFiles) {
+ $path=Join-Path $root $f.path
+ if(Test-Path -LiteralPath $path -PathType Leaf){$item=Get-Item -LiteralPath $path;$files+=@{path=$f.path;absolutePath=$path;size=$item.Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower();fileVersion=$item.VersionInfo.FileVersion}}
+}
+$observation=@{queryStatus=$(if(@($queries|Where-Object {$_.status -ne 'PASS'}).Count){'FAIL'}else{'PASS'});queries=$queries;family=$(if(Test-Path (Join-Path $root "Include/$($kit.family)")){$kit.family}else{'UNKNOWN'});inventory=$inventory;files=$files;root=$root}
+$observationPath=Join-Path $ReceiptDir "$Phase-windows-kit-observation.json"
+$observation|ConvertTo-Json -Depth 10|Set-Content $observationPath -Encoding UTF8
+# The real portable checker writes the full refusal before returning nonzero.
+python (Join-Path $PSScriptRoot 'windows_kit.py') --pins $pinsPath --observation $observationPath --receipt (Join-Path $ReceiptDir 'windows-kit.json')
+if($LASTEXITCODE -ne 0){throw "SDK/WDK selected-component gate refused; receipt=$ReceiptDir/windows-kit.json phase=$Phase"}

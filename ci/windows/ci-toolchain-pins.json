@@ -10,8 +10,169 @@
     "msvcVersion": "14.44.35207"
   },
   "windowsKit": {
-    "sdkVersion": "10.0.26100.2454",
-    "wdkVersion": "10.1.26100.2454"
+    "family": "10.0.26100.0",
+    "sdkVersion": "10.0.26100.7705",
+    "wdkVersion": "10.1.26100.2454",
+    "installOrder": [
+      "wdk",
+      "sdk"
+    ],
+    "acquisition": {
+      "sdk": {
+        "url": "https://download.microsoft.com/download/f4b30f2a-4fc3-430e-9b03-c842b5f5f9f1/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe",
+        "sha256": "6fa0fa27db77a909f5ecb35183cb26a969a6775936780936fe239e4f9c66b458",
+        "packageVersion": "10.0.26100.7705",
+        "componentVersion": "10.1.26100.7705",
+        "manifestAuthority": "https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/WindowsSDK/10/0/26100/10.0.26100.7705"
+      },
+      "wdk": {
+        "url": "https://download.microsoft.com/download/a/0/4/a04a6ea0-d70d-496f-9949-a73e283be017/KIT_BUNDLE_WDK_MEDIACREATION/wdksetup.exe",
+        "sha256": "89c8bd4da6fdf0761e3c3d6a208e40fa5ba10743d84a4f63b6e867a388e07997",
+        "packageVersion": "10.1.26100.2454",
+        "componentVersion": "10.1.26100.2454",
+        "manifestAuthority": "https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/WindowsWDK/10/0/26100/10.1.26100.2454"
+      }
+    },
+    "components": [
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Signing Tools",
+        "version": "10.1.26100.7705",
+        "productCode": "{F9DDDEF1-BCF0-275F-DE29-9332F1149B79}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Universal CRT Headers Libraries and Sources",
+        "version": "10.1.26100.7705",
+        "productCode": "{7D4D186C-70F0-6990-1792-DAA557B1E010}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK for Windows Store Apps Libs",
+        "version": "10.1.26100.7705",
+        "productCode": "{2CAA22A5-36FE-21B0-5A67-3BE172FEFF12}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK for Windows Store Apps Headers",
+        "version": "10.1.26100.7705",
+        "productCode": "{B5534577-4F61-73AC-FFCB-91B0B0674DA4}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Desktop Headers x86",
+        "version": "10.1.26100.7705",
+        "productCode": "{D0772A8A-6AB2-E6E1-8BEF-29F59AB99893}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Desktop Libs x86",
+        "version": "10.1.26100.7705",
+        "productCode": "{9EE92E02-FA29-DF43-7E45-A256139DEBE4}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Desktop Libs x64",
+        "version": "10.1.26100.7705",
+        "productCode": "{12C6754C-2086-9BFC-1292-FA0BE54009E6}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Desktop Headers x64",
+        "version": "10.1.26100.7705",
+        "productCode": "{CCEEC7A2-2179-C5D0-60E2-2651993A8AD5}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Kit Binaries",
+        "version": "10.1.26100.2454",
+        "productCode": "{4B6D4E5A-9859-51F0-192D-EBE76C84C920}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Kit Headers and Libs",
+        "version": "10.1.26100.2454",
+        "productCode": "{7A553149-07BA-D2CB-3447-AE34A12C4AE2}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Framework Headers and Libs OnecoreUAP",
+        "version": "10.1.26100.2454",
+        "productCode": "{3540604E-4832-924D-B9B6-17F3E41FE980}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Kit Headers and Libs OnecoreUAP",
+        "version": "10.1.26100.2454",
+        "productCode": "{C35B59BC-21ED-D686-127F-1BFFA5E64057}"
+      }
+    ],
+    "selectedFiles": [
+      {
+        "kind": "sdk",
+        "path": "Include/10.0.26100.0/um/windows.h"
+      },
+      {
+        "kind": "sdk",
+        "path": "Include/10.0.26100.0/shared/dxgiformat.h"
+      },
+      {
+        "kind": "sdk",
+        "path": "Include/10.0.26100.0/ucrt/stdio.h"
+      },
+      {
+        "kind": "sdk",
+        "path": "Lib/10.0.26100.0/um/x64/kernel32.lib"
+      },
+      {
+        "kind": "sdk",
+        "path": "Lib/10.0.26100.0/um/x86/kernel32.lib"
+      },
+      {
+        "kind": "sdk",
+        "path": "Lib/10.0.26100.0/ucrt/x64/ucrt.lib"
+      },
+      {
+        "kind": "sdk",
+        "path": "Lib/10.0.26100.0/ucrt/x86/ucrt.lib"
+      },
+      {
+        "kind": "sdk",
+        "path": "bin/10.0.26100.0/x64/rc.exe"
+      },
+      {
+        "kind": "sdk",
+        "path": "bin/10.0.26100.0/x86/rc.exe"
+      },
+      {
+        "kind": "sdk",
+        "path": "bin/10.0.26100.0/x64/signtool.exe"
+      },
+      {
+        "kind": "wdk",
+        "path": "Include/10.0.26100.0/km/ntddk.h"
+      },
+      {
+        "kind": "wdk",
+        "path": "Include/10.0.26100.0/km/dispmprt.h"
+      },
+      {
+        "kind": "wdk",
+        "path": "Lib/10.0.26100.0/km/x64/ntoskrnl.lib"
+      },
+      {
+        "kind": "wdk",
+        "path": "Lib/10.0.26100.0/km/x86/ntoskrnl.lib"
+      },
+      {
+        "kind": "wdk",
+        "path": "bin/10.0.26100.0/x64/Inf2Cat.exe"
+      },
+      {
+        "kind": "wdk",
+        "path": "bin/10.0.26100.0/x64/stampinf.exe"
+      }
+    ]
   },
   "llvmVersion": "22.1.8",
   "rust": {
@@ -79,7 +240,7 @@
       "msys2-runtime": "3.6.10-6"
     }
   },
-  "authority": "P06 .300/.303 qualified toolchain; requested pins and observed SDK compatibility are distinct",
+  "authority": "Historical observed tools retained; selected SDK 7705 / WDK 2454 acquisition and MSI identities are canonical, family path is not QFE.",
   "cmakeVersion": "3.31.6",
   "cmakePinAuthority": [
     {

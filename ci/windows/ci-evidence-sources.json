@@ -1,0 +1,274 @@
+{
+  "driver": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "kit",
+      "source": "{TEMP}/component-qualification",
+      "step": "s15",
+      "required": true
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "s15",
+      "required": true
+    },
+    {
+      "name": "isolation-audit",
+      "source": "C:/hb/isolation/bootstrap.executions.log",
+      "step": "s16",
+      "required": true
+    },
+    {
+      "name": "isolation-generate",
+      "source": "C:/hb/isolation/make-*/Generate.toml",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "isolation-driver",
+      "source": "C:/hb/isolation/make-*/Driver.toml",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "isolation-wdk",
+      "source": "C:/hb/isolation/make-*/Wdk.toml",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "qualification",
+      "source": "C:/hb/qualification",
+      "step": "s17",
+      "required": true
+    },
+    {
+      "name": "regressions",
+      "source": "C:/hb/regressions",
+      "step": "s19",
+      "required": true
+    },
+    {
+      "name": "dxvk-diagnostics",
+      "source": "C:/hb/dxvk-regressions/meson-logs",
+      "step": "s19",
+      "required": false
+    },
+    {
+      "name": "release-qualification",
+      "source": "C:/hb/driver/qualification-Release",
+      "step": "s20",
+      "required": true
+    },
+    {
+      "name": "debug-qualification",
+      "source": "C:/hb/driver/qualification-Debug",
+      "step": "s22",
+      "required": true
+    },
+    {
+      "name": "driver-meson",
+      "source": "C:/hb/driver/*/*/meson-logs",
+      "step": "s20",
+      "required": false
+    },
+    {
+      "name": "release-output",
+      "source": "{TEMP}/helios-driver-Release",
+      "step": "s20",
+      "required": false
+    },
+    {
+      "name": "debug-output",
+      "source": "{TEMP}/helios-driver-Debug",
+      "step": "s22",
+      "required": false
+    }
+  ],
+  "mesa": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "output-0",
+      "source": "{TEMP}/component-qualification",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-2",
+      "source": "{TEMP}/helios-mesa",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-3",
+      "source": "C:/helios-mesa-build/meson-logs",
+      "step": "s06",
+      "required": false
+    }
+  ],
+  "mesa_x86": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "output-0",
+      "source": "{TEMP}/component-qualification",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-2",
+      "source": "{TEMP}/helios-mesa-x86",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-3",
+      "source": "C:/helios-mesa-build/meson-logs",
+      "step": "s06",
+      "required": false
+    }
+  ],
+  "opencl": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "output-0",
+      "source": "{TEMP}/component-qualification",
+      "step": "s11",
+      "required": false
+    },
+    {
+      "name": "output-2",
+      "source": "{TEMP}/helios-opencl",
+      "step": "s11",
+      "required": false
+    },
+    {
+      "name": "output-3",
+      "source": "C:/clvk-build/CMakeFiles/CMakeConfigureLog.yaml",
+      "step": "s11",
+      "required": false
+    },
+    {
+      "name": "output-4",
+      "source": "C:/clvk-build/CMakeCache.txt",
+      "step": "s11",
+      "required": false
+    }
+  ],
+  "loaders": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "output-0",
+      "source": "{TEMP}/component-qualification",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-2",
+      "source": "{TEMP}/helios-loaders",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-3",
+      "source": "C:/khronos-build/*/CMakeFiles/CMakeConfigureLog.yaml",
+      "step": "s06",
+      "required": false
+    },
+    {
+      "name": "output-4",
+      "source": "C:/khronos-build/*/CMakeCache.txt",
+      "step": "s06",
+      "required": false
+    }
+  ],
+  "compatibility": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "output-0",
+      "source": "{TEMP}/component-qualification",
+      "step": "s05",
+      "required": false
+    },
+    {
+      "name": "output-2",
+      "source": "{TEMP}/helios-compatibility",
+      "step": "s05",
+      "required": false
+    }
+  ],
+  "package": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "output-0",
+      "source": "{TEMP}/helios-package-qualification",
+      "step": "s11",
+      "required": false
+    },
+    {
+      "name": "output-2",
+      "source": "{TEMP}/helios-package/*.json",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "output-3",
+      "source": "{TEMP}/helios-package/*.txt",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "output-4",
+      "source": "{TEMP}/helios-package/*.log",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "kit",
+      "source": "{TEMP}/component-qualification",
+      "step": "s12",
+      "required": true
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "s12",
+      "required": true
+    }
+  ]
+}

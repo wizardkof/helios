@@ -1,701 +1,949 @@
 name: Windows graphics and compute bundle
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [master]
-    tags: ['v*']
-  pull_request:
-    branches: [master]
-
 permissions:
   contents: read
-
 concurrency:
   group: windows-stack-${{ github.ref }}
   cancel-in-progress: true
-
 env:
-  PYTHON_VERSION: '3.12.10'
+  PYTHON_VERSION: 3.12.10
   PYTHONDONTWRITEBYTECODE: '1'
-  NINJA_VERSION: '1.13.2'
-  CMAKE_VERSION: '3.31.6'
+  NINJA_VERSION: 1.13.2
+  CMAKE_VERSION: 3.31.6
   CARGO_BUILD_JOBS: '2'
   CMAKE_BUILD_PARALLEL_LEVEL: '2'
   HELIOS_BUILD_JOBS: '2'
-  HELIOS_MSVC_VERSION: '14.44.35207'
-  HELIOS_WINDOWS_KIT_VERSION: '10.0.26100.0'
+  HELIOS_MSVC_VERSION: 14.44.35207
+  HELIOS_WINDOWS_KIT_VERSION: 10.0.26100.0
   CANONICAL_BUILD_BACKEND: GITHUB_ACTIONS
   LOCAL_VM_ROLE: DEPLOY_AND_RUNTIME_ONLY
   PUBLICATION: 'NO'
   LOCAL_PRODUCT_BUILDS: DISABLED_BY_DEFAULT
   GITHUB_ACTIONS_USED_FOR_FUTURE_CANDIDATES: 'YES'
-  MESON_VERSION: '1.11.2'
+  MESON_VERSION: 1.11.2
   RUST_TOOLCHAIN: nightly-2026-07-14
   RUSTUP_TOOLCHAIN: nightly-2026-07-14
-  CARGO_MAKE_VERSION: '0.37.24'
-  RUST_SCRIPT_VERSION: '0.36.0'
-  # Matches the active DXVK/vkd3d compiler and shader tools on win11 (2026-09-07).
-  LLVM_VERSION: '22.1.8'
-  VULKAN_SDK_VERSION: '1.4.350.0'
+  CARGO_MAKE_VERSION: 0.37.24
+  RUST_SCRIPT_VERSION: 0.36.0
+  LLVM_VERSION: 22.1.8
+  VULKAN_SDK_VERSION: 1.4.350.0
   CLVK_REPOSITORY: https://github.com/winboat-org/clvk-helios.git
   CLVK_COMMIT: 56c626132782bf083a80a6c17f5ca763be0ff8fb
   VULKAN_LOADER_COMMIT: 06830240f7a70599053f47b5f10af543e8c3daf6
   VULKAN_HEADERS_COMMIT: 11d6898377797e07dbd543aaaa367e4465074597
   OPENCL_LOADER_COMMIT: 18fdcd58286376124f938948aa8ed156079c1c16
   OPENCL_HEADERS_COMMIT: 6fe718c31a45fe25151362a72ef041c3a1047cbd
-
 jobs:
   driver:
     name: Qualified Release then Debug (offline only)
     runs-on: windows-2022
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize release source-lock submodules
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - name: Check registry snapshot preservation (PowerShell 7)
-        shell: pwsh
-        run: ./packaging/windows/Test-HeliosRegistrySnapshots.ps1
-      - name: Check registry snapshot preservation (Windows PowerShell)
-        shell: powershell
-        run: ./packaging/windows/Test-HeliosRegistrySnapshots.ps1
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install Meson and Ninja
-        shell: pwsh
-        run: python -m pip install "meson==${env:MESON_VERSION}" "ninja==${env:NINJA_VERSION}"
-      - name: Install Wine IDL compiler
-        id: widl
-        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
-        with:
-          msystem: UCRT64
-          install: mingw-w64-ucrt-x86_64-tools
-      - name: Expose native widl to Meson
-        shell: pwsh
-        env:
-          MSYS2_LOCATION: ${{ steps.widl.outputs.msys2-location }}
-        run: |
-          Join-Path $env:MSYS2_LOCATION 'ucrt64/bin' >> $env:GITHUB_PATH
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
-        with:
-          version: ${{ env.LLVM_VERSION }}
-          # This action revision's asset table stops at LLVM 21. Use the
-          # official Windows installer explicitly for the VM-matched version.
-          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
-      - name: Restore Vulkan SDK
-        uses: actions/cache@v4
-        with:
-          path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
-          key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
-      - name: Install and validate Vulkan SDK
-        shell: pwsh
-        run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-          components: rust-src
-          targets: i686-pc-windows-msvc
-      - name: Install Rust build helpers
-        shell: pwsh
-        run: |
-          cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
-          cargo install rust-script --locked --version $env:RUST_SCRIPT_VERSION
-      - name: Ensure Windows Driver Kit is installed
-        shell: pwsh
-        run: ./ci/windows/Install-WindowsDriverKit.ps1
-      - name: Initialize isolated host and private WDK producers
-        shell: pwsh
-        run: ./ci/windows/Initialize-CIIsolation.ps1
-      - name: Enforce exact native toolchain pins
-        shell: pwsh
-        run: ./ci/windows/Assert-CIToolchain.ps1 -ReceiptDir C:/hb/qualification
-      - name: Enforce current producer pins
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component driver -ReceiptDir C:/hb/qualification
-      - name: Candidate regressions before Release
-        shell: pwsh
-        run: ./ci/windows/Run-CandidateRegressions.ps1 -RepoRoot $env:GITHUB_WORKSPACE
-      - name: Build and qualify Release
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "C:/hb/qualification" -Producer "release" -Operation {
-            ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/helios-driver-Release" -Configuration Release -BuildRoot C:/hb/driver
-          }
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-driver-Release
-          path: ${{ runner.temp }}/helios-driver-Release
-          if-no-files-found: error
-          retention-days: 90
-      - name: Build and qualify Debug only after Release PASS
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "C:/hb/qualification" -Producer "debug" -Operation {
-            if ((Get-Content C:/hb/driver/qualification-Release/complete.txt -Raw).Trim() -ne 'PASS') { throw 'Release qualification incomplete' }
-            ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/helios-driver-Debug" -Configuration Debug -BuildRoot C:/hb/driver
-          }
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-driver-Debug
-          path: ${{ runner.temp }}/helios-driver-Debug
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve qualification and failure evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-driver-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/runner-qualification
-            C:/hb/qualification
-            C:/hb/regressions
-            C:/hb/isolation/bootstrap.executions.log
-            C:/hb/isolation/make-*/Generate.toml
-            C:/hb/isolation/make-*/Driver.toml
-            C:/hb/isolation/make-*/Wdk.toml
-            C:/hb/driver/qualification-*
-            C:/hb/driver/*/*/meson-logs
-            C:/hb/dxvk-regressions/meson-logs
-            ${{ runner.temp }}/helios-driver-Release
-            ${{ runner.temp }}/helios-driver-Debug
-          if-no-files-found: warn
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s06
+    - name: Expected refusal and evidence collection control
+      id: transport_fixture
+      shell: powershell
+      run: ./ci/windows/Test-CIEvidence.ps1
+    - name: Upload Windows evidence control
+      id: transport_upload
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he-control
+        if-no-files-found: error
+        retention-days: 90
+    - name: Download Windows evidence control
+      id: transport_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he-roundtrip
+    - name: Verify downloaded Windows evidence identities
+      id: transport_verify
+      shell: powershell
+      run: 'python ./ci/windows/ci_evidence.py verify --root C:/he-roundtrip
 
-  # Mesa, CLVK and the Khronos loaders are built once (release) and shared by
-  # both bundles: they are externally-maintained native libraries, and a debug
-  # variant of them is not what a "debug Helios build" is for. The debug bundle
-  # is the first-party code — KMD, both UMDs, and the installer — with symbols.
-  # To make a component configuration-aware, give it a -Configuration parameter
-  # and add it to the package job's per-configuration download list.
+        if ($LASTEXITCODE -ne 0) { throw "Native artifact roundtrip failed" }'
+    - name: Ensure Windows Driver Kit is installed
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+      id: s15
+    - name: Initialize release source-lock submodules
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Check registry snapshot preservation (PowerShell 7)
+      shell: pwsh
+      run: ./packaging/windows/Test-HeliosRegistrySnapshots.ps1
+      id: s04
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Check registry snapshot preservation (Windows PowerShell)
+      shell: powershell
+      run: ./packaging/windows/Test-HeliosRegistrySnapshots.ps1
+      id: s05
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Install Meson and Ninja
+      shell: pwsh
+      run: python -m pip install "meson==${env:MESON_VERSION}" "ninja==${env:NINJA_VERSION}"
+      id: s07
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Install Wine IDL compiler
+      id: widl
+      uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: UCRT64
+        install: mingw-w64-ucrt-x86_64-tools
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Expose native widl to Meson
+      shell: pwsh
+      env:
+        MSYS2_LOCATION: ${{ steps.widl.outputs.msys2-location }}
+      run: 'Join-Path $env:MSYS2_LOCATION ''ucrt64/bin'' >> $env:GITHUB_PATH
+
+        '
+      id: s09
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Install LLVM
+      uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+      with:
+        version: ${{ env.LLVM_VERSION }}
+        force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
+      id: s10
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Restore Vulkan SDK
+      uses: actions/cache@v4
+      with:
+        path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
+        key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
+      id: s11
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Install and validate Vulkan SDK
+      shell: pwsh
+      run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
+      id: s12
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+      with:
+        toolchain: ${{ env.RUST_TOOLCHAIN }}
+        components: rust-src
+        targets: i686-pc-windows-msvc
+      id: s13
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Install Rust build helpers
+      shell: pwsh
+      run: 'cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
+
+        cargo install rust-script --locked --version $env:RUST_SCRIPT_VERSION
+
+        '
+      id: s14
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Initialize isolated host and private WDK producers
+      shell: pwsh
+      run: ./ci/windows/Initialize-CIIsolation.ps1
+      id: s16
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Enforce exact native toolchain pins
+      shell: pwsh
+      run: ./ci/windows/Assert-CIToolchain.ps1 -ReceiptDir C:/hb/qualification
+      id: s17
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Enforce current producer pins
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component driver -ReceiptDir C:/hb/qualification
+      id: s18
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Candidate regressions before Release
+      shell: pwsh
+      run: ./ci/windows/Run-CandidateRegressions.ps1 -RepoRoot $env:GITHUB_WORKSPACE
+      id: s19
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Build and qualify Release
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"release\" -Operation {\n  ./ci/windows/Build-QualifiedDriver.ps1\
+        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-driver-Release\" -Configuration Release -BuildRoot C:/hb/driver\n}\n"
+      id: s20
+      if: ${{ !inputs.infrastructure_only }}
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-driver-Release
+        path: ${{ runner.temp }}/helios-driver-Release
+        if-no-files-found: error
+        retention-days: 90
+      id: s21
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Build and qualify Debug only after Release PASS
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"debug\" -Operation {\n  if ((Get-Content C:/hb/driver/qualification-Release/complete.txt\
+        \ -Raw).Trim() -ne 'PASS') { throw 'Release qualification incomplete' }\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE\
+        \ -OutputDir \"$env:RUNNER_TEMP/helios-driver-Debug\" -Configuration Debug -BuildRoot C:/hb/driver\n}\n"
+      id: s22
+      if: ${{ !inputs.infrastructure_only }}
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-driver-Debug
+        path: ${{ runner.temp }}/helios-driver-Debug
+        if-no-files-found: error
+        retention-days: 90
+      id: s23
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job driver -Root C:/he
+    - name: Preserve qualification and failure evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-driver-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   mesa:
-    needs: [driver]
+    needs:
+    - driver
     name: Mesa Venus Vulkan and Zink OpenGL (x64)
     runs-on: windows-2022
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize Mesa fork
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            git
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-meson
-            mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-python
-            mingw-w64-ucrt-x86_64-python-mako
-            mingw-w64-ucrt-x86_64-python-packaging
-            mingw-w64-ucrt-x86_64-python-yaml
-            mingw-w64-ucrt-x86_64-pkgconf
-            mingw-w64-ucrt-x86_64-vulkan-headers
-            mingw-w64-ucrt-x86_64-vulkan-loader
-            bison
-            flex
-      - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
-      - name: Observe resources before Mesa producer
-        shell: pwsh
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer mesa-build
-      - name: Build Mesa runtime
-        shell: msys2 {0}
-        run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa"
-      - name: Post-build fingerprint and hashes
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
-          python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa" --source-root $env:GITHUB_WORKSPACE --component mesa --configuration Release --architecture x64
-          if($LASTEXITCODE -ne 0){throw 'Component identity sealing failed'}
-          Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-mesa
-          path: ${{ runner.temp }}/helios-mesa
-          if-no-files-found: error
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - name: Initialize Mesa fork
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s04
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: UCRT64
+        update: true
+        install: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
+          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+          bison flex
+      id: s05
+    - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
 
-      - name: Preserve component qualification evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-mesa-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/component-qualification
-            ${{ runner.temp }}/runner-qualification
-            ${{ runner.temp }}/helios-mesa
-            C:/helios-mesa-build/meson-logs
-          if-no-files-found: warn
-          retention-days: 90
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
 
+        '
+      id: s06
+    - name: Observe resources before Mesa producer
+      shell: pwsh
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer mesa-build
+      id: s07
+    - name: Build Mesa runtime
+      shell: msys2 {0}
+      run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa"
+      id: s08
+    - name: Post-build fingerprint and hashes
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
+
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa" --source-root $env:GITHUB_WORKSPACE --component mesa --configuration
+        Release --architecture x64
+
+        if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
+
+        '
+      id: s09
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-mesa
+        path: ${{ runner.temp }}/helios-mesa
+        if-no-files-found: error
+        retention-days: 90
+      id: s10
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job mesa -Root C:/he
+    - name: Preserve component qualification evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-mesa-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+    if: ${{ !inputs.infrastructure_only }}
   mesa_x86:
-    needs: [driver]
+    needs:
+    - driver
     env:
       HELIOS_CI_ARCH: x86
     name: Mesa Venus Vulkan and Zink OpenGL (WoW64 x86)
     runs-on: windows-2022
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize Mesa fork
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
-        with:
-          msystem: MINGW32
-          update: true
-          install: >-
-            git
-            mingw-w64-i686-gcc
-            mingw-w64-i686-meson
-            mingw-w64-i686-ninja
-            mingw-w64-i686-python
-            mingw-w64-i686-python-mako
-            mingw-w64-i686-python-packaging
-            mingw-w64-i686-python-yaml
-            mingw-w64-i686-pkgconf
-            mingw-w64-i686-vulkan-headers
-            mingw-w64-i686-vulkan-loader
-            bison
-            flex
-      - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
-      - name: Observe resources before Mesa producer
-        shell: pwsh
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer mesa-build
-      - name: Build WoW64 Mesa runtime
-        shell: msys2 {0}
-        run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa-x86"
-      - name: Post-build fingerprint and hashes
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
-          python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa-x86" --source-root $env:GITHUB_WORKSPACE --component mesa-x86 --configuration Release --architecture x86
-          if($LASTEXITCODE -ne 0){throw 'Component identity sealing failed'}
-          Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-mesa-x86
-          path: ${{ runner.temp }}/helios-mesa-x86
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve component qualification evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-mesa_x86-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/component-qualification
-            ${{ runner.temp }}/runner-qualification
-            ${{ runner.temp }}/helios-mesa-x86
-            C:/helios-mesa-build/meson-logs
-          if-no-files-found: warn
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - name: Initialize Mesa fork
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s04
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: MINGW32
+        update: true
+        install: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
+          mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader bison flex
+      id: s05
+    - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
 
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
+
+        '
+      id: s06
+    - name: Observe resources before Mesa producer
+      shell: pwsh
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer mesa-build
+      id: s07
+    - name: Build WoW64 Mesa runtime
+      shell: msys2 {0}
+      run: bash ./ci/windows/build-mesa.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/helios-mesa-x86"
+      id: s08
+    - name: Post-build fingerprint and hashes
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
+
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa-x86" --source-root $env:GITHUB_WORKSPACE --component mesa-x86
+        --configuration Release --architecture x86
+
+        if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
+
+        '
+      id: s09
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-mesa-x86
+        path: ${{ runner.temp }}/helios-mesa-x86
+        if-no-files-found: error
+        retention-days: 90
+      id: s10
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job mesa_x86 -Root C:/he
+    - name: Preserve component qualification evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-mesa_x86-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+    if: ${{ !inputs.infrastructure_only }}
   opencl:
-    needs: [driver]
+    needs:
+    - driver
     name: CLVK with embedded clspv
     runs-on: windows-2022
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize source lock
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pinned Ninja
-        shell: pwsh
-        run: python -m pip install "ninja==$env:NINJA_VERSION"
-      - name: Set up MSVC for Ninja
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
-      - name: Install pinned sccache binary
-        shell: pwsh
-        run: |
-          $root=Join-Path $env:RUNNER_TEMP 'sccache-0.18.0'
-          $archive=Join-Path $env:RUNNER_TEMP 'sccache-0.18.0.zip'
-          Invoke-WebRequest https://github.com/mozilla/sccache/releases/download/v0.18.0/sccache-v0.18.0-x86_64-pc-windows-msvc.zip -OutFile $archive
-          Expand-Archive $archive $root
-          $exe=@(Get-ChildItem $root -Recurse -Filter sccache.exe)
-          if($exe.Count -ne 1){throw 'Pinned sccache executable missing'}
-          $exe[0].DirectoryName >> $env:GITHUB_PATH
-      - name: Restore Vulkan SDK
-        uses: actions/cache@v4
-        with:
-          path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
-          key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
-      - name: Install and validate Vulkan SDK
-        shell: pwsh
-        run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
-      - name: Install qualified CMake
-        shell: pwsh
-        run: python -m pip install "cmake==$env:CMAKE_VERSION"
-      - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
-      - name: Enforce current producer pins
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component opencl -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
-      - name: Build CLVK
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer "component-build" -Operation {
-            ./ci/windows/Build-OpenCL.ps1 -OutputDir "$env:RUNNER_TEMP/helios-opencl" -ClvkRepository $env:CLVK_REPOSITORY -ClvkCommit $env:CLVK_COMMIT
-          }
-      - name: Post-build producer toolchain
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component opencl -Phase post -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
-      - name: Post-build fingerprint and hashes
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
-          python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-opencl" --source-root $env:GITHUB_WORKSPACE --component opencl --configuration Release --architecture x64
-          if($LASTEXITCODE -ne 0){throw 'Component identity sealing failed'}
-          Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-opencl
-          path: ${{ runner.temp }}/helios-opencl
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve component qualification evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-opencl-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/component-qualification
-            ${{ runner.temp }}/runner-qualification
-            ${{ runner.temp }}/helios-opencl
-            C:/clvk-build/CMakeFiles/CMakeConfigureLog.yaml
-            C:/clvk-build/CMakeCache.txt
-          if-no-files-found: warn
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - name: Initialize source lock
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s04
+    - name: Install pinned Ninja
+      shell: pwsh
+      run: python -m pip install "ninja==$env:NINJA_VERSION"
+      id: s05
+    - name: Set up MSVC for Ninja
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      id: s06
+    - name: Install pinned sccache binary
+      shell: pwsh
+      run: '$root=Join-Path $env:RUNNER_TEMP ''sccache-0.18.0''
 
+        $archive=Join-Path $env:RUNNER_TEMP ''sccache-0.18.0.zip''
+
+        Invoke-WebRequest https://github.com/mozilla/sccache/releases/download/v0.18.0/sccache-v0.18.0-x86_64-pc-windows-msvc.zip -OutFile $archive
+
+        Expand-Archive $archive $root
+
+        $exe=@(Get-ChildItem $root -Recurse -Filter sccache.exe)
+
+        if($exe.Count -ne 1){throw ''Pinned sccache executable missing''}
+
+        $exe[0].DirectoryName >> $env:GITHUB_PATH
+
+        '
+      id: s07
+    - name: Restore Vulkan SDK
+      uses: actions/cache@v4
+      with:
+        path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
+        key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
+      id: s08
+    - name: Install and validate Vulkan SDK
+      shell: pwsh
+      run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
+      id: s09
+    - name: Install qualified CMake
+      shell: pwsh
+      run: python -m pip install "cmake==$env:CMAKE_VERSION"
+      id: s10
+    - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
+
+        '
+      id: s11
+    - name: Enforce current producer pins
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component opencl -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: s12
+    - name: Build CLVK
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Build-OpenCL.ps1\
+        \ -OutputDir \"$env:RUNNER_TEMP/helios-opencl\" -ClvkRepository $env:CLVK_REPOSITORY -ClvkCommit $env:CLVK_COMMIT\n}\n"
+      id: s13
+    - name: Post-build producer toolchain
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component opencl -Phase post -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: s14
+    - name: Post-build fingerprint and hashes
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
+
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-opencl" --source-root $env:GITHUB_WORKSPACE --component opencl --configuration
+        Release --architecture x64
+
+        if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
+
+        '
+      id: s15
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-opencl
+        path: ${{ runner.temp }}/helios-opencl
+        if-no-files-found: error
+        retention-days: 90
+      id: s16
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job opencl -Root C:/he
+    - name: Preserve component qualification evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-opencl-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+    if: ${{ !inputs.infrastructure_only }}
   loaders:
-    needs: [driver]
+    needs:
+    - driver
     name: Khronos loaders and smoke probes
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize source lock
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install qualified CMake
-        shell: pwsh
-        run: python -m pip install "cmake==$env:CMAKE_VERSION"
-      - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
-      - name: Enforce current producer pins
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component loaders -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
-      - name: Build official loaders and probes
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer "component-build" -Operation {
-            ./ci/windows/Build-KhronosLoaders.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/helios-loaders" -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
-          }
-      - name: Post-build producer toolchain
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component loaders -Phase post -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
-      - name: Post-build fingerprint and hashes
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
-          python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-loaders" --source-root $env:GITHUB_WORKSPACE --component loaders --configuration Release --architecture x64+x86
-          if($LASTEXITCODE -ne 0){throw 'Component identity sealing failed'}
-          Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-loaders
-          path: ${{ runner.temp }}/helios-loaders
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve component qualification evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-loaders-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/component-qualification
-            ${{ runner.temp }}/runner-qualification
-            ${{ runner.temp }}/helios-loaders
-            C:/khronos-build/*/CMakeFiles/CMakeConfigureLog.yaml
-            C:/khronos-build/*/CMakeCache.txt
-          if-no-files-found: warn
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - name: Initialize source lock
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s04
+    - name: Install qualified CMake
+      shell: pwsh
+      run: python -m pip install "cmake==$env:CMAKE_VERSION"
+      id: s05
+    - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
 
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
+
+        '
+      id: s06
+    - name: Enforce current producer pins
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component loaders -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: s07
+    - name: Build official loaders and probes
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Build-KhronosLoaders.ps1\
+        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-loaders\" -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit\
+        \ $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
+      id: s08
+    - name: Post-build producer toolchain
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component loaders -Phase post -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: s09
+    - name: Post-build fingerprint and hashes
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
+
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-loaders" --source-root $env:GITHUB_WORKSPACE --component loaders --configuration
+        Release --architecture x64+x86
+
+        if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
+
+        '
+      id: s10
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-loaders
+        path: ${{ runner.temp }}/helios-loaders
+        if-no-files-found: error
+        retention-days: 90
+      id: s11
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job loaders -Root C:/he
+    - name: Preserve component qualification evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-loaders-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+    if: ${{ !inputs.infrastructure_only }}
   compatibility:
-    needs: [driver]
+    needs:
+    - driver
     name: Application compatibility shims
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize source lock
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
-      - name: Enforce current producer pins
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component compatibility -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
-      - name: Build and validate compatibility shims
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification" -Producer "component-build" -Operation {
-            ./ci/windows/Build-CompatibilityShims.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/helios-compatibility"
-          }
-      - name: Post-build producer toolchain
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component compatibility -Phase post -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
-      - name: Post-build fingerprint and hashes
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
-          python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-compatibility" --source-root $env:GITHUB_WORKSPACE --component compatibility --configuration Release --architecture x64
-          if($LASTEXITCODE -ne 0){throw 'Component identity sealing failed'}
-          Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-compatibility
-          path: ${{ runner.temp }}/helios-compatibility
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve component qualification evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-compatibility-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/component-qualification
-            ${{ runner.temp }}/runner-qualification
-            ${{ runner.temp }}/helios-compatibility
-          if-no-files-found: warn
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - name: Initialize source lock
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s04
+    - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
 
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" pre
+
+        '
+      id: s05
+    - name: Enforce current producer pins
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component compatibility -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: s06
+    - name: Build and validate compatibility shims
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Build-CompatibilityShims.ps1\
+        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-compatibility\"\n}\n"
+      id: s07
+    - name: Post-build producer toolchain
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component compatibility -Phase post -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: s08
+    - name: Post-build fingerprint and hashes
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
+
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-compatibility" --source-root $env:GITHUB_WORKSPACE --component compatibility
+        --configuration Release --architecture x64
+
+        if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/component-qualification"
+
+        '
+      id: s09
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-compatibility
+        path: ${{ runner.temp }}/helios-compatibility
+        if-no-files-found: error
+        retention-days: 90
+      id: s10
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job compatibility -Root C:/he
+    - name: Preserve component qualification evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-compatibility-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+    if: ${{ !inputs.infrastructure_only }}
   package:
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     env:
       HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
-    needs: [driver, mesa, mesa_x86, opencl, loaders, compatibility]
+    needs:
+    - driver
+    - mesa
+    - mesa_x86
+    - opencl
+    - loaders
+    - compatibility
     runs-on: windows-2022
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        configuration: [Release, Debug]
+        configuration:
+        - Release
+        - Debug
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: false
-          fetch-depth: 1
-      - name: Observe frozen CI executor profile
-        shell: powershell
-        run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-      - name: Initialize pinned PowerShell independently
-        shell: powershell
-        run: ./ci/windows/Initialize-CIPowerShell.ps1
-      - name: Initialize candidate source-lock submodules
-        shell: pwsh
-        run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-      - uses: actions/download-artifact@v8
-        with:
-          name: helios-driver-${{ matrix.configuration }}
-          path: ${{ runner.temp }}/artifacts/driver
-      - uses: actions/download-artifact@v8
-        with:
-          name: helios-mesa
-          path: ${{ runner.temp }}/artifacts/mesa
-      - uses: actions/download-artifact@v8
-        with:
-          name: helios-mesa-x86
-          path: ${{ runner.temp }}/artifacts/mesa-x86
-      - uses: actions/download-artifact@v8
-        with:
-          name: helios-opencl
-          path: ${{ runner.temp }}/artifacts/opencl
-      - uses: actions/download-artifact@v8
-        with:
-          name: helios-loaders
-          path: ${{ runner.temp }}/artifacts/loaders
-      - uses: actions/download-artifact@v8
-        with:
-          name: helios-compatibility
-          path: ${{ runner.temp }}/artifacts/compatibility
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Pre-package source fingerprint
-        shell: pwsh
-        run: |
-          . ./ci/windows/CI-Qualification.ps1
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" pre
-      - name: Ensure Windows Driver Kit is installed
-        shell: pwsh
-        run: ./ci/windows/Install-WindowsDriverKit.ps1
-      # The installer is built here, not in a separate job: it is fast, and the
-      # final self-contained exe must be produced after the payload is assembled.
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
-        with:
-          version: ${{ env.LLVM_VERSION }}
-          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
-        with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-      - name: Enforce installer producer pins
-        shell: pwsh
-        run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
-      - name: Build the self-contained installer skeleton
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification" -Producer "installer-${{ matrix.configuration }}" -Operation {
-            ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ${{ matrix.configuration }}
-          }
-      - name: Seal installer producer identity
-        shell: pwsh
-        run: |
-          python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root $env:GITHUB_WORKSPACE --component installer --configuration '${{ matrix.configuration }}' --architecture x64
-          if($LASTEXITCODE -ne 0){throw 'Installer identity sealing failed'}
-      - name: Read package metadata
-        id: metadata
-        shell: pwsh
-        run: |
-          $version = (Get-Content kmd_render/driver-version.env | Where-Object { $_ -match '^HELIOS_KMD_VERSION=' }) -replace '^HELIOS_KMD_VERSION=', ''
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "mesa=$(git rev-parse HEAD:icd/mesa)" >> $env:GITHUB_OUTPUT
-          "dxvk=$(git rev-parse HEAD:dxvk-helios)" >> $env:GITHUB_OUTPUT
-          "vkd3d=$(git rev-parse HEAD:vkd3d-proton-helios)" >> $env:GITHUB_OUTPUT
-      - name: Assemble and test-sign bundle
-        shell: pwsh
-        run: |
-          ./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification" -Producer "package-${{ matrix.configuration }}" -Operation {
-            ./ci/windows/Assemble-Package.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact "$env:RUNNER_TEMP/artifacts/driver" -MesaArtifact "$env:RUNNER_TEMP/artifacts/mesa" -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl" -LoadersArtifact "$env:RUNNER_TEMP/artifacts/loaders" -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact "$env:RUNNER_TEMP/helios-installer" -OutputDir "$env:RUNNER_TEMP/helios-package" -Configuration '${{ matrix.configuration }}' -Version '${{ steps.metadata.outputs.version }}' -RepositoryCommit $env:GITHUB_SHA -MesaCommit '${{ steps.metadata.outputs.mesa }}' -DxvkCommit '${{ steps.metadata.outputs.dxvk }}' -Vkd3dCommit '${{ steps.metadata.outputs.vkd3d }}' -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
-          }
-      - name: Independent final package extraction and native audit
-        shell: pwsh
-        run: |
-          python ./ci/windows/Verify-CIPackage.py --root "$env:RUNNER_TEMP/helios-package"
-          if ($LASTEXITCODE -ne 0) { throw 'Final extraction/ZIP qualification failed' }
-          $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
-          ./ci/windows/Audit-CIPackage.ps1 -OutputDir "$env:RUNNER_TEMP/helios-package" -Version $lock.version -Fingerprint $lock.sourceFingerprint
-          . ./ci/windows/CI-Qualification.ps1
-          ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -Phase post -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
-          Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" post
-          @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
-          Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: helios-windows-x64-${{ steps.metadata.outputs.version }}-${{ matrix.configuration }}
-          path: ${{ runner.temp }}/helios-package
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve package qualification and failure evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: helios-package-receipts-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/helios-package-qualification
-            ${{ runner.temp }}/runner-qualification
-            ${{ runner.temp }}/helios-package/*.json
-            ${{ runner.temp }}/helios-package/*.txt
-            ${{ runner.temp }}/helios-package/*.log
-          if-no-files-found: warn
-          retention-days: 90
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - name: Initialize candidate source-lock submodules
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - uses: actions/download-artifact@v8
+      with:
+        name: helios-driver-${{ matrix.configuration }}
+        path: ${{ runner.temp }}/artifacts/driver
+      id: s04
+    - uses: actions/download-artifact@v8
+      with:
+        name: helios-mesa
+        path: ${{ runner.temp }}/artifacts/mesa
+      id: s05
+    - uses: actions/download-artifact@v8
+      with:
+        name: helios-mesa-x86
+        path: ${{ runner.temp }}/artifacts/mesa-x86
+      id: s06
+    - uses: actions/download-artifact@v8
+      with:
+        name: helios-opencl
+        path: ${{ runner.temp }}/artifacts/opencl
+      id: s07
+    - uses: actions/download-artifact@v8
+      with:
+        name: helios-loaders
+        path: ${{ runner.temp }}/artifacts/loaders
+      id: s08
+    - uses: actions/download-artifact@v8
+      with:
+        name: helios-compatibility
+        path: ${{ runner.temp }}/artifacts/compatibility
+      id: s09
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s10
+    - name: Pre-package source fingerprint
+      shell: pwsh
+      run: '. ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" pre
+
+        '
+      id: s11
+    - name: Ensure Windows Driver Kit is installed
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+      id: s12
+    - name: Install LLVM
+      uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+      with:
+        version: ${{ env.LLVM_VERSION }}
+        force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
+      id: s13
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+      with:
+        toolchain: ${{ env.RUST_TOOLCHAIN }}
+      id: s14
+    - name: Enforce installer producer pins
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
+      id: s15
+    - name: Build the self-contained installer skeleton
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"installer-${{ matrix.configuration\
+        \ }}\" -Operation {\n  ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-installer\" -Configuration\
+        \ ${{ matrix.configuration }}\n}\n"
+      id: s16
+    - name: Seal installer producer identity
+      shell: pwsh
+      run: 'python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root $env:GITHUB_WORKSPACE --component installer
+        --configuration ''${{ matrix.configuration }}'' --architecture x64
+
+        if($LASTEXITCODE -ne 0){throw ''Installer identity sealing failed''}
+
+        '
+      id: s17
+    - name: Read package metadata
+      id: metadata
+      shell: pwsh
+      run: '$version = (Get-Content kmd_render/driver-version.env | Where-Object { $_ -match ''^HELIOS_KMD_VERSION='' }) -replace ''^HELIOS_KMD_VERSION='',
+        ''''
+
+        "version=$version" >> $env:GITHUB_OUTPUT
+
+        "mesa=$(git rev-parse HEAD:icd/mesa)" >> $env:GITHUB_OUTPUT
+
+        "dxvk=$(git rev-parse HEAD:dxvk-helios)" >> $env:GITHUB_OUTPUT
+
+        "vkd3d=$(git rev-parse HEAD:vkd3d-proton-helios)" >> $env:GITHUB_OUTPUT
+
+        '
+    - name: Assemble and test-sign bundle
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"package-${{ matrix.configuration\
+        \ }}\" -Operation {\n  ./ci/windows/Assemble-Package.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact \"$env:RUNNER_TEMP/artifacts/driver\" -MesaArtifact\
+        \ \"$env:RUNNER_TEMP/artifacts/mesa\" -MesaX86Artifact \"$env:RUNNER_TEMP/artifacts/mesa-x86\" -OpenClArtifact \"$env:RUNNER_TEMP/artifacts/opencl\"\
+        \ -LoadersArtifact \"$env:RUNNER_TEMP/artifacts/loaders\" -CompatibilityArtifact \"$env:RUNNER_TEMP/artifacts/compatibility\" -InstallerArtifact\
+        \ \"$env:RUNNER_TEMP/helios-installer\" -OutputDir \"$env:RUNNER_TEMP/helios-package\" -Configuration '${{ matrix.configuration }}' -Version '${{\
+        \ steps.metadata.outputs.version }}' -RepositoryCommit $env:GITHUB_SHA -MesaCommit '${{ steps.metadata.outputs.mesa }}' -DxvkCommit '${{ steps.metadata.outputs.dxvk\
+        \ }}' -Vkd3dCommit '${{ steps.metadata.outputs.vkd3d }}' -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit\
+        \ $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
+      id: s19
+    - name: Independent final package extraction and native audit
+      shell: pwsh
+      run: 'python ./ci/windows/Verify-CIPackage.py --root "$env:RUNNER_TEMP/helios-package"
+
+        if ($LASTEXITCODE -ne 0) { throw ''Final extraction/ZIP qualification failed'' }
+
+        $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
+
+        ./ci/windows/Audit-CIPackage.ps1 -OutputDir "$env:RUNNER_TEMP/helios-package" -Version $lock.version -Fingerprint $lock.sourceFingerprint
+
+        . ./ci/windows/CI-Qualification.ps1
+
+        ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -Phase post -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
+
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" post
+
+        @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content
+        "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
+
+        '
+      id: s20
+    - uses: actions/upload-artifact@v7
+      with:
+        name: helios-windows-x64-${{ steps.metadata.outputs.version }}-${{ matrix.configuration }}
+        path: ${{ runner.temp }}/helios-package
+        if-no-files-found: error
+        retention-days: 90
+      id: s21
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job package -Root C:/he
+    - name: Preserve package qualification and failure evidence
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-package-receipts-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+    if: ${{ !inputs.infrastructure_only }}
+'on':
+  workflow_dispatch:
+    inputs:
+      infrastructure_only:
+        description: Test evidence transport and pinned kit provisioning only; no product or reservation
+        type: boolean
+        default: false
+  push:
+    branches:
+    - master
+    tags:
+    - v*
+  pull_request:
+    branches:
+    - master
