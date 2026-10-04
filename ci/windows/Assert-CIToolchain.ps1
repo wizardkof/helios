@@ -10,8 +10,8 @@ $observer = Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1'
 
 function Add-CIEnvironmentCheck([string]$Name, [string]$Expected, [string]$Observed, [bool]$Pass, [string]$Path = $null) {
     if ($Name -eq 'VULKAN_SDK') {
-        $Expected = ([string]$Expected).Replace('\\','/').TrimEnd('/')
-        $Observed = ([string]$Observed).Replace('\\','/').TrimEnd('/')
+        $Expected = ([string]$Expected).Replace('\','/').TrimEnd('/')
+        $Observed = ([string]$Observed).Replace('\','/').TrimEnd('/')
         $Pass = $Expected -ieq $Observed
     }
     $row = [ordered]@{

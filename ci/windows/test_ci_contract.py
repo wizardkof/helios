@@ -65,6 +65,6 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         checker = Path(__file__).with_name('Assert-CIToolchain.ps1').read_text()
         self.assertIn("$env:VULKAN_SDK = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)
         self.assertIn("$expectedVulkanRoot = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)
-        self.assertIn("$Expected = ([string]$Expected).Replace('\\\\','/').TrimEnd('/')", checker)
+        self.assertIn("$Expected = ([string]$Expected).Replace('\\','/').TrimEnd('/')", checker)
         component = Path(__file__).with_name('Assert-ComponentToolchain.ps1').read_text()
         self.assertIn("$vulkanRoot.TrimEnd('\\\\','/')", component)
