@@ -157,6 +157,19 @@
       "sourceFingerprint": "c0c22ce710c037841c3ae08688c8dc30b8cd54864b0e78517c3f833021ee2132",
       "status": "reserved",
       "version": "22.22.303.0"
+    },
+    {
+      "reservationDigest": "f0d7d161ea32dc22b56cc5c1dde95bd0b6317251aec42a2bd7ff2f71b4721333",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.304.0",
+      "sourceCommits": {
+        "dxvk": "56f462d920f9c1238e02bb1354d2de9a52cbf0d5",
+        "helios": "621d3feb4baa83f4f775a76962db42c1bc77b9a6",
+        "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "16cb0a995f444da64f206bd02cd272d467fb39336dc725b041e60702c8e04fd9",
+      "status": "reserved",
+      "version": "22.22.304.0"
     }
   ],
   "reconciledAt": "2026-10-01",
