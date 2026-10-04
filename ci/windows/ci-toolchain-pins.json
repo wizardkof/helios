@@ -105,6 +105,30 @@
         "name": "Windows Driver Kit Headers and Libs OnecoreUAP",
         "version": "10.1.26100.2454",
         "productCode": "{C35B59BC-21ED-D686-127F-1BFFA5E64057}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Kit",
+        "version": "10.1.26100.2454",
+        "productCode": "{1523BCF0-B880-B9EA-7055-E9816424845D}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Kit SxS Content",
+        "version": "10.1.26100.2454",
+        "productCode": "{32593C27-4685-ACA8-3501-2922384C1738}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Tools Versioned",
+        "version": "10.1.26100.2454",
+        "productCode": "{09495EE8-AFAD-54B1-62E6-206303A2B1D3}"
+      },
+      {
+        "kind": "wdk",
+        "name": "Windows Driver Kit Binaries OnecoreUAP",
+        "version": "10.1.26100.2454",
+        "productCode": "{92EE2940-6358-9B02-7842-4AE941F0BC28}"
       }
     ],
     "selectedFiles": [
@@ -162,17 +186,14 @@
       },
       {
         "kind": "wdk",
-        "path": "Lib/10.0.26100.0/km/x86/ntoskrnl.lib"
-      },
-      {
-        "kind": "wdk",
-        "path": "bin/10.0.26100.0/x64/Inf2Cat.exe"
+        "path": "bin/10.0.26100.0/x86/Inf2Cat.exe"
       },
       {
         "kind": "wdk",
         "path": "bin/10.0.26100.0/x64/stampinf.exe"
       }
-    ]
+    ],
+    "selectionRationale": "KMD is x64 only; SDK user-mode headers/libs and rc cover x64/x86. Inf2Cat is selected explicitly as the x86 WDK host tool. Same-family MSI File/Hash ownership validates consumed bytes."
   },
   "llvmVersion": "22.1.8",
   "rust": {

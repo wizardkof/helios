@@ -1,5 +1,5 @@
 """Canonical selected-component checker, shared by native bootstrap and fixtures."""
-import argparse,json
+import argparse,json,re
 from pathlib import Path
 
 def check(k,o):
@@ -15,13 +15,13 @@ def check(k,o):
    if c['version']!=a['componentVersion']:consistent=False;fail('bootstrap/checker contradiction',a['componentVersion'],c)
  component_ok=consistent and o.get('queryStatus')=='PASS'
  for c in k['components']:
-  rows=[x for x in o.get('inventory',[]) if x.get('DisplayName')==c['name']]
+  rows=[x for x in o.get('inventory',[]) if x.get('DisplayName')==c['name'] and (not re.fullmatch(r'10\.1\.\d+\.\d+',x.get('DisplayVersion','')) or '.'.join(x['DisplayVersion'].split('.')[:3])=='.'.join(c['version'].split('.')[:3]))]
   if len(rows)!=1 or rows[0].get('DisplayVersion')!=c['version'] or rows[0].get('productCode','').upper()!=c['productCode'].upper():component_ok=False;fail('selected component identity',c,rows)
  if component_ok:r['PINNED_COMPONENT_IDENTITY']='PASS'
  files_ok=True
  for f in k['selectedFiles']:
   rows=[x for x in o.get('files',[]) if x.get('path')==f['path']]
-  if len(rows)!=1 or not rows[0].get('size',0) or len(rows[0].get('sha256',''))!=64:files_ok=False;fail('selected build input',f,rows)
+  if len(rows)!=1 or not rows[0].get('size',0) or len(rows[0].get('sha256',''))!=64 or rows[0].get('ownership')!='PASS' or rows[0].get('ownerProductCode') not in [c['productCode'] for c in k['components'] if c['kind']==f['kind']]:files_ok=False;fail('selected build input',f,rows)
  if files_ok:r['SELECTED_BUILD_INPUTS']='PASS'
  if r['queryStatus']!='PASS':fail('inventory query','PASS',r['queryStatus'])
  if consistent and all(r[x]=='PASS' for x in ['KIT_FAMILY_COMPATIBILITY','PINNED_COMPONENT_IDENTITY','SELECTED_BUILD_INPUTS']) and r['queryStatus']=='PASS':r['status']='PASS'

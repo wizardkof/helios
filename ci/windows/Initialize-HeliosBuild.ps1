@@ -109,27 +109,22 @@ function Find-WindowsKitTool([Parameter(Mandatory)][string]$Name) {
     if (-not (Test-Path -LiteralPath $kitsBin -PathType Container)) {
         throw "Windows Kits bin directory was not found at $kitsBin."
     }
-    $tools = @(Get-ChildItem -LiteralPath $kitsBin -Filter $Name -File -Recurse |
-        Where-Object { $_.Directory.Name -in @("x64", "x86") -and (-not $env:HELIOS_WINDOWS_KIT_VERSION -or $_.Directory.Parent.Name -eq $env:HELIOS_WINDOWS_KIT_VERSION) } |
-        Sort-Object { ConvertTo-WindowsKitVersion $_.Directory.Parent.Name } -Descending)
-    $tool = $tools | Where-Object { $_.Directory.Name -eq "x64" } | Select-Object -First 1
-    if (-not $tool) { $tool = $tools | Select-Object -First 1 }
-    if (-not $tool) {
-        throw "$Name was not found below $kitsBin. Install the Windows 11 WDK."
-    }
-    return $tool.FullName
+    $pins=Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw|ConvertFrom-Json
+    $selected=@($pins.windowsKit.selectedFiles|Where-Object {(Split-Path $_.path -Leaf) -ieq $Name})
+    $preferred=@($selected|Where-Object {$_.path -match '/x64/'})
+    if($preferred.Count -eq 1){$selected=$preferred}
+    if($selected.Count -ne 1){throw "No unique pinned path for tool $Name"}
+    $path=Join-Path (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10') $selected[0].path
+    if(-not (Test-Path -LiteralPath $path -PathType Leaf)){throw "Pinned tool missing: $path"}
+    return $path
 }
 
 function Find-WindowsKitInclude {
     $includeRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
-    $candidate = Get-ChildItem -LiteralPath $includeRoot -Directory |
-        Where-Object { (Test-Path -LiteralPath (Join-Path $_.FullName "km\ntddk.h")) -and (-not $env:HELIOS_WINDOWS_KIT_VERSION -or $_.Name -eq $env:HELIOS_WINDOWS_KIT_VERSION) } |
-        Sort-Object { ConvertTo-WindowsKitVersion $_.Name } -Descending |
-        Select-Object -First 1
-    if (-not $candidate) {
-        throw "A Windows 11 WDK include tree was not found below $includeRoot."
-    }
-    return $candidate.FullName
+    $pins=Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw|ConvertFrom-Json
+    $path=Join-Path $includeRoot $pins.windowsKit.family
+    if(-not (Test-Path -LiteralPath (Join-Path $path 'km/ntddk.h') -PathType Leaf)){throw "Pinned WDK include missing: $path"}
+    return $path
 }
 
 function Assert-Command([Parameter(Mandatory)][string]$Name) {

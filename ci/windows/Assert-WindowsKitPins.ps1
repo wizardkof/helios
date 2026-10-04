@@ -9,7 +9,7 @@ foreach($key in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall','H
  try {
   foreach($item in Get-ChildItem -LiteralPath $key -ErrorAction Stop) {
    $v=Get-ItemProperty -LiteralPath $item.PSPath -ErrorAction Stop
-   if($v.PSObject.Properties['DisplayName'] -and $v.DisplayName -match 'Windows.*(SDK|Kit|CRT)') {
+   if($v.PSObject.Properties['DisplayName'] -and $v.DisplayName -match '(SDK|Kit|CRT|Driver Framework)') {
     $inventory+=@{DisplayName=$v.DisplayName;DisplayVersion=$v.DisplayVersion;productCode=$item.PSChildName;registryPath=$item.Name;uninstall=$(if($v.PSObject.Properties['QuietUninstallString']){$v.QuietUninstallString}elseif($v.PSObject.Properties['UninstallString']){$v.UninstallString}else{''})}
    }
   }
@@ -20,6 +20,8 @@ foreach($f in $kit.selectedFiles) {
  $path=Join-Path $root $f.path
  if(Test-Path -LiteralPath $path -PathType Leaf){$item=Get-Item -LiteralPath $path;$files+=@{path=$f.path;absolutePath=$path;size=$item.Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower();fileVersion=$item.VersionInfo.FileVersion}}
 }
+. (Join-Path $PSScriptRoot 'Get-WindowsKitOwnership.ps1')
+Get-WindowsKitOwnership $kit $inventory $files
 $observation=@{queryStatus=$(if(@($queries|Where-Object {$_.status -ne 'PASS'}).Count){'FAIL'}else{'PASS'});queries=$queries;family=$(if(Test-Path (Join-Path $root "Include/$($kit.family)")){$kit.family}else{'UNKNOWN'});inventory=$inventory;files=$files;root=$root}
 $observationPath=Join-Path $ReceiptDir "$Phase-windows-kit-observation.json"
 $observation|ConvertTo-Json -Depth 10|Set-Content $observationPath -Encoding UTF8

@@ -23,6 +23,6 @@ if($env:WindowsSDKVersion.TrimEnd('\') -ne '10.0.26100.0'){throw 'SDK selection 
 if($env:VCToolsVersion.TrimEnd('\') -ne '14.44.35207'){throw 'MSVC pin mismatch'}
 if(-not $env:VULKAN_SDK -or (Split-Path $env:VULKAN_SDK -Leaf) -ne '1.4.350.0'){throw 'Vulkan SDK pin mismatch'}
 $kit=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
-foreach($f in @('Include\10.0.26100.0\km\ntddk.h','Include\10.0.26100.0\um\windows.h','bin\10.0.26100.0\x64\Inf2Cat.exe','bin\10.0.26100.0\x64\stampinf.exe','bin\10.0.26100.0\x64\signtool.exe')){if(-not(Test-Path (Join-Path $kit $f))){throw "Pinned kit component missing: $f"}}
+foreach($f in @('Include\10.0.26100.0\km\ntddk.h','Include\10.0.26100.0\um\windows.h','bin\10.0.26100.0\x86\Inf2Cat.exe','bin\10.0.26100.0\x64\stampinf.exe','bin\10.0.26100.0\x64\signtool.exe')){if(-not(Test-Path (Join-Path $kit $f))){throw "Pinned kit component missing: $f"}}
 New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
 @{tools=$tools;msvc=$env:VCToolsVersion;sdk=$env:WindowsSDKVersion;wdkInclude=(Join-Path $kit 'Include\10.0.26100.0\km');vulkanSdk=$env:VULKAN_SDK;status='PASS'}|ConvertTo-Json -Depth 6|Set-Content (Join-Path $ReceiptDir 'toolchain.json') -Encoding UTF8
