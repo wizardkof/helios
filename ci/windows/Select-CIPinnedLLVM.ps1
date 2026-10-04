@@ -1,7 +1,7 @@
 param([Parameter(Mandatory)][string]$ReceiptDir)
 $ErrorActionPreference = 'Stop'
 $pins = Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw | ConvertFrom-Json
-$bin = Join-Path $env:ProgramFiles 'LLVM\bin'
+$bin = if ($env:HELIOS_LLVM_BIN) { [string]$env:HELIOS_LLVM_BIN } else { Join-Path $env:ProgramFiles 'LLVM\bin' }
 $exe = Join-Path $bin 'clang-cl.exe'
 $row = [ordered]@{ requestedName='clang-cl.exe'; commandType='ExplicitPath'; path=$exe; resolvedCommandType='ExplicitPath'; resolvedPath=$exe; expectedVersion=$pins.llvmVersion; observedVersion=$null; exitCode=$null; size=$null; sha256=$null; status='NOT_OBSERVED'; error=$null }
 try {

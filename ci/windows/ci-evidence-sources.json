@@ -142,7 +142,7 @@
       "name": "llvm-install",
       "source": "{TEMP}/tool-selection/pinned-llvm-install.json",
       "step": "s10",
-      "required": false
+      "required": true
     },
     {
       "name": "pinned-widl",

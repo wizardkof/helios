@@ -19,9 +19,10 @@ function Test-Exact([string]$Name, [AllowEmptyString()][string]$Path, [string[]]
     } catch { $row.status='FAIL'; $row.error=$_.Exception.Message; if ($null -eq $row.exitCode) { $row.exitCode=-1 } }
     $checks.Add([pscustomobject]$row)
 }
-Test-Exact 'Ninja' ([string]$env:HELIOS_NINJA) @('--version') ('^' + [regex]::Escape($pins.ninjaUpstream.executableVersion) + '$')
-Test-Exact 'LLVM clang-cl' (Join-Path ([string]$env:HELIOS_LLVM_BIN) 'clang-cl.exe') @('--version') ('(?m)^clang version ' + [regex]::Escape($pins.llvmVersion) + '(?:\s|$)')
-Test-Exact 'WIDL' ([string]$env:HELIOS_WIDL) @('-V') ('(?m)^Wine IDL Compiler version ' + [regex]::Escape($pins.qualifiedObservedTools.widlVersion) + '(?![0-9.])')
+Test-Exact 'Ninja' $(if ($env:HELIOS_NINJA) { [string]$env:HELIOS_NINJA } else { 'NOT_SELECTED' }) @('--version') ('^' + [regex]::Escape($pins.ninjaUpstream.executableVersion) + '$')
+$llvmExe = if ($env:HELIOS_LLVM_BIN) { Join-Path $env:HELIOS_LLVM_BIN 'clang-cl.exe' } else { 'NOT_SELECTED' }
+Test-Exact 'LLVM clang-cl' $llvmExe @('--version') ('(?m)^clang version ' + [regex]::Escape($pins.llvmVersion) + '(?:\s|$)')
+Test-Exact 'WIDL' $(if ($env:HELIOS_WIDL) { [string]$env:HELIOS_WIDL } else { 'NOT_SELECTED' }) @('-V') ('(?m)^Wine IDL Compiler version ' + [regex]::Escape($pins.qualifiedObservedTools.widlVersion) + '(?![0-9.])')
 $vulkanRoot = [string]$env:VULKAN_SDK
 $vulkanHeader = if ($vulkanRoot) { Join-Path $vulkanRoot 'Include/vulkan/vulkan.h' } else { $null }
 $vulkanLib = if ($vulkanRoot) { Join-Path $vulkanRoot 'Lib/vulkan-1.lib' } else { $null }

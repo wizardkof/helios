@@ -3,20 +3,18 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $pins = Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw | ConvertFrom-Json
 $version = [string]$pins.llvmVersion
-$url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/LLVM-$version-win64.exe"
+$upstream = $pins.llvmUpstream
+$url = [string]$upstream.url
 $installer = Join-Path $env:RUNNER_TEMP "LLVM-$version-win64.exe"
 $receiptPath = Join-Path $ReceiptDir 'pinned-llvm-install.json'
-$receipt = [ordered]@{schemaVersion=1;status='FAIL';url=$url;installerPath=$installer;installerSize=$null;installerSha256=$null;signatureStatus=$null;signer=$null;installExitCode=$null;installLog=$null;error=$null}
+$receipt = [ordered]@{schemaVersion=1;status='FAIL';url=$url;expectedInstallerSize=[long]$upstream.size;expectedInstallerSha256=[string]$upstream.sha256;installerPath=$installer;installerSize=$null;installerSha256=$null;installExitCode=$null;installLog=$null;error=$null}
 try {
     New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
     Invoke-WebRequest -Uri $url -OutFile $installer
     $file = Get-Item -LiteralPath $installer
     $receipt.installerSize = [long]$file.Length
     $receipt.installerSha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
-    $signature = Get-AuthenticodeSignature -LiteralPath $installer
-    $receipt.signatureStatus = $signature.Status.ToString()
-    $receipt.signer = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { $null }
-    if ($signature.Status -ne 'Valid' -or $receipt.signer -notmatch 'LLVM|Software Freedom Conservancy') { throw "LLVM installer signature rejected: $($receipt.signatureStatus), $($receipt.signer)" }
+    if ($receipt.installerSize -ne $receipt.expectedInstallerSize -or $receipt.installerSha256 -cne $receipt.expectedInstallerSha256) { throw 'LLVM_RELEASE_ASSET_IDENTITY_MISMATCH' }
     $log = Join-Path $ReceiptDir 'llvm-install.log'
     $process = Start-Process -FilePath $installer -ArgumentList @('/S') -Wait -PassThru
     $receipt.installExitCode = $process.ExitCode

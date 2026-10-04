@@ -382,5 +382,12 @@
         "sha256": "2799de5c1e316dc76925fba6a2b5c99f508ede1273a5ecd73625c2b29fe2232c"
       }
     ]
+  },
+  "llvmUpstream": {
+    "distribution": "LLVM Project",
+    "version": "22.1.8",
+    "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe",
+    "sha256": "16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c",
+    "size": 455545840
   }
 }

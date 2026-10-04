@@ -65,6 +65,7 @@ with lzma.open(archive, 'rb') as compressed, tarfile.open(fileobj=compressed, mo
         elif member.issym() or member.islnk(): raise SystemExit('ARCHIVE_LINK_REFUSED')
 PY
 cd "$source_dir"
+unset CONFIG_SITE
 ./configure --enable-win64 --without-x --disable-tests > "$output/configure.log" 2>&1
 configure_rc=$?
 [[ "$configure_rc" -eq 0 ]] || fail CONFIGURE_FAILED
