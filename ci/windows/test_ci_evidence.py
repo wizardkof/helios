@@ -22,6 +22,21 @@ class EvidenceTests(unittest.TestCase):
  def test_tamper_rejected(self):
   f=self.p/'a.json';f.write_text('a');self.m.collect([self.entry('a',f)],self.p/'out','failure');(self.p/'out/a/a.json').write_text('b')
   with self.assertRaises(ValueError):self.m.verify(self.p/'out')
+ def test_glob_same_filename_preserves_parents(self):
+  for component in ['vulkan','opencl']:
+   f=self.p/'build'/component/'CMakeCache.txt';f.parent.mkdir(parents=True);f.write_text(component)
+  r=self.m.collect([self.entry('cmake',self.p/'build/*/CMakeCache.txt')],self.p/'out','failure')
+  self.assertEqual(r['EVIDENCE_COLLECTION_RESULT'],'PASS');self.assertEqual(len(r['files']),2);self.m.verify(self.p/'out')
+ def test_glob_meson_directories_preserve_configuration(self):
+  for config in ['Release','Debug']:
+   f=self.p/'driver'/config/'dxvk'/'meson-logs'/'meson-log.txt';f.parent.mkdir(parents=True);f.write_text(config)
+  r=self.m.collect([self.entry('meson',self.p/'driver/*/*/meson-logs')],self.p/'out','failure')
+  self.assertEqual(r['EVIDENCE_COLLECTION_RESULT'],'PASS');self.assertEqual(len(r['files']),2);self.m.verify(self.p/'out')
+ def test_real_configuration_expansion_release_debug(self):
+  self.assertTrue(hasattr(self.m,'expand_sources'),'shared native source expansion missing')
+  for config in ['Release','Debug']:
+   entries=[self.entry('package',Path('{TEMP}')/('installer-{CONFIG}-producer.log'))]
+   self.assertEqual(self.m.expand_sources(entries,str(self.p),config)[0]['source'],str(self.p/('installer-'+config+'-producer.log')))
  def test_private_material_refused(self):
   f=self.p/'secret.pfx';f.write_text('secret');r=self.m.collect([self.entry('bad',f)],self.p/'out','failure');self.assertEqual(r['EVIDENCE_COLLECTION_RESULT'],'FAIL');self.assertFalse((self.p/'out/bad/secret.pfx').exists())
 if __name__=='__main__':unittest.main()

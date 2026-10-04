@@ -1,6 +1,10 @@
 param([string]$Root='C:/he-control')
 $ErrorActionPreference='Stop'
-$fixture='C:/he-fixture';New-Item -ItemType Directory -Force $fixture|Out-Null
+foreach($test in @('test_ci_evidence.py','test_windows_kit.py')) {
+ python -m unittest discover -s $PSScriptRoot -p $test
+ if($LASTEXITCODE -ne 0){throw "Native infrastructure regression failed: $test"}
+}
+$fixture='C:/he-fixture' ;New-Item -ItemType Directory -Force $fixture|Out-Null
 $kit=(Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw|ConvertFrom-Json).windowsKit
 # Expected rejection exists only in this test. The real gate never catches PASS.
 $observation=@{family=$kit.family;queryStatus='PASS';inventory=@();files=@()}
