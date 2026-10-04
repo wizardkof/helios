@@ -2,7 +2,12 @@ param([Parameter(Mandatory)][string]$ReceiptDir)
 $ErrorActionPreference = 'Stop'
 $pins = Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw | ConvertFrom-Json
 $expected = [string]$pins.qualifiedObservedTools.widlVersion
-$commands = @(Get-Command widl.exe -All -ErrorAction SilentlyContinue | Where-Object CommandType -eq Application)
+$commands = @()
+if ($env:HELIOS_WIDL -and (Test-Path -LiteralPath $env:HELIOS_WIDL -PathType Leaf)) {
+    $commands += [pscustomobject]@{ Path = $env:HELIOS_WIDL; CommandType = 'PinnedBuildOutput' }
+} else {
+    $commands = @(Get-Command widl.exe -All -ErrorAction SilentlyContinue | Where-Object CommandType -eq Application)
+}
 $paths = @($commands | ForEach-Object { [string]$_.Path })
 foreach ($candidate in @('C:\mingw64\bin\widl.exe','C:\Strawberry\c\bin\widl.exe')) { if ((Test-Path -LiteralPath $candidate -PathType Leaf) -and $candidate -notin $paths) { $paths += $candidate } }
 $rows = @()

@@ -133,6 +133,24 @@
       "required": false
     },
     {
+      "name": "pinned-widl",
+      "source": "{TEMP}/pinned-widl",
+      "step": "widl_build",
+      "required": false
+    },
+    {
+      "name": "msys2-archive-install",
+      "source": "{TEMP}/msys2-archive",
+      "step": "msys2_archive",
+      "required": false
+    },
+    {
+      "name": "msys2-ninja-preflight",
+      "source": "{TEMP}/msys2-ninja-control.json*",
+      "step": "msys_ninja_control",
+      "required": false
+    },
+    {
       "name": "ninja-install",
       "source": "{TEMP}/ninja-qualification",
       "step": "ninja_setup",

@@ -126,8 +126,10 @@ print(json.dumps({"status":"OBSERVED", "distribution":"ninja", "metadataVersion"
 
 foreach ($candidate in $candidateRows) {
     $owners = @()
-    $distributionFiles = if ($pythonDistribution -and $pythonDistribution.PSObject.Properties['files']) { @($pythonDistribution.files) } else { @() }
-    if ($candidate.path -and $distributionFiles.Count -gt 0) {
+    $distributionFiles = @()
+    if ($pythonDistribution -and $pythonDistribution.PSObject.Properties['files']) { $distributionFiles = @($pythonDistribution.files) }
+    $distributionFileCount = @($distributionFiles).Length
+    if ($candidate.path -and $distributionFileCount -gt 0) {
         $owners = @($distributionFiles | Where-Object {
             $_.installedPath -and [string]::Equals([IO.Path]::GetFullPath($_.installedPath), [IO.Path]::GetFullPath($candidate.path), [StringComparison]::OrdinalIgnoreCase)
         } | ForEach-Object { [pscustomobject]@{ distribution = $pythonDistribution.distribution; metadataVersion = $pythonDistribution.metadataVersion; distributionPath = $_.distributionPath; fileSha256 = $_.sha256 } })

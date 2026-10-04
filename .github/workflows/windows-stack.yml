@@ -55,6 +55,22 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s06
+    - name: Initialize Mesa fork
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: git submodule update --init --recursive icd/mesa
+      id: s03
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: UCRT64
+        update: true
+        install: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader bison flex
+      id: msys2_setup
+    - name: Restore exact archived MSYS2 package pins
+      if: ${{ always() && inputs.infrastructure_only }}
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x64 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
+      id: msys2_archive
     - name: Expected refusal and evidence collection control
       id: transport_fixture
       shell: powershell
@@ -114,20 +130,15 @@ jobs:
       shell: pwsh
       run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-official-ninja-acquisition -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
       id: ninja_after_official
-    - name: Install Wine IDL compiler
-      id: widl
-      uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
-      with:
-        msystem: UCRT64
-        install: mingw-w64-ucrt-x86_64-tools
-    - name: Expose native widl to Meson
-      shell: pwsh
-      env:
-        MSYS2_LOCATION: ${{ steps.widl.outputs.msys2-location }}
-      run: 'Join-Path $env:MSYS2_LOCATION ''ucrt64/bin'' >> $env:GITHUB_PATH
-
-        '
-      id: s09
+    - name: Build pinned Wine 11.12 WIDL from official source
+      shell: msys2 {0}
+      run: bash ./ci/windows/build-pinned-widl.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pinned-widl"
+      id: widl_build
+    - name: Capture Mesa MSYS2 package and Ninja consumer preflight
+      if: ${{ always() && inputs.infrastructure_only }}
+      shell: msys2 {0}
+      run: bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/msys2-ninja-control.json"
+      id: msys_ninja_control
     - name: Observe pinned WIDL candidates
       if: always()
       shell: pwsh
@@ -259,7 +270,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   mesa:
-    if: ${{ always() && (inputs.infrastructure_only || needs.driver.result == 'success') }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
     - driver
     name: Mesa Venus Vulkan and Zink OpenGL (x64)
@@ -370,7 +381,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   mesa_x86:
-    if: ${{ always() && (inputs.infrastructure_only || needs.driver.result == 'success') }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
     - driver
     env:
@@ -482,7 +493,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   opencl:
-    if: ${{ always() && (inputs.infrastructure_only || needs.driver.result == 'success') }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
     - driver
     name: CLVK with embedded clspv
@@ -637,7 +648,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   loaders:
-    if: ${{ always() && (inputs.infrastructure_only || needs.driver.result == 'success') }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
     - driver
     name: Khronos loaders and smoke probes
@@ -745,7 +756,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   compatibility:
-    if: ${{ always() && (inputs.infrastructure_only || needs.driver.result == 'success') }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
     - driver
     name: Application compatibility shims
@@ -848,7 +859,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
   package:
-    if: ${{ always() && (inputs.infrastructure_only || (needs.driver.result == 'success' && needs.mesa.result == 'success' && needs.mesa_x86.result == 'success' && needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success')) }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' && needs.mesa.result == 'success' && needs.mesa_x86.result == 'success' && needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success' }}
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     env:
       HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
