@@ -33,7 +33,7 @@ class WorkflowMsysParityTests(unittest.TestCase):
             setup = next(s for s in job['steps'] if s.get('uses', '').startswith('msys2/setup-msys2@'))
             self.assertEqual(setup['with']['msystem'], msystem)
             steps = job['steps']
-            provision_index = next(i for i, s in enumerate(steps) if s.get('id') == 'msys2_archive')
+            provision_index = next(i for i, s in enumerate(steps) if s.get('id') == 'msys2_archive_product')
             verify_index = next(i for i, s in enumerate(steps) if s.get('id') == 'msys_ninja_control')
             consumer_index = next(i for i, s in enumerate(steps) if s.get('id') == 's08')
             provision, verify = steps[provision_index], steps[verify_index]
@@ -48,7 +48,7 @@ class WorkflowMsysParityTests(unittest.TestCase):
     def test_msys_provisioning_failure_blocks_consumer_and_evidence_still_runs(self):
         for job_name in ('mesa', 'mesa_x86'):
             steps = self.jobs[job_name]['steps']
-            provision = next(i for i, s in enumerate(steps) if s.get('id') == 'msys2_archive')
+            provision = next(i for i, s in enumerate(steps) if s.get('id') == 'msys2_archive_product')
             consumer = next(i for i, s in enumerate(steps) if s.get('id') == 's08')
             collect = next(s for s in steps if s.get('id') == 'collect_evidence')
             upload = next(s for s in steps if s.get('id') == 'upload_evidence')
@@ -56,6 +56,36 @@ class WorkflowMsysParityTests(unittest.TestCase):
             self.assertNotIn('continue-on-error', steps[provision])
             self.assertEqual(collect.get('if'), 'always()')
             self.assertEqual(upload.get('if'), 'always()')
+
+
+    def test_x86_infrastructure_proof_job_isolated_from_product(self):
+        job = self.jobs['msys2_x86_preflight']
+        self.assertEqual(job.get('if'), INFRA)
+        setup = next(s for s in job['steps'] if s.get('id') == 'setup_msys2')
+        self.assertEqual(setup['with']['msystem'], 'MINGW32')
+        provision = next(s for s in job['steps'] if s.get('id') == 'msys2_archive')
+        verify = next(s for s in job['steps'] if s.get('id') == 'msys_ninja_control')
+        self.assertIn('Install-PinnedMSYS2Packages.py" x86 ', provision['run'])
+        self.assertIn('test-msys-ninja.sh', verify['run'])
+        self.assertEqual(verify.get('shell'), 'msys2 {0}')
+        upload = next(s for s in job['steps'] if s.get('id') == 'upload_evidence')
+        self.assertEqual(upload.get('if'), 'always()')
+        for name in ('release', 'driver_build', 'product'):
+            self.assertNotIn(name, job.get('steps', []))
+
+
+    def test_x86_infrastructure_proof_job_isolated_from_product(self):
+        job = self.jobs['msys2_x86_preflight']
+        self.assertEqual(job.get('if'), INFRA)
+        setup = next(s for s in job['steps'] if s.get('id') == 'setup_msys2')
+        self.assertEqual(setup['with']['msystem'], 'MINGW32')
+        provision = next(s for s in job['steps'] if s.get('id') == 'msys2_archive')
+        verify = next(s for s in job['steps'] if s.get('id') == 'msys_ninja_control')
+        self.assertIn('Install-PinnedMSYS2Packages.py" x86 ', provision['run'])
+        self.assertIn('test-msys-ninja.sh', verify['run'])
+        self.assertEqual(verify.get('shell'), 'msys2 {0}')
+        upload = next(s for s in job['steps'] if s.get('id') == 'upload_evidence')
+        self.assertEqual(upload.get('if'), 'always()')
 
     def test_product_setup_packages_contain_the_archived_tools_pin(self):
         for job_name, prefix in (('mesa', 'mingw-w64-ucrt-x86_64-tools'),
