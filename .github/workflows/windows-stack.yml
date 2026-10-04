@@ -131,6 +131,7 @@ jobs:
       run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-official-ninja-acquisition -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
       id: ninja_after_official
     - name: Build pinned Wine 11.12 WIDL from official source
+      if: always()
       shell: msys2 {0}
       run: bash ./ci/windows/build-pinned-widl.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pinned-widl"
       id: widl_build
@@ -145,6 +146,7 @@ jobs:
       run: ./ci/windows/Select-CIPinnedWidl.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: widl_select
     - name: Install official LLVM 22.1.8 release
+      if: always()
       shell: pwsh
       run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: s10
@@ -962,6 +964,7 @@ jobs:
         '
       id: s11
     - name: Install official LLVM 22.1.8 release
+      if: always()
       shell: pwsh
       run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: s13
