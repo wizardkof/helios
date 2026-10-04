@@ -1,30 +1,96 @@
 param([Parameter(Mandatory)][string]$ReceiptDir)
-$ErrorActionPreference='Stop'
+$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Initialize-HeliosBuild.ps1')
-& (Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1') -Phase 'immediately-before-citoolchain-vs-import' -ReceiptDir $ReceiptDir
-Import-VisualStudioEnvironment
-& (Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1') -Phase 'immediately-after-citoolchain-vs-import' -ReceiptDir $ReceiptDir
-& (Join-Path $PSScriptRoot 'Assert-WindowsKitPins.ps1') -ReceiptDir $ReceiptDir
-$tools=[ordered]@{}
-foreach($test in @(
- @('python','--version','Python 3.12.10'),
- @('meson','--version','1.11.2'),
- @('ninja','--version','1.13.2'),
- @('cargo-make','--version','cargo-make 0.37.24'),
- @('clang-cl','--version','clang version 22.1.8'),
- @('rustc','--version','rustc 1.99.0-nightly (daf2e5e18 2026-07-13)'),
- @('cargo','--version','cargo 1.99.0-nightly (59800466c 2026-07-07)'),
- @('widl','-V','11.12')
-)){
- $cmd=(Get-Command $test[0]).Source
- $value=(& $cmd $test[1]) -join "`n"
- if($LASTEXITCODE -ne 0 -or -not ([regex]::IsMatch($value,[regex]::Escape($test[2])+'(?![0-9.])'))){throw "Toolchain pin mismatch: $($test[0]) expected=$($test[2]) observed=$value"}
- $tools[$test[0]]=@{path=$cmd;version=$value;sha256=(Get-FileHash $cmd).Hash}
+Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts.psm1') -Force
+$pins = Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw | ConvertFrom-Json
+New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
+$checks = [Collections.Generic.List[object]]::new()
+$blocked = [Collections.Generic.List[object]]::new()
+$observer = Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1'
+
+function Add-CIEnvironmentCheck([string]$Name, [string]$Expected, [string]$Observed, [bool]$Pass, [string]$Path = $null) {
+    $row = [ordered]@{
+        requestedName = $Name
+        phase = 'environment'
+        commandType = 'Environment'
+        path = $Path
+        resolvedCommandType = 'Environment'
+        resolvedPath = $Path
+        expectedVersion = $Expected
+        observedVersion = $Observed
+        exitCode = 0
+        size = $null
+        sha256 = $null
+        status = if ($Pass) { 'PASS' } else { 'FAIL' }
+        error = if ($Pass) { $null } else { 'ENVIRONMENT_PIN_MISMATCH' }
+        resolutionCandidates = @()
+    }
+    if ($Path -and (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        try {
+            $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+            $row.size = [long]$item.Length
+            $row.sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+        } catch { $row.status = 'FAIL'; $row.error = 'FILE_READ: ' + $_.Exception.Message }
+    }
+    $script:checks.Add([pscustomobject]$row)
 }
-if($env:WindowsSDKVersion.TrimEnd('\') -ne '10.0.26100.0'){throw 'SDK selection mismatch'}
-if($env:VCToolsVersion.TrimEnd('\') -ne '14.44.35207'){throw 'MSVC pin mismatch'}
-if(-not $env:VULKAN_SDK -or (Split-Path $env:VULKAN_SDK -Leaf) -ne '1.4.350.0'){throw 'Vulkan SDK pin mismatch'}
-$kit=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
-foreach($f in @('Include\10.0.26100.0\km\ntddk.h','Include\10.0.26100.0\um\windows.h','bin\10.0.26100.0\x86\Inf2Cat.exe','bin\10.0.26100.0\x64\stampinf.exe','bin\10.0.26100.0\x64\signtool.exe')){if(-not(Test-Path (Join-Path $kit $f))){throw "Pinned kit component missing: $f"}}
-New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
-@{tools=$tools;msvc=$env:VCToolsVersion;sdk=$env:WindowsSDKVersion;wdkInclude=(Join-Path $kit 'Include\10.0.26100.0\km');vulkanSdk=$env:VULKAN_SDK;status='PASS'}|ConvertTo-Json -Depth 6|Set-Content (Join-Path $ReceiptDir 'toolchain.json') -Encoding UTF8
+
+try { & $observer -Phase 'immediately-before-citoolchain-vs-import' -ReceiptDir $ReceiptDir } catch { $blocked.Add([pscustomobject]@{name='ninja-observer-pre-vs';reason=$_.Exception.Message}) }
+try { Import-VisualStudioEnvironment -Architecture x64 } catch { $blocked.Add([pscustomobject]@{name='visual-studio-environment-x64';reason=$_.Exception.Message}) }
+try { & $observer -Phase 'immediately-after-citoolchain-vs-import' -ReceiptDir $ReceiptDir } catch { $blocked.Add([pscustomobject]@{name='ninja-observer-post-vs';reason=$_.Exception.Message}) }
+try { & (Join-Path $PSScriptRoot 'Assert-WindowsKitPins.ps1') -ReceiptDir $ReceiptDir } catch { $blocked.Add([pscustomobject]@{name='windows-kit-pins';reason=$_.Exception.Message}) }
+
+$toolChecks = @(
+    @{name='python'; args=@('--version'); expected=('Python ' + $pins.pythonVersion); pattern=('^Python ' + [regex]::Escape($pins.pythonVersion) + '$')},
+    @{name='meson'; args=@('--version'); expected=$pins.mesonVersion; pattern=('^' + [regex]::Escape($pins.mesonVersion) + '$')},
+    @{name='cargo-make'; args=@('--version'); expected=('cargo-make ' + $pins.rust.cargoMakeVersion); pattern=('^cargo-make ' + [regex]::Escape($pins.rust.cargoMakeVersion) + '$')},
+    @{name='clang-cl'; args=@('--version'); expected=('clang version ' + $pins.llvmVersion); pattern=('(?m)^clang version ' + [regex]::Escape($pins.llvmVersion) + '(?:\s|$)')},
+    @{name='rustc'; args=@('--version'); expected=$pins.qualifiedObservedTools.rustc; pattern=('^' + [regex]::Escape($pins.qualifiedObservedTools.rustc) + '$')},
+    @{name='cargo'; args=@('--version'); expected=$pins.qualifiedObservedTools.cargo; pattern=('^' + [regex]::Escape($pins.qualifiedObservedTools.cargo) + '$')},
+    @{name='rustup'; args=@('--version'); expected=('rustup ' + $pins.rust.rustupVersion); pattern=('^rustup ' + [regex]::Escape($pins.rust.rustupVersion) + '(?:\s|$)')},
+    @{name='git'; args=@('--version'); expected=('git version ' + $pins.gitVersion); pattern=('^git version ' + [regex]::Escape(($pins.gitVersion -replace '\.\d+$','')) + '(?:\.windows\.\d+)?$')},
+    @{name='widl'; args=@('-V'); expected=$pins.qualifiedObservedTools.widlVersion; pattern=('(?m)' + [regex]::Escape($pins.qualifiedObservedTools.widlVersion) + '(?![0-9.])')}
+)
+foreach ($tool in $toolChecks) {
+    $checks.Add((Invoke-CIToolCheck -Name $tool.name -Arguments $tool.args -ExpectedVersion $tool.expected -VersionPattern $tool.pattern -Phase 'post-vs-x64'))
+}
+
+$ninjaPath = [string]$env:HELIOS_NINJA
+$ninjaOptions = @{Name='ninja.exe';Arguments=@('--version');ExpectedVersion=$pins.ninjaUpstream.executableVersion;VersionPattern=('^' + [regex]::Escape($pins.ninjaUpstream.executableVersion) + '$');Phase='post-vs-x64'}
+if ($ninjaPath) { $ninjaOptions.ExecutablePath = $ninjaPath; $ninjaOptions.ExpectedResolvedPath = $ninjaPath }
+$checks.Add((Invoke-CIToolCheck @ninjaOptions))
+
+$pwshPath = [string]$pins.powerShell7.installPath
+$pwshOptions = @{Name='pwsh.exe';Arguments=@('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString()');ExpectedVersion=$pins.powerShell7.version;VersionPattern=('^' + [regex]::Escape($pins.powerShell7.version) + '$');Phase='pinned-powershell'}
+$pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($pwsh) { $pwshOptions.ExpectedResolvedPath = $pwshPath }
+$checks.Add((Invoke-CIToolCheck @pwshOptions))
+
+$observedSdk = ([string]$env:WindowsSDKVersion).TrimEnd('\')
+Add-CIEnvironmentCheck 'WindowsSDKVersion' $pins.windowsKit.family $observedSdk ($observedSdk -ceq $pins.windowsKit.family)
+$observedMsvc = ([string]$env:VCToolsVersion).TrimEnd('\')
+Add-CIEnvironmentCheck 'VCToolsVersion' $pins.visualStudio.msvcVersion $observedMsvc ($observedMsvc -ceq $pins.visualStudio.msvcVersion)
+$vulkanRoot = [string]$env:VULKAN_SDK
+$expectedVulkanRoot = Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion
+$vulkanPass = $vulkanRoot -and (Split-Path $vulkanRoot -Leaf) -ceq $pins.vulkanSdkVersion -and
+    (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Include/vulkan/vulkan.h') -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Lib/vulkan-1.lib') -PathType Leaf)
+Add-CIEnvironmentCheck 'VULKAN_SDK' $expectedVulkanRoot $vulkanRoot ([bool]$vulkanPass)
+
+try {
+    . (Join-Path $PSScriptRoot 'CI-Qualification.ps1')
+    Write-CIRustScriptContract $ReceiptDir 'preflight'
+} catch { $blocked.Add([pscustomobject]@{name='rust-script-host-private';reason=$_.Exception.Message}) }
+
+$context = @{
+    visualStudio = [string]$env:VSINSTALLDIR
+    msvcVersion = [string]$env:VCToolsVersion
+    windowsSdkVersion = [string]$env:WindowsSDKVersion
+    vulkanSdk = $vulkanRoot
+    selectedNinja = $ninjaPath
+    candidateMode = 'infrastructure-only-unreserved-source'
+}
+$receipt = New-CIToolReceipt -Name 'native-toolchain' -Checks @($checks.ToArray()) -Blocked @($blocked.ToArray()) -Context $context
+Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'toolchain.json') -Receipt $receipt
+Write-Host (ConvertTo-Json -InputObject $receipt -Depth 16)
+Assert-CIToolReceiptPass -Receipt $receipt

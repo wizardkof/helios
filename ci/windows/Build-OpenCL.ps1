@@ -61,7 +61,11 @@ try {
     Pop-Location
 }
 
+if (-not $env:HELIOS_NINJA -or -not (Test-Path -LiteralPath $env:HELIOS_NINJA -PathType Leaf)) {
+    throw "The approved upstream Ninja executable was not selected before CMake configuration."
+}
 & cmake.exe -S $SourceRoot -B $BuildRoot -G Ninja `
+    "-DCMAKE_MAKE_PROGRAM:FILEPATH=$env:HELIOS_NINJA" `
     -DCMAKE_BUILD_TYPE=Release `
     -DCMAKE_C_COMPILER_LAUNCHER=sccache `
     -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
@@ -73,6 +77,12 @@ try {
     -DCLVK_UNIT_TESTING=OFF `
     -DCLVK_ENABLE_ASSERTIONS=OFF
 if ($LASTEXITCODE -ne 0) { throw "clvk CMake configure failed." }
+$cachePath = Join-Path $BuildRoot "CMakeCache.txt"
+$makeProgramLine = Get-Content -LiteralPath $cachePath | Where-Object { $_ -match '^CMAKE_MAKE_PROGRAM:FILEPATH=' } | Select-Object -First 1
+$cachedNinja = if ($makeProgramLine) { $makeProgramLine.Substring($makeProgramLine.IndexOf('=') + 1) } else { $null }
+if (-not $cachedNinja -or [IO.Path]::GetFullPath($cachedNinja) -ine [IO.Path]::GetFullPath($env:HELIOS_NINJA)) {
+    throw "CMake cached a Ninja other than the approved executable: $cachedNinja"
+}
 
 & cmake.exe --build $BuildRoot --parallel $env:HELIOS_BUILD_JOBS
 if ($LASTEXITCODE -ne 0) { throw "clvk build failed." }

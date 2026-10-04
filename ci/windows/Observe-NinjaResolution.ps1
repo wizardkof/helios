@@ -6,9 +6,10 @@ param(
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
 $receiptPath = Join-Path $ReceiptDir 'ninja-resolution.json'
-$history = if (Test-Path -LiteralPath $receiptPath) {
-    @(Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json)
-} else { @() }
+$history = [Collections.Generic.List[object]]::new()
+if (Test-Path -LiteralPath $receiptPath) {
+    foreach ($entry in @(Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json)) { $history.Add($entry) }
+}
 
 function Get-NinjaCandidate([string]$Path, [string]$CommandType, [string]$RequestedName) {
     $row = [ordered]@{
@@ -140,11 +141,13 @@ $row = [ordered]@{
     whereExe = $wherePaths
     candidates = $candidateRows
     pythonNinjaDistribution = $pythonDistribution
-    pathEntries = @($env:PATH -split ';' | Where-Object { $_ })
+    pathEntries = @($env:PATH -split ';' | Where-Object {
+        $_ -and $_ -match '(?i)(Visual Studio|MSVC|Windows Kits|MSYS|LLVM|Vulkan|Python.*Scripts|Python\\|cargo|rustup|Meson|CMake|Ninja)'
+    } | Select-Object -Unique)
 }
-$history += [pscustomobject]$row
+$history.Add([pscustomobject]$row)
 $temporary = "$receiptPath.tmp"
-ConvertTo-Json -InputObject $history -Depth 12 | Set-Content -LiteralPath $temporary -Encoding UTF8
+ConvertTo-Json -InputObject @($history.ToArray()) -Depth 12 | Set-Content -LiteralPath $temporary -Encoding UTF8
 Move-Item -LiteralPath $temporary -Destination $receiptPath -Force
 Write-Host "NINJA_OBSERVATION_PHASE=$Phase"
 Write-Host (ConvertTo-Json -InputObject $row -Depth 12)

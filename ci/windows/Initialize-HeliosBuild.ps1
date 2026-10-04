@@ -101,6 +101,17 @@ function Import-VisualStudioEnvironment(
     foreach ($name in $environment.Keys) {
         Set-Item -LiteralPath "Env:$name" -Value $environment[$name]
     }
+    # Keep CI consumers on the exact release-identified Ninja even when
+    # VsDevCmd inserts a Visual Studio copy ahead of existing PATH entries.
+    # Preserve every other PATH entry and make repeated architecture imports
+    # idempotent.
+    if ($env:HELIOS_NINJA -and (Test-Path -LiteralPath $env:HELIOS_NINJA -PathType Leaf)) {
+        $ninjaDirectory = (Split-Path -Parent ([IO.Path]::GetFullPath($env:HELIOS_NINJA))).TrimEnd('\')
+        $remainingPath = @($env:PATH -split ';' | Where-Object {
+            $_ -and -not [string]::Equals($_.TrimEnd('\'), $ninjaDirectory, [StringComparison]::OrdinalIgnoreCase)
+        })
+        $env:PATH = (@($ninjaDirectory) + $remainingPath) -join ';'
+    }
     $env:HELIOS_VS_IMPORTED_PATH = $env:PATH
 }
 

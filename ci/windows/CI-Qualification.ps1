@@ -12,19 +12,43 @@ function Write-CIFingerprint([string]$RepoRoot,[string]$ReceiptDir,[string]$Phas
     if(Test-Path $path){if((Get-Content $path -Raw).Trim() -ne $lock.sourceFingerprint){throw 'Pre/post fingerprint identity changed'}}else{$lock.sourceFingerprint|Set-Content $path}
 }
 function Write-CIRustScriptContract([string]$ReceiptDir,[string]$Phase) {
+    New-Item -ItemType Directory -Force $ReceiptDir | Out-Null
     $records=[ordered]@{}
     foreach($name in @('host','private')){
-        $path=if($name -eq 'host'){$env:HELIOS_HOST_RUST_SCRIPT}else{Join-Path $env:HELIOS_WDK_PRIVATE_ROOT 'bin\rust-script.exe'}
-        $v=(& $path --version) -join ''
+        $path=if($name -eq 'host'){$env:HELIOS_HOST_RUST_SCRIPT}else{Join-Path $(if($env:HELIOS_WDK_PRIVATE_ROOT){$env:HELIOS_WDK_PRIVATE_ROOT}else{'C:\hb\isolation\wdk-private'}) 'bin\rust-script.exe'}
+        if($name -eq 'host' -and -not $path){
+            $resolved=Get-Command rust-script.exe -ErrorAction SilentlyContinue|Select-Object -First 1
+            if($resolved){$path=$resolved.Source}
+        }
         $expected=if($name -eq 'host'){'rust-script 0.36.0'}else{'rust-script 0.30.0'}
-        if($LASTEXITCODE -ne 0 -or $v -ne $expected){throw "$name rust-script contract failed"}
-        $h=(Get-FileHash $path).Hash
-        if($name -eq 'host' -and $h -ne $env:HELIOS_HOST_RUST_SCRIPT_INITIAL_SHA256){throw 'Host rust-script changed'}
-        $records[$name]=@{path=$path;version=$v;sha256=$h;size=(Get-Item $path).Length}
+        $row=[ordered]@{requestedName='rust-script.exe';commandType=$null;resolvedCommandType=$null;path=$path;resolvedPath=$path;resolutionCandidates=@();expectedVersion=$expected;observedVersion=$null;exitCode=$null;size=$null;sha256=$null;expectedSha256=$(if($name -eq 'host'){$env:HELIOS_HOST_RUST_SCRIPT_INITIAL_SHA256}else{$null});status='NOT_OBSERVED';error=$null}
+        try{
+            if(-not $path -or -not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'EXECUTABLE_NOT_FOUND'}
+            $row.commandType=if($name -eq 'host' -and $env:HELIOS_HOST_RUST_SCRIPT){'ExplicitPath'}else{'Application'}
+            $row.resolvedCommandType=$row.commandType
+            $item=Get-Item -LiteralPath $path -ErrorAction Stop;$row.size=[long]$item.Length
+            $row.sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+            $global:LASTEXITCODE=$null
+            $output=@(& $path --version 2>&1|ForEach-Object {$_.ToString()})
+            $row.exitCode=if($null -eq $LASTEXITCODE){0}else{[int]$LASTEXITCODE}
+            $row.observedVersion=$output -join "`n"
+            $row.status=if($row.exitCode -eq 0 -and $row.observedVersion -ceq $expected){'PASS'}else{'FAIL'}
+            if($name -eq 'host' -and $row.expectedSha256 -and $row.sha256 -cne $row.expectedSha256){$row.status='FAIL';$row.error='HOST_RUST_SCRIPT_HASH_CHANGED'}
+            if($row.exitCode -ne 0){$row.error='EXECUTION_EXIT_NONZERO'}elseif($row.observedVersion -cne $expected){$row.error='VERSION_MISMATCH'}
+        }catch{
+            $row.status=if($path){'FAIL'}else{'NOT_OBSERVED'}
+            $row.error=$_.Exception.Message
+            if($null -eq $row.exitCode){$row.exitCode=-1}
+        }
+        $records[$name]=[pscustomobject]$row
     }
-    New-Item -ItemType Directory -Force $ReceiptDir | Out-Null
-    $records|ConvertTo-Json -Depth 5|Set-Content (Join-Path $ReceiptDir "$Phase-rust-script.json") -Encoding UTF8
-    if($Phase -eq 'post'){Write-Host 'HOST_RUST_SCRIPT_POST=0.36.0'}
+    $status=if(@($records.Values|Where-Object {$_.status -ne 'PASS'}).Count){'FAIL'}else{'PASS'}
+    $records['status']=$status
+    $receiptPath=Join-Path $ReceiptDir "$Phase-rust-script.json";$temporary="$receiptPath.tmp"
+    ConvertTo-Json -InputObject $records -Depth 8|Set-Content -LiteralPath $temporary -Encoding UTF8
+    Move-Item -LiteralPath $temporary -Destination $receiptPath -Force
+    if($Phase -eq 'post' -and $status -eq 'PASS'){Write-Host 'HOST_RUST_SCRIPT_POST=0.36.0'}
+    if($status -ne 'PASS'){throw "Host/private rust-script contract failed; receipt=$receiptPath"}
 }
 function Write-CIHashIndex([string]$Directory) {
     $directory=(Resolve-Path $Directory).Path

@@ -125,6 +125,48 @@
       "source": "C:/hb/qualification/debug-producer.log",
       "step": "s22",
       "required": true
+    },
+    {
+      "name": "ninja-install",
+      "source": "{TEMP}/ninja-qualification",
+      "step": "ninja_setup",
+      "required": true
+    },
+    {
+      "name": "ninja-resolution-after-vs",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_bootstrap",
+      "required": false
+    },
+    {
+      "name": "ninja-receipt-control",
+      "source": "C:/hb/ninja-receipt-control",
+      "step": "ninja_receipt_control",
+      "required": false
+    },
+    {
+      "name": "ninja-receipt-tests",
+      "source": "{TEMP}/ninja-receipt-tests",
+      "step": "ninja_receipt_tests",
+      "required": false
+    },
+    {
+      "name": "ninja-consumer-tests",
+      "source": "{TEMP}/ninja-consumer-tests",
+      "step": "ninja_consumer_tests",
+      "required": false
+    },
+    {
+      "name": "ninja-resolution-after-official",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_official",
+      "required": false
+    },
+    {
+      "name": "ninja-resolution-after-bootstrap",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_bootstrap",
+      "required": false
     }
   ],
   "mesa": [
@@ -157,6 +199,24 @@
       "source": "{TEMP}/component-qualification/windows-kit.json",
       "step": "kit_bootstrap",
       "required": true
+    },
+    {
+      "name": "msys2-ninja-control",
+      "source": "{TEMP}/msys2-ninja-control.json",
+      "step": "msys_ninja_control",
+      "required": false
+    },
+    {
+      "name": "msys2-ninja-package-identity",
+      "source": "{TEMP}/msys2-ninja-control.json.identity.json",
+      "step": "msys_ninja_control",
+      "required": false
+    },
+    {
+      "name": "msys2-ninja-package-pins",
+      "source": "{TEMP}/msys2-ninja-control.json.packages.txt",
+      "step": "msys_ninja_control",
+      "required": false
     }
   ],
   "mesa_x86": [
@@ -189,6 +249,24 @@
       "source": "{TEMP}/component-qualification/windows-kit.json",
       "step": "kit_bootstrap",
       "required": true
+    },
+    {
+      "name": "msys2-ninja-control",
+      "source": "{TEMP}/msys2-ninja-control.json",
+      "step": "msys_ninja_control",
+      "required": false
+    },
+    {
+      "name": "msys2-ninja-package-identity",
+      "source": "{TEMP}/msys2-ninja-control.json.identity.json",
+      "step": "msys_ninja_control",
+      "required": false
+    },
+    {
+      "name": "msys2-ninja-package-pins",
+      "source": "{TEMP}/msys2-ninja-control.json.packages.txt",
+      "step": "msys_ninja_control",
+      "required": false
     }
   ],
   "opencl": [
@@ -239,6 +317,36 @@
       "source": "{TEMP}/component-qualification/component-build-producer.log",
       "step": "s13",
       "required": true
+    },
+    {
+      "name": "ninja-install",
+      "source": "{TEMP}/ninja-qualification",
+      "step": "ninja_setup",
+      "required": true
+    },
+    {
+      "name": "ninja-resolution-after-vs",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_bootstrap",
+      "required": false
+    },
+    {
+      "name": "ninja-consumer-tests",
+      "source": "{TEMP}/ninja-consumer-tests",
+      "step": "ninja_consumer_tests",
+      "required": false
+    },
+    {
+      "name": "ninja-resolution-after-official",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_official",
+      "required": false
+    },
+    {
+      "name": "ninja-resolution-after-bootstrap",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_bootstrap",
+      "required": false
     }
   ],
   "loaders": [
@@ -335,6 +443,12 @@
       "source": "{TEMP}/runner-qualification",
       "step": "s01",
       "required": true
+    },
+    {
+      "name": "package-toolchain",
+      "source": "{TEMP}/helios-package-qualification",
+      "step": "s15",
+      "required": false
     },
     {
       "name": "output-0",

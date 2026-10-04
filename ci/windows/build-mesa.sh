@@ -41,6 +41,15 @@ architecture=x64
 if [[ "${MSYSTEM:-}" == MINGW32 ]]; then architecture=x86; fi
 python "${repo_root}/ci/windows/assert_msys_pins.py" "${architecture}" "${output_dir}/msys2-pins.txt"
 
+# Mesa's Meson build consumes the MSYS2-native Ninja role. Keep this separate
+# from the upstream Windows Ninja used by PowerShell/CMake jobs.
+export NINJA="$(command -v ninja.exe || command -v ninja)"
+if [[ -z "${NINJA}" ]]; then
+    echo "MSYS2 Ninja was not resolved" >&2
+    exit 1
+fi
+python "${repo_root}/ci/windows/assert_msys_ninja.py" "${architecture}" "${NINJA}" "${output_dir}/msys2-ninja.json"
+
 
 python "${repo_root}/ci/windows/meson-isolated.py" setup "${setup_mode[@]}" "${build_dir}" "${mesa_src}" \
   --native-file "${native_file}" \
@@ -117,3 +126,4 @@ printf 'Mesa artifact staged at %s\n' "${output_dir}"
 
 # Close the producer with the same exact package pin audit.
 python "${repo_root}/ci/windows/assert_msys_pins.py" "${architecture}" "${output_dir}/post-msys2-pins.txt"
+python "${repo_root}/ci/windows/assert_msys_ninja.py" "${architecture}" "${NINJA}" "${output_dir}/post-msys2-ninja.json"
