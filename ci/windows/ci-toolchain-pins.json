@@ -141,6 +141,12 @@
         "name": "Windows SDK Desktop Tools x64",
         "version": "10.1.26100.7705",
         "productCode": "{EB362CC9-F0B3-EDBC-82E8-91F6BBF36F6E}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK for Windows Store Apps Tools",
+        "version": "10.1.26100.7705",
+        "productCode": "{4C150435-9153-456C-C0BE-497D89513B18}"
       }
     ],
     "selectedFiles": [
