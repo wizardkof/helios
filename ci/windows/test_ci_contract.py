@@ -33,6 +33,35 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         steps = workflow['jobs']['driver']['steps']
         ids = [step['id'] for step in steps if 'id' in step]
         self.assertEqual(len(ids), len(set(ids)))
+        for name in ('Install Rust nightly', 'Install Rust build helpers', 'Install Meson', 'Install and validate Vulkan SDK'):
+            step = next(step for step in steps if step.get('name') == name)
+            self.assertIn('always()', step.get('if', 'always()'), name)
         for name in ('Build pinned Wine 11.12 WIDL from official source', 'Capture Mesa MSYS2 package and Ninja consumer preflight'):
             step = next(step for step in steps if step.get('name') == name)
             self.assertIn('always()', step.get('if', 'always()'))
+
+    def test_widl_build_uses_msys_make_and_disables_unneeded_freetype(self):
+        from pathlib import Path
+        script = Path(__file__).with_name('build-pinned-widl.sh').read_text()
+        self.assertIn('./configure --enable-win64 --without-x --without-freetype --disable-tests', script)
+        self.assertIn('mingw32-make -C tools/widl -j2', script)
+
+    def test_cargo_make_is_invoked_as_pinned_cargo_subcommand(self):
+        from pathlib import Path
+        root = Path(__file__).parents[2]
+        for rel in ('ci/windows/Assert-CIToolchain.ps1', 'ci/windows/Assert-ComponentToolchain.ps1'):
+            text = root.joinpath(rel).read_text()
+            self.assertIn("name='cargo.exe'", text)
+            self.assertIn("args=@('make','--version')", text)
+            self.assertNotIn("name='cargo-make.exe'", text)
+        init = root.joinpath('ci/windows/Initialize-CIIsolation.ps1').read_text()
+        runner = root.joinpath('ci/windows/Invoke-IsolatedCargoMake.ps1').read_text()
+        self.assertIn("(Get-Command cargo.exe).Source", init)
+        self.assertIn("host-dispatch\\cargo.exe", runner)
+        self.assertIn('$env:HELIOS_ORIGINAL_CARGO).Hash', runner)
+
+    def test_global_vulkan_path_uses_normalized_expected_identity(self):
+        from pathlib import Path
+        checker = Path(__file__).with_name('Assert-CIToolchain.ps1').read_text()
+        self.assertIn("$env:VULKAN_SDK = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)
+        self.assertIn("$expectedVulkanRoot = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)

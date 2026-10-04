@@ -64,7 +64,7 @@ jobs:
       with:
         msystem: UCRT64
         update: true
-        install: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader bison flex
+        install: git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader bison flex
       id: msys2_setup
     - name: Restore exact archived MSYS2 package pins
       if: ${{ always() && inputs.infrastructure_only }}
@@ -166,6 +166,7 @@ jobs:
       run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
       id: s12
     - name: Install Rust nightly
+      if: always()
       uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
       with:
         toolchain: ${{ env.RUST_TOOLCHAIN }}
@@ -173,6 +174,7 @@ jobs:
         targets: i686-pc-windows-msvc
       id: s13
     - name: Install Rust build helpers
+      if: always()
       shell: pwsh
       run: 'cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
 

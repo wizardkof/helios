@@ -62,7 +62,7 @@ if($Component -eq 'driver'){
     $checksToRun+=,@{name='rustc';args=@('--version');expected=$pins.qualifiedObservedTools.rustc;pattern=('(?m)^'+[regex]::Escape($pins.qualifiedObservedTools.rustc)+'$')}
     $checksToRun+=,@{name='cargo';args=@('--version');expected=$pins.qualifiedObservedTools.cargo;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.cargo)+'$')}
     $checksToRun+=,@{name='clang-cl';args=@('--version');expected=('clang version '+$pins.llvmVersion);pattern=('(?m)^clang version '+[regex]::Escape($pins.llvmVersion)+'(?:\s|$)')}
-    if($Component -eq 'driver'){$checksToRun+=,@{name='widl';args=@('-V');expected=$pins.qualifiedObservedTools.widlVersion;pattern=('(?m)^Wine IDL Compiler version '+[regex]::Escape($pins.qualifiedObservedTools.widlVersion)+'(?![0-9.])')};$checksToRun+=,@{name='cargo-make.exe';args=@('--version');expected=('cargo-make '+$pins.rust.cargoMakeVersion);pattern=('(?m)^cargo-make '+[regex]::Escape($pins.rust.cargoMakeVersion)+'$')}}
+    if($Component -eq 'driver'){$checksToRun+=,@{name='widl';args=@('-V');expected=$pins.qualifiedObservedTools.widlVersion;pattern=('(?m)^Wine IDL Compiler version '+[regex]::Escape($pins.qualifiedObservedTools.widlVersion)+'(?![0-9.])')};$checksToRun+=,@{name='cargo.exe';args=@('make','--version');expected=('cargo-make '+$pins.rust.cargoMakeVersion);pattern=('(?m)^cargo-make '+[regex]::Escape($pins.rust.cargoMakeVersion)+'$')}}
 }
 foreach($check in $checksToRun){
     $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;VersionPattern=$check.pattern;Phase=$Phase}
