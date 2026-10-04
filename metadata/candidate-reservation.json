@@ -1,14 +1,14 @@
 {
-  "reservationDigest": "f0d7d161ea32dc22b56cc5c1dde95bd0b6317251aec42a2bd7ff2f71b4721333",
-  "reservationRef": "refs/helios/candidate-reservations/22.22.304.0",
-  "reservedAtUtc": "2026-10-04T08:11:53.901625+00:00",
+  "reservationDigest": "4102185d1619989c8ce0e9c712295ffdf25965925f9b079f08ea50c65de73435",
+  "reservationRef": "refs/helios/candidate-reservations/22.22.305.0",
+  "reservedAtUtc": "2026-10-04T09:27:10.996684+00:00",
   "schemaVersion": 1,
   "sourceCommits": {
     "dxvk": "56f462d920f9c1238e02bb1354d2de9a52cbf0d5",
-    "helios": "621d3feb4baa83f4f775a76962db42c1bc77b9a6",
+    "helios": "9e60bead8eb2e19aae3526e1b3458c0afe405b55",
     "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
     "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
   },
-  "sourceFingerprint": "16cb0a995f444da64f206bd02cd272d467fb39336dc725b041e60702c8e04fd9",
-  "version": "22.22.304.0"
+  "sourceFingerprint": "86017206d3524cdfb8bb9725b8234fd4383e3154ff7aeacd61310f810abba6ce",
+  "version": "22.22.305.0"
 }
