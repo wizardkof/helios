@@ -144,11 +144,9 @@ jobs:
       shell: pwsh
       run: ./ci/windows/Select-CIPinnedWidl.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: widl_select
-    - name: Install LLVM
-      uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
-      with:
-        version: ${{ env.LLVM_VERSION }}
-        force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
+    - name: Install official LLVM 22.1.8 release
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: s10
     - name: Select pinned LLVM compiler
       if: always()
@@ -963,11 +961,9 @@ jobs:
 
         '
       id: s11
-    - name: Install LLVM
-      uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
-      with:
-        version: ${{ env.LLVM_VERSION }}
-        force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
+    - name: Install official LLVM 22.1.8 release
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: s13
     - name: Select pinned LLVM compiler
       if: always()
