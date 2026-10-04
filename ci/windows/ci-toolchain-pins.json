@@ -120,15 +120,27 @@
       },
       {
         "kind": "wdk",
-        "name": "Windows Tools Versioned",
-        "version": "10.1.26100.2454",
-        "productCode": "{09495EE8-AFAD-54B1-62E6-206303A2B1D3}"
-      },
-      {
-        "kind": "wdk",
         "name": "Windows Driver Kit Binaries OnecoreUAP",
         "version": "10.1.26100.2454",
         "productCode": "{92EE2940-6358-9B02-7842-4AE941F0BC28}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK for Windows Store Apps Headers OnecoreUap",
+        "version": "10.1.26100.7705",
+        "productCode": "{CB91C4E7-9C14-6ABD-566B-DF4593456102}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Desktop Tools x86",
+        "version": "10.1.26100.7705",
+        "productCode": "{DB72537E-BD30-364B-6A72-09CE78DB8321}"
+      },
+      {
+        "kind": "sdk",
+        "name": "Windows SDK Desktop Tools x64",
+        "version": "10.1.26100.7705",
+        "productCode": "{EB362CC9-F0B3-EDBC-82E8-91F6BBF36F6E}"
       }
     ],
     "selectedFiles": [
@@ -193,7 +205,7 @@
         "path": "bin/10.0.26100.0/x64/stampinf.exe"
       }
     ],
-    "selectionRationale": "KMD is x64 only; SDK user-mode headers/libs and rc cover x64/x86. Inf2Cat is selected explicitly as the x86 WDK host tool. Same-family MSI File/Hash ownership validates consumed bytes."
+    "selectionRationale": "KMD is x64 only; SDK user-mode headers/libs and rc cover x64/x86. Inf2Cat is selected explicitly as the x86 WDK host tool. Same-family MSI File/Hash ownership validates consumed bytes. Windows Tools Versioned is unselected: native MSI ownership proves stampinf belongs to WDK Binaries and Inf2Cat to Binaries OnecoreUAP. UCRT other family is retained; consumed stdio/ucrt bytes must match the pinned 26100 MSI."
   },
   "llvmVersion": "22.1.8",
   "rust": {

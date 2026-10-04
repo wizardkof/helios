@@ -1,8 +1,8 @@
 # Verify selected bytes against the installed exact MSI's File/MsiFileHash tables.
 # Directory names and the global uninstall inventory alone cannot prove QFE.
 function Get-WindowsKitOwnership($Kit,$Inventory,$Files) {
- $installer=New-Object -ComObject WindowsInstaller.Installer
  foreach($file in $Files){$file.ownership='UNKNOWN';$file.ownershipReason='No selected MSI owns this exact input'}
+ try {$installer=New-Object -ComObject WindowsInstaller.Installer}catch {foreach($file in $Files){$file.ownershipReason=$_.Exception.Message};return}
  foreach($component in $Kit.components) {
   if(-not @($Inventory|Where-Object {$_.productCode -eq $component.productCode -and $_.DisplayVersion -eq $component.version}).Count){continue}
   try {
@@ -20,7 +20,8 @@ function Get-WindowsKitOwnership($Kit,$Inventory,$Files) {
      $version=$record.StringData(5);$expectedSize=$record.IntegerData(4)
      if($file.size -ne $expectedSize){$file.ownership='FAIL';$file.ownershipReason='MSI FileSize mismatch';continue}
      if($version -match '^\d+\.\d+\.\d+\.\d+$') {
-      $actual=(Get-Item -LiteralPath $path).VersionInfo.FileVersion -replace ' .*',''
+      $vi=(Get-Item -LiteralPath $path).VersionInfo
+      $actual='{0}.{1}.{2}.{3}' -f $vi.FileMajorPart,$vi.FileMinorPart,$vi.FileBuildPart,$vi.FilePrivatePart
       if($actual -eq $version){$file.ownership='PASS';$file.ownershipReason='Exact MSI file size and version'}else{$file.ownership='FAIL';$file.ownershipReason="MSI FileVersion mismatch expected=$version observed=$actual"}
      } else {
       $id=$record.StringData(1)

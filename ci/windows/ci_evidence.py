@@ -5,7 +5,7 @@ from pathlib import Path
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def safe(p):
  if p.is_symlink() or (getattr(p.stat(),'st_file_attributes',0)&0x400):raise ValueError('reparse/symlink refused')
- if p.suffix.lower() in {'.pfx','.p12','.key','.dmp','.dump'} or any(x.lower() in {'credentials','.ssh','.cargo','cargo_home'} for x in p.parts):raise ValueError('private material refused')
+ if p.suffix.lower() in {'.pfx','.p12','.key','.pem','.dmp','.dump'} or any(x.lower() in {'credentials','.ssh','.cargo','cargo_home'} for x in p.parts):raise ValueError('private material refused')
 def collect(entries,root,primary):
  root=Path(root);root.mkdir(parents=True,exist_ok=False)
  report=dict(PRIMARY_GATE_RESULT=primary,EVIDENCE_COLLECTION_RESULT='PASS',EVIDENCE_UPLOAD_RESULT='PENDING',sources=[],files=[])

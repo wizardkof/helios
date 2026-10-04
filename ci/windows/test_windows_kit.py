@@ -16,6 +16,8 @@ class KitTests(unittest.TestCase):
  def test_irrelevant_global_product(self):self.o['inventory'].append(dict(DisplayName='Unselected SDK arm64',DisplayVersion='99'));self.assertEqual(self.m.check(self.k,self.o)['status'],'PASS')
  def test_other_family_same_name(self):
   self.o['inventory'].append(dict(self.o['inventory'][0],DisplayVersion='10.1.19041.5609'));self.assertEqual(self.m.check(self.k,self.o)['status'],'PASS')
+ def test_global_ucrt_other_family(self):
+  self.o['inventory'].append(dict(self.o['inventory'][0],DisplayVersion='10.0.26624'));self.assertEqual(self.m.check(self.k,self.o)['status'],'PASS')
  def test_overlap_same_component_not_ignored(self):self.o['inventory'].append(dict(self.o['inventory'][0],DisplayVersion='99'));self.assertEqual(self.m.check(self.k,self.o)['status'],'FAIL')
  def test_selected_input_missing(self):self.o['files'].pop();self.assertEqual(self.m.check(self.k,self.o)['SELECTED_BUILD_INPUTS'],'FAIL')
  def test_selected_file_not_owned(self):self.o['files'][0]['ownership']='UNKNOWN';self.assertEqual(self.m.check(self.k,self.o)['SELECTED_BUILD_INPUTS'],'FAIL')

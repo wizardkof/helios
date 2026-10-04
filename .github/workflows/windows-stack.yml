@@ -253,6 +253,10 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s04
+    - name: Ensure Windows Driver Kit is installed
+      id: kit_bootstrap
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
     - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
       with:
         msystem: UCRT64
@@ -351,6 +355,10 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s04
+    - name: Ensure Windows Driver Kit is installed
+      id: kit_bootstrap
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
     - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
       with:
         msystem: MINGW32
@@ -446,6 +454,10 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s04
+    - name: Ensure Windows Driver Kit is installed
+      id: kit_bootstrap
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
     - name: Install pinned Ninja
       shell: pwsh
       run: python -m pip install "ninja==$env:NINJA_VERSION"
@@ -578,6 +590,10 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s04
+    - name: Ensure Windows Driver Kit is installed
+      id: kit_bootstrap
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
     - name: Install qualified CMake
       shell: pwsh
       run: python -m pip install "cmake==$env:CMAKE_VERSION"
@@ -676,6 +692,10 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s04
+    - name: Ensure Windows Driver Kit is installed
+      id: kit_bootstrap
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
     - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
       shell: pwsh
       run: '. ./ci/windows/CI-Qualification.ps1
@@ -812,6 +832,10 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: s10
+    - name: Ensure Windows Driver Kit is installed
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+      id: s12
     - name: Pre-package source fingerprint
       shell: pwsh
       run: '. ./ci/windows/CI-Qualification.ps1
@@ -820,10 +844,6 @@ jobs:
 
         '
       id: s11
-    - name: Ensure Windows Driver Kit is installed
-      shell: pwsh
-      run: ./ci/windows/Install-WindowsDriverKit.ps1
-      id: s12
     - name: Install LLVM
       uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
       with:

@@ -89,6 +89,30 @@
       "source": "{TEMP}/helios-driver-Debug",
       "step": "s22",
       "required": false
+    },
+    {
+      "name": "required-s20-resources",
+      "source": "C:/hb/qualification/release-runner-resources.json",
+      "step": "s20",
+      "required": true
+    },
+    {
+      "name": "required-s20-transcript",
+      "source": "C:/hb/qualification/release-producer.log",
+      "step": "s20",
+      "required": true
+    },
+    {
+      "name": "required-s22-resources",
+      "source": "C:/hb/qualification/debug-runner-resources.json",
+      "step": "s22",
+      "required": true
+    },
+    {
+      "name": "required-s22-transcript",
+      "source": "C:/hb/qualification/debug-producer.log",
+      "step": "s22",
+      "required": true
     }
   ],
   "mesa": [
@@ -101,20 +125,26 @@
     {
       "name": "output-0",
       "source": "{TEMP}/component-qualification",
-      "step": "s06",
-      "required": false
+      "step": "kit_bootstrap",
+      "required": true
     },
     {
       "name": "output-2",
       "source": "{TEMP}/helios-mesa",
-      "step": "s06",
+      "step": "s08",
       "required": false
     },
     {
       "name": "output-3",
       "source": "C:/helios-mesa-build/meson-logs",
-      "step": "s06",
+      "step": "s08",
       "required": false
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "kit_bootstrap",
+      "required": true
     }
   ],
   "mesa_x86": [
@@ -127,20 +157,26 @@
     {
       "name": "output-0",
       "source": "{TEMP}/component-qualification",
-      "step": "s06",
-      "required": false
+      "step": "kit_bootstrap",
+      "required": true
     },
     {
       "name": "output-2",
       "source": "{TEMP}/helios-mesa-x86",
-      "step": "s06",
+      "step": "s08",
       "required": false
     },
     {
       "name": "output-3",
       "source": "C:/helios-mesa-build/meson-logs",
-      "step": "s06",
+      "step": "s08",
       "required": false
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "kit_bootstrap",
+      "required": true
     }
   ],
   "opencl": [
@@ -153,26 +189,44 @@
     {
       "name": "output-0",
       "source": "{TEMP}/component-qualification",
-      "step": "s11",
-      "required": false
+      "step": "kit_bootstrap",
+      "required": true
     },
     {
       "name": "output-2",
       "source": "{TEMP}/helios-opencl",
-      "step": "s11",
+      "step": "s13",
       "required": false
     },
     {
       "name": "output-3",
       "source": "C:/clvk-build/CMakeFiles/CMakeConfigureLog.yaml",
-      "step": "s11",
+      "step": "s13",
       "required": false
     },
     {
       "name": "output-4",
       "source": "C:/clvk-build/CMakeCache.txt",
-      "step": "s11",
+      "step": "s13",
       "required": false
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "kit_bootstrap",
+      "required": true
+    },
+    {
+      "name": "required-s13-resources",
+      "source": "{TEMP}/component-qualification/component-build-runner-resources.json",
+      "step": "s13",
+      "required": true
+    },
+    {
+      "name": "required-s13-transcript",
+      "source": "{TEMP}/component-qualification/component-build-producer.log",
+      "step": "s13",
+      "required": true
     }
   ],
   "loaders": [
@@ -185,26 +239,44 @@
     {
       "name": "output-0",
       "source": "{TEMP}/component-qualification",
-      "step": "s06",
-      "required": false
+      "step": "kit_bootstrap",
+      "required": true
     },
     {
       "name": "output-2",
       "source": "{TEMP}/helios-loaders",
-      "step": "s06",
+      "step": "s08",
       "required": false
     },
     {
       "name": "output-3",
       "source": "C:/khronos-build/*/CMakeFiles/CMakeConfigureLog.yaml",
-      "step": "s06",
+      "step": "s08",
       "required": false
     },
     {
       "name": "output-4",
       "source": "C:/khronos-build/*/CMakeCache.txt",
-      "step": "s06",
+      "step": "s08",
       "required": false
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "kit_bootstrap",
+      "required": true
+    },
+    {
+      "name": "required-s08-resources",
+      "source": "{TEMP}/component-qualification/component-build-runner-resources.json",
+      "step": "s08",
+      "required": true
+    },
+    {
+      "name": "required-s08-transcript",
+      "source": "{TEMP}/component-qualification/component-build-producer.log",
+      "step": "s08",
+      "required": true
     }
   ],
   "compatibility": [
@@ -217,14 +289,32 @@
     {
       "name": "output-0",
       "source": "{TEMP}/component-qualification",
-      "step": "s05",
-      "required": false
+      "step": "kit_bootstrap",
+      "required": true
     },
     {
       "name": "output-2",
       "source": "{TEMP}/helios-compatibility",
-      "step": "s05",
+      "step": "s07",
       "required": false
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "kit_bootstrap",
+      "required": true
+    },
+    {
+      "name": "required-s07-resources",
+      "source": "{TEMP}/component-qualification/component-build-runner-resources.json",
+      "step": "s07",
+      "required": true
+    },
+    {
+      "name": "required-s07-transcript",
+      "source": "{TEMP}/component-qualification/component-build-producer.log",
+      "step": "s07",
+      "required": true
     }
   ],
   "package": [
@@ -268,6 +358,30 @@
       "name": "kit-required-receipt",
       "source": "{TEMP}/component-qualification/windows-kit.json",
       "step": "s12",
+      "required": true
+    },
+    {
+      "name": "required-s16-resources",
+      "source": "{TEMP}/helios-package-qualification/installer-{CONFIG}-runner-resources.json",
+      "step": "s16",
+      "required": true
+    },
+    {
+      "name": "required-s16-transcript",
+      "source": "{TEMP}/helios-package-qualification/installer-{CONFIG}-producer.log",
+      "step": "s16",
+      "required": true
+    },
+    {
+      "name": "required-s19-resources",
+      "source": "{TEMP}/helios-package-qualification/package-{CONFIG}-runner-resources.json",
+      "step": "s19",
+      "required": true
+    },
+    {
+      "name": "required-s19-transcript",
+      "source": "{TEMP}/helios-package-qualification/package-{CONFIG}-producer.log",
+      "step": "s19",
       "required": true
     }
   ]

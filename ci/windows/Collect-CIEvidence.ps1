@@ -7,7 +7,7 @@ foreach($s in $sources.$Job) {
  $outcome='skipped'
  $p=$steps.PSObject.Properties[$s.step]
  if($p){$outcome=$p.Value.outcome}
- $source=$s.source.Replace('{TEMP}',$env:RUNNER_TEMP)
+ $source=$s.source.Replace('{TEMP}',$env:RUNNER_TEMP).Replace('{CONFIG}',$env:HELIOS_CONFIGURATION)
  $spec+=@{name=$s.name;source=$source;outcome=$outcome;required=$s.required}
 }
 $specPath=Join-Path $env:RUNNER_TEMP 'evidence-sources.json'

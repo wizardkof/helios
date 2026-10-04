@@ -15,7 +15,7 @@ def check(k,o):
    if c['version']!=a['componentVersion']:consistent=False;fail('bootstrap/checker contradiction',a['componentVersion'],c)
  component_ok=consistent and o.get('queryStatus')=='PASS'
  for c in k['components']:
-  rows=[x for x in o.get('inventory',[]) if x.get('DisplayName')==c['name'] and (not re.fullmatch(r'10\.1\.\d+\.\d+',x.get('DisplayVersion','')) or '.'.join(x['DisplayVersion'].split('.')[:3])=='.'.join(c['version'].split('.')[:3]))]
+  rows=[x for x in o.get('inventory',[]) if x.get('DisplayName')==c['name'] and (not re.fullmatch(r'10\.[01]\.\d+(?:\.\d+)?',x.get('DisplayVersion','')) or x['DisplayVersion'].split('.')[2]==c['version'].split('.')[2])]
   if len(rows)!=1 or rows[0].get('DisplayVersion')!=c['version'] or rows[0].get('productCode','').upper()!=c['productCode'].upper():component_ok=False;fail('selected component identity',c,rows)
  if component_ok:r['PINNED_COMPONENT_IDENTITY']='PASS'
  files_ok=True

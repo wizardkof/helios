@@ -18,7 +18,7 @@ foreach($key in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall','H
 }
 foreach($f in $kit.selectedFiles) {
  $path=Join-Path $root $f.path
- if(Test-Path -LiteralPath $path -PathType Leaf){$item=Get-Item -LiteralPath $path;$files+=@{path=$f.path;absolutePath=$path;size=$item.Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower();fileVersion=$item.VersionInfo.FileVersion}}
+ if(Test-Path -LiteralPath $path -PathType Leaf){$item=Get-Item -LiteralPath $path;$files+=@{path=$f.path;absolutePath=$item.FullName;size=$item.Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower();fileVersion=$item.VersionInfo.FileVersion}}
 }
 . (Join-Path $PSScriptRoot 'Get-WindowsKitOwnership.ps1')
 Get-WindowsKitOwnership $kit $inventory $files
