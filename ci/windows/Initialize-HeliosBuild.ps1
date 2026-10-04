@@ -106,7 +106,7 @@ function Import-VisualStudioEnvironment(
     # Preserve every other PATH entry and make repeated architecture imports
     # idempotent.
     $priorityDirectories = @()
-    foreach ($directory in @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent ([IO.Path]::GetFullPath($env:HELIOS_NINJA)) } else { $null }))) {
+    foreach ($directory in @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent ([IO.Path]::GetFullPath($env:HELIOS_NINJA)) } else { $null }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent ([IO.Path]::GetFullPath($env:HELIOS_WIDL)) } else { $null }), $(if ($env:VULKAN_SDK) { Join-Path $env:VULKAN_SDK 'Bin' } else { $null }))) {
         if ($directory -and (Test-Path -LiteralPath $directory -PathType Container)) { $priorityDirectories += (Get-Item -LiteralPath $directory).FullName.TrimEnd('\') }
     }
     $priorityDirectories = @($priorityDirectories | Select-Object -Unique)

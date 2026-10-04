@@ -22,7 +22,7 @@ foreach ($candidate in $paths) {
         $output = @(& $candidate -V 2>&1 | ForEach-Object { $_.ToString() })
         $row.exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
         $row.observedVersion = $output -join "`n"
-        $row.status = if ($row.exitCode -eq 0 -and $row.observedVersion -match ('(?m)version ' + [regex]::Escape($expected) + '(?![0-9.])')) { 'PASS' } else { 'FAIL' }
+        $row.status = if ($row.exitCode -eq 0 -and $row.observedVersion -match ('(?m)^Wine IDL Compiler version ' + [regex]::Escape($expected) + '(?![0-9.])')) { 'PASS' } else { 'FAIL' }
         if ($row.status -eq 'PASS' -and -not $selected) { $selected = $candidate }
         if ($row.status -eq 'FAIL') { $row.error = 'PINNED_WIDL_VERSION_MISMATCH' }
     } catch { $row.status = 'FAIL'; $row.exitCode = -1; $row.error = $_.Exception.Message }

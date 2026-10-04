@@ -38,6 +38,9 @@ $variantPath = Join-Path $ReceiptDir 'ninja-variant.cmd'
 $variant = Invoke-CIToolCheck -Name 'ninja.exe' -ExecutablePath $variantPath -ExpectedResolvedPath $variantPath -Arguments @('--version') -ExpectedVersion '1.13.2' -VersionPattern '^1\.13\.2$' -Phase 'fixture-variant'
 Assert-That ($variant.status -eq 'FAIL' -and $variant.observedVersion -match 'kitware') 'a suffixed Ninja version must fail an exact pin'
 Assert-That ($variant.path -ceq $variantPath -and $variant.size -gt 0 -and $variant.sha256.Length -eq 64 -and $variant.exitCode -eq 0) 'variant receipt must preserve executable identity and exit'
+$isolatedName = 'helios-no-path-resolution-' + [guid]::NewGuid().ToString('N')
+$explicitOnly = Invoke-CIToolCheck -Name $isolatedName -ExecutablePath $variantPath -ExpectedResolvedPath $variantPath -Arguments @('--version') -ExpectedVersion '1.13.2' -VersionPattern '^1\.13\.2$' -Phase 'fixture-explicit-path'
+Assert-That ($explicitOnly.status -eq 'FAIL' -and $explicitOnly.path -ceq $variantPath -and $explicitOnly.observedVersion -match 'kitware') 'explicit path must be executed and identified even when its logical command name is absent from PATH'
 
 # Parent and child must execute the exact absolute path carried by NINJA.
 $realNinja = $env:HELIOS_NINJA

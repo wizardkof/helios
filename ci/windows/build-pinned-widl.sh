@@ -30,14 +30,40 @@ pathlib.Path(p).write_text(json.dumps({
 PY
 }
 fail() { reason="$1"; write_receipt; echo "PINNED_WIDL=FAIL reason=$reason receipt=$receipt" >&2; exit 1; }
-command -v xz >/dev/null || fail XZ_MISSING
-command -v sha256sum >/dev/null || fail SHA256SUM_MISSING
-curl --fail --location --retry 3 "$source_url" --output "$archive" || fail SOURCE_DOWNLOAD_FAILED
-archive_sha="$(sha256sum "$archive" | awk '{print $1}')"
-[[ "$archive_sha" == "$source_sha" ]] || fail SOURCE_SHA256_MISMATCH
-rm -rf "$source_dir"
-mkdir -p "$source_dir"
-tar -xJf "$archive" -C "$source_dir" --strip-components=1 || fail SOURCE_EXTRACTION_FAILED
+python - "$archive" "$source_url" "$source_sha" <<'PY' || fail SOURCE_DOWNLOAD_OR_HASH_FAILED
+import hashlib, pathlib, sys, urllib.request
+path, url, expected = sys.argv[1:]
+target = pathlib.Path(path)
+with urllib.request.urlopen(url, timeout=120) as response, target.open('wb') as output:
+    while block := response.read(1024 * 1024): output.write(block)
+observed = hashlib.sha256(target.read_bytes()).hexdigest()
+print(f'SOURCE_SHA256={observed}')
+if observed != expected: raise SystemExit('SOURCE_SHA256_MISMATCH')
+PY
+archive_sha="$source_sha"
+python - "$archive" "$source_dir" <<'PY' || fail SOURCE_EXTRACTION_FAILED
+import lzma, pathlib, sys, tarfile
+archive, destination = map(pathlib.Path, sys.argv[1:])
+destination.mkdir(parents=True, exist_ok=True)
+with lzma.open(archive, 'rb') as compressed, tarfile.open(fileobj=compressed, mode='r|') as source:
+    first = True
+    for member in source:
+        parts = pathlib.PurePosixPath(member.name).parts
+        relative = pathlib.Path(*parts[1:])
+        first = False
+        if not relative.parts: continue
+        target = (destination / relative).resolve()
+        if destination.resolve() not in target.parents and target != destination.resolve(): raise SystemExit('ARCHIVE_PATH_TRAVERSAL')
+        if member.isdir(): target.mkdir(parents=True, exist_ok=True)
+        elif member.isfile():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = source.extractfile(member)
+            if data is None: raise SystemExit('ARCHIVE_MEMBER_READ_FAILED')
+            with data, target.open('wb') as output:
+                while block := data.read(1024 * 1024): output.write(block)
+            target.chmod(member.mode & 0o777)
+        elif member.issym() or member.islnk(): raise SystemExit('ARCHIVE_LINK_REFUSED')
+PY
 cd "$source_dir"
 ./configure --without-x --disable-tests > "$output/configure.log" 2>&1
 configure_rc=$?

@@ -184,6 +184,19 @@ jobs:
       shell: pwsh
       run: ./ci/windows/Initialize-CIIsolation.ps1
       id: s16
+    - name: Preserve selected tool directories across Visual Studio imports
+      if: always()
+      shell: pwsh
+      run: |
+        $paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent $env:HELIOS_WIDL }), (Join-Path (Join-Path 'C:/VulkanSDK' $env:VULKAN_SDK_VERSION) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+        foreach ($path in $paths) { $path >> $env:GITHUB_PATH }
+        "VULKAN_SDK=C:/VulkanSDK/$env:VULKAN_SDK_VERSION" >> $env:GITHUB_ENV
+      id: preserve_pinned_paths
+    - name: Validate selected native tools after VS environment initialization
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Assert-PinnedToolPaths.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: selected_tool_paths
     - name: Observe Ninja after all driver bootstrap path changes
       if: always()
       shell: pwsh

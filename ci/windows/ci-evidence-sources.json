@@ -133,6 +133,12 @@
       "required": false
     },
     {
+      "name": "selected-tool-paths",
+      "source": "{TEMP}/tool-selection/pinned-tool-paths.json",
+      "step": "selected_tool_paths",
+      "required": false
+    },
+    {
       "name": "pinned-widl",
       "source": "{TEMP}/pinned-widl",
       "step": "widl_build",

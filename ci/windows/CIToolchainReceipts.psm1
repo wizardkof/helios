@@ -30,7 +30,7 @@ function Invoke-CIToolCheck {
     }
 
     try {
-        $commands = @(Get-Command -Name $Name -All -ErrorAction Stop)
+        $commands = if ($ExecutablePath) { @([pscustomobject]@{ CommandType='Application'; Path=$ExecutablePath; Source=$ExecutablePath }) } else { @(Get-Command -Name $Name -All -ErrorAction Stop) }
         $row.resolutionCandidates = @($commands | ForEach-Object {
             [ordered]@{
                 commandType = [string]$_.CommandType

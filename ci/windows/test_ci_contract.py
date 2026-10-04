@@ -22,3 +22,17 @@ class WdkIsolationTests(unittest.TestCase):
     def test_unsafe_paths_rejected(self):
         with self.assertRaises(ValueError):adapt(FIXTURE,'C:/path with spaces/helper.ps1','C:/hb/private')
 if __name__=='__main__':unittest.main()
+
+class WorkflowInfrastructureOnlyTests(unittest.TestCase):
+    def test_infrastructure_only_never_schedules_product_jobs_or_bundle(self):
+        import yaml
+        from pathlib import Path
+        workflow = yaml.safe_load(Path(__file__).parents[2].joinpath('.github/workflows/windows-stack.yml').read_text())
+        for name in ('mesa', 'mesa_x86', 'opencl', 'loaders', 'compatibility', 'package'):
+            self.assertIn('!inputs.infrastructure_only', workflow['jobs'][name]['if'], name)
+        steps = workflow['jobs']['driver']['steps']
+        ids = [step['id'] for step in steps if 'id' in step]
+        self.assertEqual(len(ids), len(set(ids)))
+        for name in ('Build pinned Wine 11.12 WIDL from official source', 'Capture Mesa MSYS2 package and Ninja consumer preflight'):
+            step = next(step for step in steps if step.get('name') == name)
+            self.assertIn('always()', step.get('if', 'always()'))

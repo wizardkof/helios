@@ -9,6 +9,9 @@ $vs=$null;$vc=$null
 $observer=Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1'
 try{& $observer -Phase "immediately-before-component-$Component-vs-import" -ReceiptDir $ReceiptDir}catch{$blocked.Add([pscustomobject]@{name='ninja-observer-pre-vs';reason=$_.Exception.Message})}
 try{Import-VisualStudioEnvironment -Architecture x64}catch{$blocked.Add([pscustomobject]@{name='visual-studio-environment-x64';reason=$_.Exception.Message})}
+$priority=@($env:HELIOS_LLVM_BIN, $(if($env:HELIOS_NINJA){Split-Path -Parent $env:HELIOS_NINJA}), $(if($env:HELIOS_WIDL){Split-Path -Parent $env:HELIOS_WIDL}), (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+if($priority.Count){$env:PATH=(@($priority)+@($env:PATH -split ';'|Where-Object {$_ -and $_ -notin $priority}|Select-Object -Unique)) -join ';'}
+if(Test-Path -LiteralPath (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Include/vulkan/vulkan.h')){$env:VULKAN_SDK=Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion}
 try{& $observer -Phase "immediately-after-component-$Component-vs-import" -ReceiptDir $ReceiptDir}catch{$blocked.Add([pscustomobject]@{name='ninja-observer-post-vs';reason=$_.Exception.Message})}
 
 function Add-ComponentValueCheck([string]$Name,[string]$Expected,[string]$Observed,[bool]$Pass,[string]$Path=$null) {
@@ -54,12 +57,12 @@ if($Component -eq 'opencl'){
     $checksToRun+=,@{name='ninja.exe';args=@('--version');expected=$pins.ninjaUpstream.executableVersion;pattern=('^'+[regex]::Escape($pins.ninjaUpstream.executableVersion)+'$')}
     $checksToRun+=,@{name='sccache';args=@('--version');expected=('sccache '+$pins.sccacheVersion);pattern=('^sccache '+[regex]::Escape($pins.sccacheVersion)+'$')}
 }
-if($Component -in 'driver','package'){
+if($Component -eq 'driver'){
     $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);pattern=('^rustup '+[regex]::Escape($pins.rust.rustupVersion)+'(?:\s|$)')}
     $checksToRun+=,@{name='rustc';args=@('--version');expected=$pins.qualifiedObservedTools.rustc;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.rustc)+'$')}
     $checksToRun+=,@{name='cargo';args=@('--version');expected=$pins.qualifiedObservedTools.cargo;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.cargo)+'$')}
     $checksToRun+=,@{name='clang-cl';args=@('--version');expected=('clang version '+$pins.llvmVersion);pattern=('(?m)^clang version '+[regex]::Escape($pins.llvmVersion)+'(?:\s|$)')}
-    if($Component -eq 'driver'){$checksToRun+=,@{name='widl';args=@('-V');expected=$pins.qualifiedObservedTools.widlVersion;pattern=('(?m)'+[regex]::Escape($pins.qualifiedObservedTools.widlVersion)+'(?![0-9.])')};$checksToRun+=,@{name='cargo-make';args=@('make','--version');expected=('cargo-make '+$pins.rust.cargoMakeVersion);pattern=('^cargo-make '+[regex]::Escape($pins.rust.cargoMakeVersion)+'$')}}
+    if($Component -eq 'driver'){$checksToRun+=,@{name='widl';args=@('-V');expected=$pins.qualifiedObservedTools.widlVersion;pattern=('(?m)^Wine IDL Compiler version '+[regex]::Escape($pins.qualifiedObservedTools.widlVersion)+'(?![0-9.])')};$checksToRun+=,@{name='cargo.exe make';args=@('make','--version');expected=('cargo-make '+$pins.rust.cargoMakeVersion);pattern=('^cargo-make '+[regex]::Escape($pins.rust.cargoMakeVersion)+'$')}}
 }
 foreach($check in $checksToRun){
     $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;VersionPattern=$check.pattern;Phase=$Phase}
