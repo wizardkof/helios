@@ -64,13 +64,18 @@ jobs:
       with:
         msystem: UCRT64
         update: true
-        install: git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader bison flex
+        install: git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools bison flex
       id: msys2_setup
     - name: Restore exact archived MSYS2 package pins
-      if: ${{ always() && inputs.infrastructure_only }}
+      if: ${{ always() }}
       shell: msys2 {0}
       run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x64 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
       id: msys2_archive
+    - name: Verify pinned MSYS2 packages for infrastructure preflight
+      if: ${{ always() && inputs.infrastructure_only }}
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/msys2-archive/verified-packages.json"
+      id: msys2_archive_verify
     - name: Expected refusal and evidence collection control
       id: transport_fixture
       shell: powershell
@@ -324,13 +329,18 @@ jobs:
         msystem: UCRT64
         update: true
         install: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
-          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools
           bison flex
       id: s05
-    - name: Verify Mesa MSYS2 pins and native Ninja consumer
-      if: ${{ always() && inputs.infrastructure_only }}
+    - name: Install exact archived MSYS2 package pins
+      if: ${{ always() && !inputs.infrastructure_only }}
       shell: msys2 {0}
-      run: bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/msys2-ninja-control.json"
+      run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x64 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
+      id: msys2_archive
+    - name: Verify Mesa MSYS2 package pins for product job
+      if: ${{ always() && !inputs.infrastructure_only }}
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/component-qualification/msys2-pins.json"
       id: msys_ninja_control
     - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
       if: ${{ !inputs.infrastructure_only }}
@@ -437,12 +447,17 @@ jobs:
         msystem: MINGW32
         update: true
         install: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
-          mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader bison flex
+          mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
       id: s05
-    - name: Verify Mesa MSYS2 pins and native Ninja consumer
-      if: ${{ always() && inputs.infrastructure_only }}
+    - name: Install exact archived MSYS2 package pins
+      if: ${{ always() && !inputs.infrastructure_only }}
       shell: msys2 {0}
-      run: bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/msys2-ninja-control.json"
+      run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x86 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
+      id: msys2_archive
+    - name: Verify Mesa MSYS2 package pins for product job
+      if: ${{ always() && !inputs.infrastructure_only }}
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x86 "$RUNNER_TEMP/component-qualification/msys2-pins.json"
       id: msys_ninja_control
     - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
       if: ${{ !inputs.infrastructure_only }}
