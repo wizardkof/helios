@@ -105,12 +105,16 @@ function Import-VisualStudioEnvironment(
     # VsDevCmd inserts a Visual Studio copy ahead of existing PATH entries.
     # Preserve every other PATH entry and make repeated architecture imports
     # idempotent.
-    if ($env:HELIOS_NINJA -and (Test-Path -LiteralPath $env:HELIOS_NINJA -PathType Leaf)) {
-        $ninjaDirectory = (Split-Path -Parent ([IO.Path]::GetFullPath($env:HELIOS_NINJA))).TrimEnd('\')
-        $remainingPath = @($env:PATH -split ';' | Where-Object {
-            $_ -and -not [string]::Equals($_.TrimEnd('\'), $ninjaDirectory, [StringComparison]::OrdinalIgnoreCase)
-        })
-        $env:PATH = (@($ninjaDirectory) + $remainingPath) -join ';'
+    $priorityDirectories = @()
+    foreach ($directory in @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent ([IO.Path]::GetFullPath($env:HELIOS_NINJA)) } else { $null }))) {
+        if ($directory -and (Test-Path -LiteralPath $directory -PathType Container)) { $priorityDirectories += (Get-Item -LiteralPath $directory).FullName.TrimEnd('\') }
+    }
+    $priorityDirectories = @($priorityDirectories | Select-Object -Unique)
+    if ($priorityDirectories.Count -gt 0) {
+        $prioritySet = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($directory in $priorityDirectories) { [void]$prioritySet.Add($directory) }
+        $remainingPath = @($env:PATH -split ';' | Where-Object { $_ -and -not $prioritySet.Contains($_.TrimEnd('\')) } | Select-Object -Unique)
+        $env:PATH = (@($priorityDirectories) + $remainingPath) -join ';'
     }
     $env:HELIOS_VS_IMPORTED_PATH = $env:PATH
 }

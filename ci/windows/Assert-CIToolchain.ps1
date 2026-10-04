@@ -43,7 +43,7 @@ try { & (Join-Path $PSScriptRoot 'Assert-WindowsKitPins.ps1') -ReceiptDir $Recei
 $toolChecks = @(
     @{name='python'; args=@('--version'); expected=('Python ' + $pins.pythonVersion); pattern=('^Python ' + [regex]::Escape($pins.pythonVersion) + '$')},
     @{name='meson'; args=@('--version'); expected=$pins.mesonVersion; pattern=('^' + [regex]::Escape($pins.mesonVersion) + '$')},
-    @{name='cargo-make'; args=@('--version'); expected=('cargo-make ' + $pins.rust.cargoMakeVersion); pattern=('^cargo-make ' + [regex]::Escape($pins.rust.cargoMakeVersion) + '$')},
+    @{name='cargo-make'; args=@('make','--version'); expected=('cargo-make ' + $pins.rust.cargoMakeVersion); pattern=('^cargo-make ' + [regex]::Escape($pins.rust.cargoMakeVersion) + '$')},
     @{name='clang-cl'; args=@('--version'); expected=('clang version ' + $pins.llvmVersion); pattern=('(?m)^clang version ' + [regex]::Escape($pins.llvmVersion) + '(?:\s|$)')},
     @{name='rustc'; args=@('--version'); expected=$pins.qualifiedObservedTools.rustc; pattern=('^' + [regex]::Escape($pins.qualifiedObservedTools.rustc) + '$')},
     @{name='cargo'; args=@('--version'); expected=$pins.qualifiedObservedTools.cargo; pattern=('^' + [regex]::Escape($pins.qualifiedObservedTools.cargo) + '$')},
@@ -52,7 +52,10 @@ $toolChecks = @(
     @{name='widl'; args=@('-V'); expected=$pins.qualifiedObservedTools.widlVersion; pattern=('(?m)' + [regex]::Escape($pins.qualifiedObservedTools.widlVersion) + '(?![0-9.])')}
 )
 foreach ($tool in $toolChecks) {
-    $checks.Add((Invoke-CIToolCheck -Name $tool.name -Arguments $tool.args -ExpectedVersion $tool.expected -VersionPattern $tool.pattern -Phase 'post-vs-x64'))
+    $toolOptions = @{Name=$tool.name;Arguments=$tool.args;ExpectedVersion=$tool.expected;VersionPattern=$tool.pattern;Phase='post-vs-x64'}
+    if ($tool.name -eq 'clang-cl' -and $env:HELIOS_LLVM_BIN) { $toolOptions.ExecutablePath = Join-Path $env:HELIOS_LLVM_BIN 'clang-cl.exe'; $toolOptions.ExpectedResolvedPath = $toolOptions.ExecutablePath }
+    if ($tool.name -eq 'widl' -and $env:HELIOS_WIDL) { $toolOptions.ExecutablePath = $env:HELIOS_WIDL; $toolOptions.ExpectedResolvedPath = $env:HELIOS_WIDL }
+    $checks.Add((Invoke-CIToolCheck @toolOptions))
 }
 
 $ninjaPath = [string]$env:HELIOS_NINJA

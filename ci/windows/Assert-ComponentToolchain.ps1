@@ -54,15 +54,18 @@ if($Component -eq 'opencl'){
     $checksToRun+=,@{name='ninja.exe';args=@('--version');expected=$pins.ninjaUpstream.executableVersion;pattern=('^'+[regex]::Escape($pins.ninjaUpstream.executableVersion)+'$')}
     $checksToRun+=,@{name='sccache';args=@('--version');expected=('sccache '+$pins.sccacheVersion);pattern=('^sccache '+[regex]::Escape($pins.sccacheVersion)+'$')}
 }
-if($Component -eq 'driver'){
+if($Component -in 'driver','package'){
     $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);pattern=('^rustup '+[regex]::Escape($pins.rust.rustupVersion)+'(?:\s|$)')}
     $checksToRun+=,@{name='rustc';args=@('--version');expected=$pins.qualifiedObservedTools.rustc;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.rustc)+'$')}
     $checksToRun+=,@{name='cargo';args=@('--version');expected=$pins.qualifiedObservedTools.cargo;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.cargo)+'$')}
     $checksToRun+=,@{name='clang-cl';args=@('--version');expected=('clang version '+$pins.llvmVersion);pattern=('(?m)^clang version '+[regex]::Escape($pins.llvmVersion)+'(?:\s|$)')}
+    if($Component -eq 'driver'){$checksToRun+=,@{name='widl';args=@('-V');expected=$pins.qualifiedObservedTools.widlVersion;pattern=('(?m)'+[regex]::Escape($pins.qualifiedObservedTools.widlVersion)+'(?![0-9.])')};$checksToRun+=,@{name='cargo-make';args=@('make','--version');expected=('cargo-make '+$pins.rust.cargoMakeVersion);pattern=('^cargo-make '+[regex]::Escape($pins.rust.cargoMakeVersion)+'$')}}
 }
 foreach($check in $checksToRun){
     $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;VersionPattern=$check.pattern;Phase=$Phase}
     if($check.name -eq 'ninja.exe' -and $env:HELIOS_NINJA){$options.ExecutablePath=[string]$env:HELIOS_NINJA;$options.ExpectedResolvedPath=[string]$env:HELIOS_NINJA}
+    if($check.name -eq 'clang-cl' -and $env:HELIOS_LLVM_BIN){$options.ExecutablePath=Join-Path $env:HELIOS_LLVM_BIN 'clang-cl.exe';$options.ExpectedResolvedPath=$options.ExecutablePath}
+    if($check.name -eq 'widl' -and $env:HELIOS_WIDL){$options.ExecutablePath=[string]$env:HELIOS_WIDL;$options.ExpectedResolvedPath=$options.ExecutablePath}
     $checks.Add((Invoke-CIToolCheck @options))
 }
 
@@ -78,7 +81,7 @@ if($Component -eq 'opencl'){
     $vulkanRoot=[string]$env:VULKAN_SDK;$vulkanPass=$vulkanRoot -and (Split-Path $vulkanRoot -Leaf) -ceq $pins.vulkanSdkVersion -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Include/vulkan/vulkan.h') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Lib/vulkan-1.lib') -PathType Leaf)
     Add-ComponentValueCheck 'VULKAN_SDK' $pins.vulkanSdkVersion $vulkanRoot ([bool]$vulkanPass) $vulkanRoot
 }
-if($Component -in 'driver','package'){
+if($Component -eq 'driver'){
     try{. (Join-Path $PSScriptRoot 'CI-Qualification.ps1');Write-CIRustScriptContract $ReceiptDir $Phase}catch{$blocked.Add([pscustomobject]@{name='rust-script-host-private';reason=$_.Exception.Message})}
 }
 $receipt=New-CIToolReceipt -Name "$Component-producer-toolchain-$Phase" -Checks @($checks.ToArray()) -Blocked @($blocked.ToArray()) -Context @{component=$Component;phase=$Phase;visualStudio=$vs;msvc=$observedMsvc;vulkanSdk=$env:VULKAN_SDK;selectedNinja=$env:HELIOS_NINJA}

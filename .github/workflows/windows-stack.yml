@@ -128,12 +128,22 @@ jobs:
 
         '
       id: s09
+    - name: Observe pinned WIDL candidates
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Select-CIPinnedWidl.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: widl_select
     - name: Install LLVM
       uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
       with:
         version: ${{ env.LLVM_VERSION }}
         force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
       id: s10
+    - name: Select pinned LLVM compiler
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: llvm_select
     - name: Restore Vulkan SDK
       uses: actions/cache@v4
       with:
@@ -935,6 +945,11 @@ jobs:
         version: ${{ env.LLVM_VERSION }}
         force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
       id: s13
+    - name: Select pinned LLVM compiler
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: llvm_select
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
       with:

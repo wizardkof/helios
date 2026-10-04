@@ -22,8 +22,8 @@ $receipt = [ordered]@{
     selectedNinjaVersion = $null
     vsImports = @()
     childProcess = $null
-    meson = [ordered]@{ setup = $null; compile = $null; reconfigure = $null; recompile = $null; logNamesSelectedNinja = $false }
-    cmake = [ordered]@{ configure = $null; cacheMakeProgram = $null; initialBuild = $null; regeneratedBuild = $null }
+    meson = [ordered]@{ setup = $null; compile = $null; reconfigure = $null; recompile = $null; logNamesSelectedNinja = $false; output = [Collections.Generic.List[string]]::new(); error = $null }
+    cmake = [ordered]@{ configure = $null; cacheMakeProgram = $null; initialBuild = $null; regeneratedBuild = $null; output = [Collections.Generic.List[string]]::new(); error = $null }
     poisonPathUsed = $false
     error = $null
 }
@@ -76,46 +76,51 @@ try {
     @('cmake_minimum_required(VERSION 3.20)', 'project(HeliosNinjaPreflight C)', 'add_executable(hello hello.c)') | Set-Content -LiteralPath (Join-Path $source 'CMakeLists.txt') -Encoding ascii
 
     $meson = Join-Path $PSScriptRoot 'meson-isolated.py'
+    try {
     $global:LASTEXITCODE = $null
-    & python.exe $meson setup --backend=ninja $mesonBuild $source
+    $captured = @(python.exe $meson setup --backend=ninja $mesonBuild $source 2>&1 | ForEach-Object { $_.ToString() }); $receipt.meson.output.AddRange([string[]]$captured)
     $receipt.meson.setup = [int]$LASTEXITCODE
-    if ($receipt.meson.setup -ne 0) { throw 'Synthetic Meson setup failed.' }
+    if ($receipt.meson.setup -ne 0) { throw "Synthetic Meson setup failed (exit $($receipt.meson.setup))." }
     $global:LASTEXITCODE = $null
-    & python.exe $meson compile -C $mesonBuild
+    $captured = @(python.exe $meson compile -C $mesonBuild 2>&1 | ForEach-Object { $_.ToString() }); $receipt.meson.output.AddRange([string[]]$captured)
     $receipt.meson.compile = [int]$LASTEXITCODE
-    if ($receipt.meson.compile -ne 0) { throw 'Synthetic Meson compile failed.' }
+    if ($receipt.meson.compile -ne 0) { throw "Synthetic Meson compile failed (exit $($receipt.meson.compile))." }
     $global:LASTEXITCODE = $null
-    & python.exe $meson setup --reconfigure $mesonBuild $source
+    $captured = @(python.exe $meson setup --reconfigure $mesonBuild $source 2>&1 | ForEach-Object { $_.ToString() }); $receipt.meson.output.AddRange([string[]]$captured)
     $receipt.meson.reconfigure = [int]$LASTEXITCODE
-    if ($receipt.meson.reconfigure -ne 0) { throw 'Synthetic Meson reconfiguration failed.' }
+    if ($receipt.meson.reconfigure -ne 0) { throw "Synthetic Meson reconfiguration failed (exit $($receipt.meson.reconfigure))." }
     $global:LASTEXITCODE = $null
-    & python.exe $meson compile -C $mesonBuild
+    $captured = @(python.exe $meson compile -C $mesonBuild 2>&1 | ForEach-Object { $_.ToString() }); $receipt.meson.output.AddRange([string[]]$captured)
     $receipt.meson.recompile = [int]$LASTEXITCODE
-    if ($receipt.meson.recompile -ne 0) { throw 'Synthetic Meson compile after reconfiguration failed.' }
+    if ($receipt.meson.recompile -ne 0) { throw "Synthetic Meson compile after reconfiguration failed (exit $($receipt.meson.recompile))." }
     $mesonLog = Get-Content -LiteralPath (Join-Path $mesonBuild 'meson-logs/meson-log.txt') -Raw
     $receipt.meson.logNamesSelectedNinja = $mesonLog.Contains($selected) -or $mesonLog.Contains($selected.Replace('\', '/'))
     if (-not $receipt.meson.logNamesSelectedNinja) { throw 'Meson log does not identify the selected Ninja executable.' }
+    } catch { $receipt.meson.error = $_.Exception.Message }
 
+    try {
     $global:LASTEXITCODE = $null
-    & cmake.exe -S $source -B $cmakeBuild -G Ninja "-DCMAKE_MAKE_PROGRAM:FILEPATH=$selected"
+    $captured = @(cmake.exe -S $source -B $cmakeBuild -G Ninja "-DCMAKE_MAKE_PROGRAM:FILEPATH=$selected" 2>&1 | ForEach-Object { $_.ToString() }); $receipt.cmake.output.AddRange([string[]]$captured)
     $receipt.cmake.configure = [int]$LASTEXITCODE
-    if ($receipt.cmake.configure -ne 0) { throw 'Synthetic CMake configure failed.' }
+    if ($receipt.cmake.configure -ne 0) { throw "Synthetic CMake configure failed (exit $($receipt.cmake.configure))." }
     $cache = Join-Path $cmakeBuild 'CMakeCache.txt'
     $cacheRow = Get-Content -LiteralPath $cache | Where-Object { $_ -match '^CMAKE_MAKE_PROGRAM:FILEPATH=' } | Select-Object -First 1
     $cacheValue = if ($cacheRow) { $cacheRow.Substring($cacheRow.IndexOf('=') + 1) } else { '' }
     $receipt.cmake.cacheMakeProgram = $cacheValue
     if (-not $cacheValue -or [IO.Path]::GetFullPath($cacheValue) -cne $selected) { throw "CMake cache does not pin selected Ninja: $cacheValue" }
     $global:LASTEXITCODE = $null
-    & cmake.exe --build $cmakeBuild --parallel 1
+    $captured = @(cmake.exe --build $cmakeBuild --parallel 1 2>&1 | ForEach-Object { $_.ToString() }); $receipt.cmake.output.AddRange([string[]]$captured)
     $receipt.cmake.initialBuild = [int]$LASTEXITCODE
-    if ($receipt.cmake.initialBuild -ne 0) { throw 'Synthetic CMake build failed.' }
+    if ($receipt.cmake.initialBuild -ne 0) { throw "Synthetic CMake build failed (exit $($receipt.cmake.initialBuild))." }
     Add-Content -LiteralPath (Join-Path $source 'CMakeLists.txt') -Value '# force regeneration' -Encoding ascii
     $global:LASTEXITCODE = $null
-    & cmake.exe --build $cmakeBuild --parallel 1
+    $captured = @(cmake.exe --build $cmakeBuild --parallel 1 2>&1 | ForEach-Object { $_.ToString() }); $receipt.cmake.output.AddRange([string[]]$captured)
     $receipt.cmake.regeneratedBuild = [int]$LASTEXITCODE
-    if ($receipt.cmake.regeneratedBuild -ne 0) { throw 'Synthetic CMake regeneration/build failed.' }
+    if ($receipt.cmake.regeneratedBuild -ne 0) { throw "Synthetic CMake regeneration/build failed (exit $($receipt.cmake.regeneratedBuild))." }
     if (Test-Path -LiteralPath $poisonLog) { throw 'A generator resolved Ninja implicitly from PATH instead of using the pinned executable.' }
-    $receipt.status = 'PASS'
+    } catch { $receipt.cmake.error = $_.Exception.Message }
+    if (-not $receipt.meson.error -and -not $receipt.cmake.error) { $receipt.status = 'PASS' }
+    else { $errors = @(); if ($receipt.meson.error) { $errors += $receipt.meson.error }; if ($receipt.cmake.error) { $errors += $receipt.cmake.error }; $receipt.error = $errors -join '; ' }
 } catch {
     $receipt.error = $_.Exception.Message
 } finally {

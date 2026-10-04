@@ -12,9 +12,15 @@ prefix = "mingw-w64-i686-" if arch == "x86" else "mingw-w64-ucrt-x86_64-"
 package = prefix + "ninja"
 expected_package = pins["qualifiedObservedTools"]["msys2Packages"][package]
 package_row = subprocess.run(["pacman", "-Q", package], text=True, capture_output=True)
-resolved = Path(executable).resolve()
-version = subprocess.run([str(resolved), "--version"], text=True, capture_output=True)
-data = resolved.read_bytes() if resolved.is_file() else b""
+resolved = Path(executable).resolve() if executable else None
+try:
+    version = subprocess.run([str(resolved), "--version"], text=True, capture_output=True) if resolved else None
+    data = resolved.read_bytes() if resolved and resolved.is_file() else b""
+    execution_error = None
+except Exception as exc:
+    version = None
+    data = b""
+    execution_error = str(exc)
 receipt = {
     "schemaVersion": 1,
     "role": "mesa-msys2-native-ninja",
@@ -23,15 +29,17 @@ receipt = {
     "expectedPackageVersion": expected_package,
     "observedPackage": package_row.stdout.strip(),
     "packageExitCode": package_row.returncode,
-    "path": str(resolved),
-    "versionOutput": (version.stdout + version.stderr).strip(),
-    "versionExitCode": version.returncode,
+    "path": str(resolved) if resolved else None,
+    "versionOutput": ((version.stdout + version.stderr).strip() if version else None),
+    "versionExitCode": (version.returncode if version else None),
+    "executionError": execution_error,
     "size": len(data) if data else None,
     "sha256": hashlib.sha256(data).hexdigest() if data else None,
 }
 receipt["status"] = "PASS" if (
     package_row.returncode == 0
     and receipt["observedPackage"] == package + " " + expected_package
+    and version is not None
     and version.returncode == 0
     and receipt["versionOutput"] == "1.13.2"
     and data

@@ -127,6 +127,12 @@
       "required": true
     },
     {
+      "name": "tool-selection",
+      "source": "{TEMP}/tool-selection",
+      "step": "llvm_select",
+      "required": false
+    },
+    {
       "name": "ninja-install",
       "source": "{TEMP}/ninja-qualification",
       "step": "ninja_setup",
@@ -136,12 +142,6 @@
       "name": "ninja-resolution-after-vs",
       "source": "{TEMP}/ninja-resolution",
       "step": "ninja_after_bootstrap",
-      "required": false
-    },
-    {
-      "name": "ninja-receipt-control",
-      "source": "C:/hb/ninja-receipt-control",
-      "step": "ninja_receipt_control",
       "required": false
     },
     {
@@ -214,7 +214,7 @@
     },
     {
       "name": "msys2-ninja-package-pins",
-      "source": "{TEMP}/msys2-ninja-control.json.packages.txt",
+      "source": "{TEMP}/msys2-ninja-control.json.packages.json",
       "step": "msys_ninja_control",
       "required": false
     }
@@ -264,7 +264,7 @@
     },
     {
       "name": "msys2-ninja-package-pins",
-      "source": "{TEMP}/msys2-ninja-control.json.packages.txt",
+      "source": "{TEMP}/msys2-ninja-control.json.packages.json",
       "step": "msys_ninja_control",
       "required": false
     }
@@ -443,6 +443,12 @@
       "source": "{TEMP}/runner-qualification",
       "step": "s01",
       "required": true
+    },
+    {
+      "name": "package-tool-selection",
+      "source": "{TEMP}/tool-selection",
+      "step": "llvm_select",
+      "required": false
     },
     {
       "name": "package-toolchain",

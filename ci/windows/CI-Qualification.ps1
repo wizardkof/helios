@@ -33,7 +33,7 @@ function Write-CIRustScriptContract([string]$ReceiptDir,[string]$Phase) {
             $row.exitCode=if($null -eq $LASTEXITCODE){0}else{[int]$LASTEXITCODE}
             $row.observedVersion=$output -join "`n"
             $row.status=if($row.exitCode -eq 0 -and $row.observedVersion -ceq $expected){'PASS'}else{'FAIL'}
-            if($name -eq 'host' -and $row.expectedSha256 -and $row.sha256 -cne $row.expectedSha256){$row.status='FAIL';$row.error='HOST_RUST_SCRIPT_HASH_CHANGED'}
+            if($name -eq 'host' -and $row.expectedSha256 -and $row.sha256 -cne ([string]$row.expectedSha256).ToLowerInvariant()){$row.status='FAIL';$row.error='HOST_RUST_SCRIPT_HASH_CHANGED'}
             if($row.exitCode -ne 0){$row.error='EXECUTION_EXIT_NONZERO'}elseif($row.observedVersion -cne $expected){$row.error='VERSION_MISMATCH'}
         }catch{
             $row.status=if($path){'FAIL'}else{'NOT_OBSERVED'}
