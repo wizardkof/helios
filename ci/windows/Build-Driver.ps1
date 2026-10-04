@@ -36,7 +36,7 @@ $llvmReadObj = Assert-Command "llvm-readobj.exe"
 Assert-Command "meson.exe" | Out-Null
 Assert-Command "ninja.exe" | Out-Null
 Assert-Command "cargo.exe" | Out-Null
-Assert-Command "cargo.exe" | Out-Null
+Assert-Command "cargo-make.exe" | Out-Null
 Assert-Command "widl.exe" | Out-Null
 Assert-Command "glslangValidator.exe" | Out-Null
 

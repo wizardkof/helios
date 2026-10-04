@@ -43,7 +43,7 @@ try { & (Join-Path $PSScriptRoot 'Assert-WindowsKitPins.ps1') -ReceiptDir $Recei
 $toolChecks = @(
     @{name='python'; args=@('--version'); expected=('Python ' + $pins.pythonVersion); pattern=('^Python ' + [regex]::Escape($pins.pythonVersion) + '$')},
     @{name='meson'; args=@('--version'); expected=$pins.mesonVersion; pattern=('^' + [regex]::Escape($pins.mesonVersion) + '$')},
-    @{name='cargo.exe'; args=@('make','--version'); expected=('cargo-make ' + $pins.rust.cargoMakeVersion); pattern=('(?m)^cargo-make ' + [regex]::Escape($pins.rust.cargoMakeVersion) + '$')},
+    @{name='cargo-make.exe'; args=@('--version'); expected=('cargo-make ' + $pins.rust.cargoMakeVersion); pattern=('(?m)^cargo-make ' + [regex]::Escape($pins.rust.cargoMakeVersion) + '$')},
     @{name='clang-cl'; args=@('--version'); expected=('clang version ' + $pins.llvmVersion); pattern=('(?m)^clang version ' + [regex]::Escape($pins.llvmVersion) + '(?:\s|$)')},
     @{name='rustc'; args=@('--version'); expected=$pins.qualifiedObservedTools.rustc; pattern=('(?m)^' + [regex]::Escape($pins.qualifiedObservedTools.rustc) + '$')},
     @{name='cargo'; args=@('--version'); expected=$pins.qualifiedObservedTools.cargo; pattern=('^' + [regex]::Escape($pins.qualifiedObservedTools.cargo) + '$')},

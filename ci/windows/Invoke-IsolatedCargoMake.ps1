@@ -9,8 +9,8 @@ New-Item -ItemType Directory $run | Out-Null
 $names=@('PATH','CARGO_INSTALL_ROOT','HELIOS_HOST_RUST_SCRIPT','HELIOS_PINNED_CARGO','HELIOS_RUST_SCRIPT_AUDIT')
 $previous=@{};foreach($name in $names){$previous[$name]=[Environment]::GetEnvironmentVariable($name,'Process')}
 $hostBefore=(Get-FileHash $hostTool).Hash
-$make=Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch\cargo.exe'
-if((Get-FileHash $make).Hash -ne (Get-FileHash $env:HELIOS_ORIGINAL_CARGO).Hash){throw 'External cargo executable differs from qualified pin'}
+$make=Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch\cargo-make.exe'
+if((Get-FileHash $make).Hash -ne (Get-FileHash $env:HELIOS_ORIGINAL_CARGO_MAKE).Hash){throw 'External cargo-make executable differs from qualified pin'}
 Write-Output "CARGO_MAKE_EXECUTABLE=$make SHA256=$((Get-FileHash $make).Hash)"
 try {
  $env:HELIOS_HOST_RUST_SCRIPT=$hostTool;$env:HELIOS_PINNED_CARGO=$cargo
