@@ -11,6 +11,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "CI-Qualification.ps1")
+Assert-CIBackend
+. (Join-Path $PSScriptRoot "Initialize-HeliosBuild.ps1")
+Import-VisualStudioEnvironment
 
 function Clone-Pinned([string]$Url, [string]$Destination, [string]$Commit, [switch]$Recursive) {
     $arguments = @("clone", "--filter=blob:none")
@@ -41,42 +45,42 @@ Clone-Pinned "https://github.com/KhronosGroup/OpenCL-Headers.git" $openClHeaders
 
 $vkHeadersBuild = Join-Path $BuildRoot "vk-headers"
 $vkHeadersInstall = Join-Path $BuildRoot "vk-headers-install"
-& cmake.exe -S $vkHeadersSource -B $vkHeadersBuild -A x64 "-DCMAKE_INSTALL_PREFIX=$vkHeadersInstall" -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DVULKAN_HEADERS_ENABLE_TESTS=OFF
+& cmake.exe -S $vkHeadersSource -B $vkHeadersBuild -A x64 -T "version=$env:HELIOS_MSVC_VERSION" "-DCMAKE_INSTALL_PREFIX=$vkHeadersInstall" -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DVULKAN_HEADERS_ENABLE_TESTS=OFF
 if ($LASTEXITCODE -ne 0) { throw "Vulkan-Headers configure failed." }
 & cmake.exe --install $vkHeadersBuild --config Release
 if ($LASTEXITCODE -ne 0) { throw "Vulkan-Headers install failed." }
 
 $vkLoaderBuild = Join-Path $BuildRoot "vk-loader"
 $vkLoaderInstall = Join-Path $BuildRoot "vk-loader-install"
-& cmake.exe -S $vkLoaderSource -B $vkLoaderBuild -A x64 `
+& cmake.exe -S $vkLoaderSource -B $vkLoaderBuild -A x64 -T "version=$env:HELIOS_MSVC_VERSION" `
     "-DCMAKE_INSTALL_PREFIX=$vkLoaderInstall" `
     -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
     "-DVULKAN_HEADERS_INSTALL_DIR=$vkHeadersInstall" `
     -DBUILD_TESTS=OFF `
     -DBUILD_WERROR=OFF
 if ($LASTEXITCODE -ne 0) { throw "Vulkan-Loader configure failed." }
-& cmake.exe --build $vkLoaderBuild --config Release --parallel
+& cmake.exe --build $vkLoaderBuild --config Release --parallel $env:HELIOS_BUILD_JOBS
 if ($LASTEXITCODE -ne 0) { throw "Vulkan-Loader build failed." }
 & cmake.exe --install $vkLoaderBuild --config Release
 if ($LASTEXITCODE -ne 0) { throw "Vulkan-Loader install failed." }
 
 $vkLoaderX86Build = Join-Path $BuildRoot "vk-loader-x86"
 $vkLoaderX86Install = Join-Path $BuildRoot "vk-loader-x86-install"
-& cmake.exe -S $vkLoaderSource -B $vkLoaderX86Build -A Win32 `
+& cmake.exe -S $vkLoaderSource -B $vkLoaderX86Build -A Win32 -T "version=$env:HELIOS_MSVC_VERSION" `
     "-DCMAKE_INSTALL_PREFIX=$vkLoaderX86Install" `
     -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
     "-DVULKAN_HEADERS_INSTALL_DIR=$vkHeadersInstall" `
     -DBUILD_TESTS=OFF `
     -DBUILD_WERROR=OFF
 if ($LASTEXITCODE -ne 0) { throw "x86 Vulkan-Loader configure failed." }
-& cmake.exe --build $vkLoaderX86Build --config Release --parallel
+& cmake.exe --build $vkLoaderX86Build --config Release --parallel $env:HELIOS_BUILD_JOBS
 if ($LASTEXITCODE -ne 0) { throw "x86 Vulkan-Loader build failed." }
 & cmake.exe --install $vkLoaderX86Build --config Release
 if ($LASTEXITCODE -ne 0) { throw "x86 Vulkan-Loader install failed." }
 
 $openClBuild = Join-Path $BuildRoot "opencl-loader"
 $openClInstall = Join-Path $BuildRoot "opencl-loader-install"
-& cmake.exe -S $openClLoaderSource -B $openClBuild -A x64 `
+& cmake.exe -S $openClLoaderSource -B $openClBuild -A x64 -T "version=$env:HELIOS_MSVC_VERSION" `
     "-DCMAKE_INSTALL_PREFIX=$openClInstall" `
     -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
     "-DOPENCL_ICD_LOADER_HEADERS_DIR=$openClHeadersSource" `
@@ -84,7 +88,7 @@ $openClInstall = Join-Path $BuildRoot "opencl-loader-install"
     -DENABLE_OPENCL_LAYERS=OFF `
     -DBUILD_TESTING=OFF
 if ($LASTEXITCODE -ne 0) { throw "OpenCL ICD Loader configure failed." }
-& cmake.exe --build $openClBuild --config Release --parallel
+& cmake.exe --build $openClBuild --config Release --parallel $env:HELIOS_BUILD_JOBS
 if ($LASTEXITCODE -ne 0) { throw "OpenCL ICD Loader build failed." }
 & cmake.exe --install $openClBuild --config Release
 if ($LASTEXITCODE -ne 0) { throw "OpenCL ICD Loader install failed." }

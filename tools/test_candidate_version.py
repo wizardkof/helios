@@ -131,7 +131,7 @@ class CandidateVersionTests(unittest.TestCase):
             self._init_repo(root)
             self._configure_git(root)
             for directory in ("umd", "umd12", "umd_common", "kmd_logic", "protocol",
-                              "installer", "packaging/windows", "ci/windows", "tools/win-mcp"):
+                              "installer", "packaging/windows", "ci/windows", "ci/patches", "tools/win-mcp"):
                 (root / directory / "input.txt").write_text(directory + "\n", encoding="utf-8")
             (root / ".github/workflows").mkdir(parents=True)
             (root / ".github/workflows/windows-stack.yml").write_text("name: test\n", encoding="utf-8")
@@ -147,7 +147,7 @@ class CandidateVersionTests(unittest.TestCase):
             (root / "tools/candidate_version.py").write_bytes(MODULE_PATH.read_bytes())
             subprocess.run(["git", "-C", str(root), "add", "kmd_render", "umd", "umd12",
                             "umd_common", "kmd_logic", "protocol", "metadata/candidate-history.json",
-                            "installer", "packaging/windows", "ci/windows", "tools/win-mcp", "tools/candidate_version.py",
+                            "installer", "packaging/windows", "ci/windows", "ci/patches", "tools/win-mcp", "tools/candidate_version.py",
                             ".github/workflows/windows-stack.yml"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "source snapshot"], check=True)
             initial_fingerprint = candidate_version.source_fingerprint(root)
@@ -167,6 +167,17 @@ class CandidateVersionTests(unittest.TestCase):
             self.assertEqual(candidate_version.verify(clone, portable=True)["reservationDigest"],
                              lock["reservationDigest"])
             self.assertEqual(candidate_version.next_version(clone), "22.22.296.0")
+
+    def test_applied_clspv_patch_bytes_are_candidate_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._init_repo(root)
+            patch = root / "ci/patches/clspv/control.patch"
+            patch.parent.mkdir(parents=True)
+            patch.write_text("first compiler delta\n")
+            before = candidate_version.source_fingerprint(root)
+            patch.write_text("different compiler delta\n")
+            self.assertNotEqual(before, candidate_version.source_fingerprint(root))
 
     def test_workflow_verifies_frozen_lock_without_per_job_reservation(self):
         workflow = (MODULE_PATH.parents[1] / ".github/workflows/windows-stack.yml").read_text(encoding="utf-8")
@@ -242,7 +253,7 @@ class CandidateVersionTests(unittest.TestCase):
         (root / "tools").mkdir()
         (root / "tools/candidate_version.py").write_bytes(MODULE_PATH.read_bytes())
         for directory in ("umd", "umd12", "umd_common", "kmd_logic", "protocol", "installer",
-                          "packaging/windows", "ci/windows", "tools/win-mcp", ".github/workflows", "icd/mesa",
+                          "packaging/windows", "ci/windows", "ci/patches", "tools/win-mcp", ".github/workflows", "icd/mesa",
                           "dxvk-helios", "vkd3d-proton-helios"):
             path = root / directory
             path.mkdir(parents=True, exist_ok=True)
@@ -258,7 +269,7 @@ class CandidateVersionTests(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(root)], check=True)
         cls._configure_git(root)
         subprocess.run(["git", "-C", str(root), "add", "kmd_render", "metadata", "tools", "umd", "umd12",
-                        "umd_common", "kmd_logic", "protocol", "installer", "packaging/windows", "ci/windows",
+                        "umd_common", "kmd_logic", "protocol", "installer", "packaging/windows", "ci/windows", "ci/patches",
                         "tools/win-mcp", ".github/workflows/windows-stack.yml"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", "seed source"], check=True)
 
@@ -275,7 +286,7 @@ class CandidateVersionTests(unittest.TestCase):
         (root / "kmd_render/driver-version.env").write_text(
             "HELIOS_KMD_VERSION=22.22.288.0\n", encoding="utf-8")
         for name in ("umd", "umd12", "umd_common", "kmd_logic", "protocol", "installer",
-                     "packaging/windows", "ci/windows", "tools/win-mcp"):
+                     "packaging/windows", "ci/windows", "ci/patches", "tools/win-mcp"):
             (root / name).mkdir(parents=True)
         for name in ("icd/mesa", "dxvk-helios", "vkd3d-proton-helios"):
             path = root / name

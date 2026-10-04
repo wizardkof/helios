@@ -14,6 +14,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "CI-Qualification.ps1")
+Assert-CIBackend
+. (Join-Path $PSScriptRoot "Initialize-HeliosBuild.ps1")
+Import-VisualStudioEnvironment
 
 # Fail before cloning LLVM or removing existing build trees when SDK setup is
 # incomplete. Shader tools alone are insufficient for CLVK's system Vulkan.
@@ -70,7 +74,7 @@ try {
     -DCLVK_ENABLE_ASSERTIONS=OFF
 if ($LASTEXITCODE -ne 0) { throw "clvk CMake configure failed." }
 
-& cmake.exe --build $BuildRoot --parallel
+& cmake.exe --build $BuildRoot --parallel $env:HELIOS_BUILD_JOBS
 if ($LASTEXITCODE -ne 0) { throw "clvk build failed." }
 
 $vendorDll = Get-ChildItem -LiteralPath $BuildRoot -Filter "OpenCL.dll" -File -Recurse |

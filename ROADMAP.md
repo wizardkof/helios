@@ -1,5 +1,47 @@
 # ROADMAP — Stage: Correctness and D3D12
 
+## Canonical build policy — owner directive, 2026-10-04
+
+```text
+CANONICAL_BUILD_BACKEND=GITHUB_ACTIONS
+LOCAL_VM_ROLE=DEPLOY_AND_RUNTIME_ONLY
+LOCAL_PRODUCT_BUILDS=DISABLED_BY_DEFAULT
+GITHUB_ACTIONS_USED_FOR_FUTURE_CANDIDATES=YES
+PUBLICATION=NO
+```
+
+GitHub Actions owns future candidate source qualification, regressions, Release,
+Debug, symbols, signing and offline package qualification. WinBoat owns install,
+reboot, provisioning, static installation verification and graphical runtime.
+Do not build new product candidates, install extra build toolchains or repair the
+local VM's build environment without explicit owner authorization. Existing VM
+lifecycle authorization still applies to deploy/runtime; it does not authorize
+product builds. Historical local builds remain evidence with their original status.
+
+The unreserved CI infrastructure delta was prepared and reviewed in
+`.fullstack/work/p06-ci-canonical-20261004`; the reviewed CI delta is applied to the current workspace without a reservation.
+Native CI execution is **NOT_RUN**.
+Source changes must pass the existing monotonic candidate/source lock before a
+future build. No version is allocated just for this infrastructure migration,
+and different source must never reuse `.300` or `.303`. Integration prerequisites
+remain integration of the qualified DXVK queue/reentry overlay. CMake 3.31.6
+was recovered from five hash-matching historical package provenance caches. The workflow refuses absent
+regressions and missing producer pins; it does not substitute runner defaults.
+See [CI_BUILD_QUALIFICATION.md](docs/CI_BUILD_QUALIFICATION.md) for the contract and
+[the implementation report](.fullstack/artifacts/p06/ci-canonical-20261004/REPORT.md)
+for current evidence and limits.
+
+Historical `.299` rollback is preserved. `.300` stays frozen and deploy-blocked
+by the old installer contract. `.303` keeps Release PASS, Debug PASS, offline
+package PASS (69/69) and native packaged schema PASS (8/8); its deploy stays
+**PARTIAL** because post-reboot verification is incomplete. Migration does not
+promote that result. A separately authorized identical-source reproduction must
+be labeled `CI_REPRODUCTION_303`, retain distinct run/artifact identities and
+never overwrite the existing `.303` ZIP or receipts.
+
+`BLACK_SCREEN_FIXED`, `DEVICE_LOSS_ORIGIN`, `DEADLOCK_IN_ORIGINAL_CAPTURE`,
+`SSH_POST_REBOOT_CAUSE` and `EXTRA_CONTAINER_RESTART_CAUSE` remain **NOT_PROVEN**.
+
 *The desktop first rendered end-to-end on 2026-07-05. The active architecture changed on
 2026-07-09: Helios is a WDDM render+display adapter and owns the virtio-gpu scanout;
 IddCx/Looking Glass is no longer the active display path.*
@@ -11,6 +53,241 @@ summarised away, and every WS number and defect id (`0ab-B`, `PresentWmk`, …) 
 resolves there. What is kept below is what a reader needs *now*: the stage, the live
 baseline, the priorities, per-workstream status with its open items, and the tooling
 inventory. Sections retained are carried **verbatim**; only the connective text is new.
+
+## P06 DXVK error reentry regressions — isolated source candidate, 2026-10-03
+
+The original b79b310f DXVK error paths reproduced both conditional reentries:
+finish waits for its own still-counted entry; submit reacquires its owned SRWLOCK.
+Separate Windows CPU-only processes with controlled Vulkan produced two causal
+RED failures and a passing success control. The isolated correction removes
+worker drain reentry, preserves exact VkResult, and retains entire unretired
+command lists even beyond queue destruction. Final regressions: **9/9 PASS**,
+including existing cs_failure, DEVICE_LOST, prior accepted work, unchanged
+predicate notification, independent queues and backend-pending control.
+
+Local source candidate **22.22.300.0** is reserved after ledger consultation;
+fingerprint `b247e436b7155855ce03a9b8b5eb4f3e32ce3b2c4ee1b299307aee9ebe82271e`.
+Reservation is local and unpublished. The intentional process-lifetime retention
+costs memory; full command pools and GPU runtime are not exercised by this fixture.
+Installed .299 remains unchanged (27 unique payload files reverified). WinBoat
+build-host RAM changed only from 12G to 24G and was consumed after Compose
+recreation. Windows .300 regressions: 9/9 PASS_PRESERVED. The 48 historical
+Release files remain RELEASE_PRE_ISOLATION_FIX / PARTIAL_TOOLCHAIN_CONTRACT:
+WDK initialization replaced host rust-script 0.36.0 with 0.30.0, consumed by
+the later UMD producer. A real sandbox RED reproduced this mutation. The external
+control correction scopes WDK install/execution/cache to its private root and
+records absolute host 0.36.0 executions; a fresh sandbox GREEN and real focal
+init preserved host/private hashes. No candidate source root, pin or reservation
+changed. New complete Release and Debug builds passed real exit 0, SYS/CAT
+signing, .300 versions, five PE/PDB GUID+age pairs, unchanged fingerprint, trust
+cleanup and integral post-build toolchain checks (CPU 12, RAM 24 GiB). The host
+remains 0.36.0, private WDK 0.30.0. Informative comparison: 14 byte-identical,
+34 expected differences, 0 unexpected; four optional DXVK engine PDBs were not
+emitted by the new debug=false Release (no engine PDB references); all five
+required driver PDBs match. Release has 44 files, Debug 48. The 48 historical
+files and installed .299's 27 unique payload files remain intact. The build
+phase stopped after Debug. Subsequent final Release package qualification is
+PASS: 68/68 offline extracted files, exact five qualified .300 drivers and
+INF/CAT, signatures/catalog membership, fresh metadata, container digest and
+ZIP integrity. Twenty-two signed dependency/probe PEs were reused only after
+source/configuration/hash proof; the version-dependent ADL shim and current
+setup skeleton were rebuilt. Original archive.rs ran in a pack-only utility;
+HeliosSetup was never executed and qualified drivers were never re-signed.
+Separate Release/Debug symbol bundles preserve ten PE/PDB pairs. Source
+fingerprint and host/private rust-script hashes remained unchanged, and all
+88 qualified output files and installed .299's 27 files were rechecked intact.
+STOP after offline package qualification: deploy, reboot, runtime, new DWM
+capture and publication NOT_RUN; real GPU faults 0. Original-capture deadlock,
+loss origin and BLACK_SCREEN_FIXED remain NOT_PROVEN. Earlier offline findings
+below remain historical evidence.
+
+Evidence: `.fullstack/artifacts/p06/dxvk-error-regressions-20261003/REPORT.md`
+and `.fullstack/artifacts/p06/driver-build-300-20261003/REPORT.md`; final package:
+`.fullstack/artifacts/p06/package-release-300-20261003/REPORT.md`.
+
+## P06 .300 controlled deploy — pre-installation blocker, 2026-10-04
+
+`INSTALLATION_300=PARTIAL`: setup was withheld after a native PowerShell 5.1
+schema control confirmed the exact qualified package recreates install-state
+without `observedComponentVersions`, then its verifier assigns that missing
+property (SetValueInvocationException). This is an installer/verifier contract
+blocker; the preceding 68/68 offline package PASS does not prove installation.
+No setup, reboot, installed-state bypass, rollback or graphics runtime ran.
+Installed .299 remains ACTIVE, oem23.inf, PnP OK/problem 0, KMD Running; all
+27 payload files, metadata/registrations and host/private rust-script hashes
+were preserved. Fix and qualify the state contract in a subsequent phase with
+a new immutable package identity before another deploy. Runtime, black-screen
+fix, loss origin and original-capture deadlock remain unproven.
+
+Evidence: `.fullstack/artifacts/p06/deploy-300-20261004/REPORT.md`.
+
+## P06 .299 D3D11 recovery wait contract — offline source finding
+
+The preserved DWM photograph resolves to two distinct DXVK submission queues;
+unwind correlates compositor a9c with finish worker 3520 and uDWM 34f0 with
+finish worker 2ee4. Both teardown waits require `m_finishQueue.empty()`;
+workers are inside synchronous Venus ring replies while querying timeline
+semaphores. Host progress, original loss result and captured deadlock remain
+NOT_PROVEN; relevant heap pages are absent.
+
+Matched DXVK source establishes a separate conditional error defect:
+`finishCmdLists` calls device `waitForIdle` on non-success, non-device-loss
+wait errors before popping its own finish entry, making drain depend on the
+blocked worker itself. The submit error fallback also reenters `waitForIdle`
+while holding the queue mutex. Neither branch is observed in this dump;
+no product patch or test execution was performed. Minimum isolated follow-up:
+inject a legal non-loss Vulkan error for a single submitted entry and verify
+worker drain, notification and lifetime handling.
+
+Evidence: `.fullstack/artifacts/p06/dwm-offline-contract-20261003/REPORT.md`.
+Candidate remains 22.22.299.0; no new reservation, build, deploy or capture.
+
+## Full Stack P06 E1 correlated kernel observation, 2026-09-30
+
+Green A remains **PARTIAL**, now with actual kernel branch coverage. Diagnostic
+KMD source `8c6c40c95c64`, version22.22.291.0, signed SYS `dc35bfec39d1…2f61c3`,
+passed KMD-only Windows Release/Debug CI36793292986 in wizardkof/helios and was
+installed as oem21.inf. Mesa7d678f31/gitlink/ICDs and Vulkan registry/UAC were
+preserved; qualified .290 UMDs were reused with separately verified signature-only
+transformations. No ATTEST policy, rights, return code or protocol change was made.
+
+All20 calls (10 per user ABI) correlate to100 ETW events with zero reported loss.
+The18 negatives have the expected classification in the actual kernel destination
+after write_back and at DDI exit, while external C0000008 leaves all600 caller
+bytes intact. Caller classification stays NOT_OBSERVED. The proven interval is
+between observed DDI output and immediate user snapshot; no intervening routine
+is identified. File access0x0013019f reaches actual type branch5; SYSTEM/AU7
+reaches mask branch35, distinct from structural-DACL branch9. A separate transport
+proposal and evidence-replay RED preserve the unresolved caller requirement.
+
+The KMD-only observer is default-off and bounded. A live-reader sharing defect
+stopped the first positive-only attempt before negatives; its RED was preserved,
+the gate was corrected and Windows open-writer regression passed. Full matrix,
+stopped-collector controls and postboot genuine x64/x86 controls are separately
+attributed. Following live PnP shell crashes, one authorized Windows reboot plus
+one same-container WinBoat recovery restored Explorer/DWM and desktop dispatch;
+postboot identity/device0/ICD checks pass. Diagnostic KMD remains active, no rollback.
+Owned trace sessions are stopped and the registered instance has EnableCount0;
+overall provider enumeration stays UNKNOWN due unexplained pre-enable placeholders.
+No global-OFF promotion. P06E1Test stayed absent; no COMPLETE/ERROR publication.
+Prior lifetime/reuse/pending/state PASS remain tied to the original KMD. Real
+error executions4, RUN3 NOT_YET_PROVEN, propagation FAIL, ordering/validation
+PARTIAL, SUCCESS_CONTROL NOT_RUN and P09 NOT_STARTED remain unchanged.
+Evidence: `.fullstack/artifacts/p06/e1-kernel-observation-20260930/RESULT.md`.
+
+## Full Stack P06 E1 negative observability and coverage, 2026-09-30
+
+Green A remains **PARTIAL**. An immediate snapshot of the exact600-byte buffer
+submitted to D3DKMTEscape confirms that six focal negative returns (null, requested
+version1, isolated DACL mask, each x64/x86) are already unchanged at API return.
+External NTSTATUS is C0000008; private classification remains NOT_OBSERVED. Four
+adjacent genuine ATTEST controls returned external0/status0. Immediate and later
+serialized bytes agree; canaries and synthetic negative-return capture regression
+pass on both ABIs. No status-conditioned response copy exists in the old wrapper.
+The old label attributing this to a known copy-back limitation was unsupported.
+Preserved KMD source writes classification and unconditionally writes the reply
+before returning the error; that kernel execution has not been observed. No usable
+current kernel observation channel was discovered; a correlated instrumentation
+proposal was documented but not implemented or deployed.
+
+The old permissive fixture (BA owner, one WD ACE) can fail the WDK adapter's
+structural ACE-count check before the pure policy. It does not isolate DACL masks.
+A separate SYSTEM helper now creates only a disposable test Section with readback
+SY owner, protected two-ACE DACL, SYSTEM0xf001f and deliberately wrong AU0x7.
+Desktop consumers verify name/ID/version and HANDLE0x5. Those preconditions isolate
+the intended mask defect, but the actual kernel branch remains NOT_OBSERVED.
+No genuine carrier security or product code was modified. The full previously
+completed lifetime/reuse/pending/controlled-state matrix remains PASS and was not
+repeated. P06E1Test stayed absent. Five objects reclaimed, four task registrations
+removed, no test processes, unchanged product/registry/UAC and healthy guest.
+All downstream states and four real error executions remain unchanged.
+Evidence: `.fullstack/artifacts/p06/e1-negative-observability-20260930/RESULT.md`.
+
+## Full Stack P06 E1 fixture correction and matrix continuation, 2026-09-30
+
+The harness preparation blocker is fixed without changing the installed Mesa
+`7d678f31c485`, paired Helios `d728326deab7`, KMD/protocol or guest graphics
+configuration. A driver/Vulkan-free reproduction returned SetSecurityInfo1350
+(`ERROR_NO_SECURITY_ON_OBJECT`), with WRITE_DAC/READ_CONTROL already granted.
+The anonymous mapping created without explicit security had no owner/DACL;
+creating the same disposable fixture with a SECURITY_ATTRIBUTES descriptor made
+the same security call succeed. The harness preserves that call and validates
+protected DACL/ACEs/owner readback, using separate preparation and read|query0x5
+test handles. Five preparation cases passed on each Windows ABI.
+
+Continuation completed all20 planned cases:18 exit0, and the two negative suites
+exit3/NOT_PROVEN because private ATTEST classifications were not observed
+in the caller buffer. Both ABIs passed genuine positive ATTEST/import, eight external negative
+rejections, five public-import rejections, producer ownership/lifetime, lease and
+late-import lifetime, observed slot0 reuse with independent IDs, pending timeout0,
+and controlled COMPLETE/ERROR. The x86 legacy/E1 cases also passed; original
+public-regression x64/x86 and x64 legacy/E1 PASS remain sourced to the same-Mesa
+checkpoint. No unnecessary original regression or product build/CI/deploy was run.
+
+**Green A stays PARTIAL:** all16 negative ATTEST600-byte buffers were unchanged,
+so exact internal refusal classifications remain NOT_OBSERVED. No criterion was
+reduced and no copy-back change was attempted. Knob DWORD1 was limited to the four
+controlled publishes and restored to absence with independent readback; inventory
+proves ICD/KMD/loader/manifest/Vulkan registry/UAC unchanged. Cleanup passed,
+27 observed names reclaimed, four new tasks removed, guest healthy. Real error
+count4, RUN3 NOT_YET_PROVEN, propagation FAIL, ordering/P06.validation PARTIAL,
+SUCCESS_CONTROL NOT_RUN and P09 NOT_STARTED remain unchanged.
+Evidence: `.fullstack/artifacts/p06/e1-fixture-continuation-20260930/RESULT.md`.
+
+## Full Stack P06 E1 carrier rights correction, 2026-09-30
+
+Mesa `7d678f31c485` (production change `ad9b4552e8ca`), paired by Helios
+`d728326deab7`, passed Windows x64/x86 CI `36764124126`; KMD/protocol source
+and active .290 driver/UMDs are unchanged. The producer now opens the validated
+native carrier name with NtOpenSection read|query (0x5), preserving read-only
+mapping, record checks, leases and SAME_ACCESS. Production-function tests20/20
+passed on both Windows ABIs. New ICDs were deployed through backed-up candidate
+manifest references; Vulkan registry entries and other vendors stayed unchanged.
+
+The **original public-export regression passed x64 and x86**: producer/consumer
+access0x5, separate desktop processes, updated direct ATTEST success, public import
+VK_SUCCESS and exact new ICD hashes. GPU fill/readback passed independently.
+The resumed matrix passed x64 legacy WDDM (signal/wait/counter7), E1 and positive
+ATTEST/import. It then stopped at negative-fixture `SetSecurityInfo` failure
+(`Fixture DACL set`); the numeric Win32 error was not recorded. This is a harness
+preparation blocker, not evidence of another Mesa/KMD failure. Null/wrong-type
+negative ATTEST rejection was observed, while private classification stayed
+NOT_OBSERVED. Lifetime, pending0, controlled COMPLETE/ERROR and remaining x86
+matrix cases are NOT_RUN. **Green A remains PARTIAL / BLOCKED_HARNESS.**
+
+Previous candidate FAIL_RUNTIME and its RED remain unchanged. Cleanup passed:
+no probe processes, three new tasks removed, all five observed carriers reclaimed;
+P06E1Test absent with zero mutations, no publications/reboot, guest healthy.
+New ICDs remain selected with old files/references available for reversal. Real
+error count4, RUN3 root cause NOT_YET_PROVEN, propagation FAIL, ordering PARTIAL,
+P06.validation PARTIAL, SUCCESS_CONTROL NOT_RUN and P09 NOT_STARTED remain.
+Evidence: `.fullstack/artifacts/p06/e1-carrier-rights-20260930/RESULT.md`.
+
+## Full Stack P06 E1 Green A runtime stop, 2026-09-30
+
+The qualified production-v2 pair is present (KMD `42d7e734`, Mesa `e8649870`,
+Helios `c6223d71`, CI run `36675017798`); historical v1-only/source blockers are
+superseded. External x64/x86 harness builds and smoke passed. The x64 legacy
+cross-process Vulkan control passed with explicit Venus RTX 3060 selection,
+GPU fill/readback and consumer timeline synchronization. The first E1 import
+failed: valid v2 Section exported, but consumer received
+`VK_ERROR_INVALID_EXTERNAL_HANDLE` after KMD escape `0xc0000008`.
+`P06_E1_SEMANTIC_GREEN_A=FAIL_RUNTIME`; later matrix cases are `NOT_RUN`.
+Exact attestation rejection cause is not yet proved; no retry or candidate
+change followed. Cleanup passed, P06E1Test remained absent, guest stayed healthy.
+Evidence: `.fullstack/artifacts/p06/e1-green-a-pair-20260930T062711Z/green-a-runtime-20260930/RESULT.md`.
+Real error executions remain 4; error propagation FAIL, ordering PARTIAL,
+P06.validation PARTIAL, SUCCESS_CONTROL NOT_RUN, P09 NOT_STARTED.
+
+**Focused E1 diagnosis (2026-09-30):** A/B/A′ on the same genuine Section strongly
+establishes the missing SECTION_QUERY mismatch. Public export A grants 0x4 and fails
+ATTEST/import; native read|query B grants 0x5, passes ATTEST and diagnostic import;
+reducing B to read-only A′ restores refusal. Failed calls do not return an updated
+private status buffer (classification NOT_OBSERVED). Proposed correction: native
+read|query acquisition in the Mesa producer, retaining KMD UserMode/security policy.
+No product change was made. Original import remains FAIL and Green A FAIL_RUNTIME; later
+matrix cases NOT_RUN. Cleanup/guest health passed, knob absent, real error count 4.
+Evidence: `.fullstack/artifacts/p06/e1-green-a-pair-20260930T062711Z/attest-handle-diagnostic-20260930/RESULT.md`.
 
 ## Full Stack P06 CPU audit, 2026-09-24
 
@@ -117,6 +394,50 @@ this read-only check. See `.fullstack/artifacts/p07/marker-qemu-header/linux-rin
 `P06.source` remains `IN_PROGRESS`; `P06.validation=PARTIAL` and `P06=IN_PROGRESS`.
 `P06_CPU_AUDIT=PASS` does not prove GPU execution, guest rendering or Windows behavior.
 
+## Full Stack P06 V2 rebaseline attempt, 2026-09-25
+
+The isolated V2 source candidates are locked in
+`docs/helios-fullstack-v1.0.1/state/P06_CURRENT_PAIR_V2_STATUS.md`. Venus
+protocol `f1b18391`, virglrenderer `e6f3ece2`, Mesa `395c68d9`, and QEMU
+`ec920976` built in fresh private build directories. Mesa's 39 embedded Venus
+driver headers were synchronized from the V2 generator and verified byte-for-byte;
+that intentional generated-output patch leaves 36 modified headers in the Mesa
+V2 worktree. Protocol passed 1/1, renderer 8/8 under ASan/UBSan, QEMU's virgl
+fence test passed 18 subtests, and the Mesa Venus ICD built successfully.
+
+HOST_GPU used only the private V2 Mesa ICD, V2 vtest server, V2 renderer and
+`renderD128`; WinBoat and QEMU guest were not used. Venus enumerated the physical
+RTX 3060 (`vendorID=0x10de`, `deviceID=0x2487`). The DGC matrix probe selected
+that Venus device and failed closed because
+`deviceGeneratedCommands` was not admitted. A device-selecting copy of the
+existing NV probe (the original assumes one device) passed NV 350/351/352,
+queue submit, and fence wait on that Venus RTX 3060. The V2 `vtest_renderer` callback
+table ends at `write_context_fence`; it does not provide the ABI v5
+`write_context_fence_error` required to negotiate the terminal async error
+callback and capset extension bit 573. DGC workloads and HOST_GPU NV coverage
+remaining DGC workloads are `NOT_RUN`; do not force extension masks or async
+flags. An additional UBSan report occurred at `server/render_socket.c:250` for
+a null second argument to `memcpy` during Vulkan client requests.
+
+The earlier V1 note called renderer source `dff448352df1d78140bf43fcb105662b1d098e3e`
+unrecoverable after checking the Helios root repository. The complete V1 source pair
+was recovered in clean isolated worktrees and focused offline revalidation passed.
+The recovery receipt is `.fullstack/artifacts/p06/p06-v1-recovery/recovery-receipt.json`;
+the historical receipt remains unchanged. Test-only tracepoints now cover the
+renderer marker and QEMU guest-retirement path; offline builds/tests passed and
+the changes are committed in isolated V1 source worktrees. A live deploy attempt
+was rolled back because QEMU failed to load missing `libjpeg.so.8` from the
+WinBoat image. Original QEMU/renderer hashes and compose configuration are
+restored. No desktop probe ran; post-restart `hostinfo` showed no `explorer.exe`
+yet, so marker runtime is PARTIAL and P06 remains PARTIAL.
+
+`P06_CURRENT_PAIR_V2_CPU=PASS`, `P06_CURRENT_PAIR_V2_FUNCTIONAL=PARTIAL`, and
+`P06_CURRENT_PAIR_V2=NOT_REBASED`; `active_current_pair` is unchanged. The
+remaining HOST_GPU blocker is a safe vtest async terminal-error delivery and
+retirement contract, plus triage of the UBSan null `memcpy` input. Overall P06
+remains `PARTIAL`; P08 remains `BLOCKED_EXTERNAL`; P09 remains `NOT_STARTED`.
+No WinBoat/guest/storage/driver/package/system Vulkan changes were made.
+
 ## P08 source: KMD/UMD ABI and basic contracts, 2026-09-25
 
 P08 has started from the current checkout. Commit `45e7a58` moves the production
@@ -128,12 +449,167 @@ and decode-only versus GPU-completion waits. The full `kmd_logic` suite passes 2
 against current source and layout assertions. These CPU results do not prove Windows
 exports, calling conventions, or binaries.
 
-`P08.source=IN_PROGRESS`, `P08.validation=PARTIAL`. The build slave preflight could not
+`P08.source=IN_PROGRESS`, `P08.validation=BLOCKED_EXTERNAL`. The build slave preflight could not
 resolve `firstheberg2-win`; Linux KMD cross-check is rejected by `wdk-build`'s Windows
 host/WDK requirement, and UMD11/UMD12 cross-checks lack MSVC `lib.exe`. Windows x64,
 WoW64/x86, Mesa Venus ICD builds, and PE exports remain unverified. No Windows package
 was created or installed. Receipts and logs are under `.fullstack/artifacts/p08/`.
-P09 lab preparation has not started; the active WinBoat and its storage remain untouched.
+The 2026-09-25 local SSH recovery search found only `.fullstack/runtime/ssh-config`
+`Host win`, which resolves to the WinBoat guest; no slave stanza or endpoint was
+recovered. `P08.validation` therefore remains `BLOCKED_EXTERNAL` by
+`firstheberg2-win`. Readiness and source contracts for the x64 ring-fence/enumeration
+probe builds are in `tools/VK_RUNTIME_PROBES.md`; the cross-built diagnostic PEs and
+runtime follow-up are recorded in the next section. P09 lab preparation has not
+started; no driver/package install, storage change, or runtime binary replacement
+occurred.
+
+## WinBoat Vulkan diagnostic follow-up, 2026-09-25
+
+The PowerShell build recipe passed static parsing on the WinBoat Windows PowerShell
+5.1 runtime. MinGW-w64 GCC 16.2.0 cross-built x64 PE diagnostics using existing
+Linux-host Windows/Vulkan headers and import libraries; no toolchain or Vulkan SDK
+was installed in WinBoat. Build commands and source/import/output hashes are in
+`.fullstack/artifacts/p06/probes/vk-runtime-probes-cross-build-receipt.json`.
+Both executables are diagnostic tools and are not P08 driver/package artifacts.
+
+The Vulkan inventory probe ran through `purpose=desktop` as `reliuz`, session 2,
+and returned one physical device: `Virtio-GPU Venus (NVIDIA GeForce RTX 3060)`,
+vendor `0x10de`, device `0x2487`, API `1.4.343`, driver `venus` (ID 22). The same
+process loaded `C:\WINDOWS\SYSTEM32\vulkan-1.dll` version `1.3.300.0` and the
+package's `vulkan_virtio.dll`; `WINBOAT_VULKAN_DEVICE_ENUM=PASS` for this runtime
+enumeration. This does not prove installed package/source provenance.
+
+The ring probe also ran through `purpose=desktop`, session 2, and exited 0. The
+20 ms consumer wait returned `VK_TIMEOUT`; the 30 s final wait returned
+`VK_SUCCESS` after 251.5 ms for a 279.4 ms calibrated workload. `ring_idx`, the
+private marker VkFence identity/no-`SYNC_FD` path, matching host fence callback,
+and guest retirement timestamps were not observed. The simultaneous filtered
+WinBoat container log capture contained zero fence/callback events. Record
+`P06_MARKER_RUNTIME=PARTIAL`; `PROBE_BINARY_UNAVAILABLE=false` now only means the
+diagnostic PE exists. `GUEST_BINARY_PROVENANCE=UNKNOWN` remains.
+
+**P06 V1 live update (2026-09-26):** the preceding PARTIAL result is historical.
+With the V1 server executable actually running as the proxy/VKR executor, the
+single qualified ring execution `p06-ring2-20260926T020846Z` selected Venus,
+reported guest `ctx_id=135`, and mapped original QEMU fence 10021 on ring 1 to
+proxy seqno 1. The server created private marker `0x557b94cc7080` with
+`pNext=NULL`, no export chain or SYNC_FD, then emitted enqueue, GPU wait,
+completion and async callback status 0 for that identity. QEMU received the
+async event and retired the original fence; the guest saw early `VK_TIMEOUT`,
+final `VK_SUCCESS`, and PE/task exit 0. `P06_MARKER_RUNTIME=PASS` is recorded
+with raw captures in `.fullstack/artifacts/p06/p06-v1-recovery/runtime-deps/`.
+The prior one-off wrapper abort remains separate. `P06_RUNTIME_ERROR_ORDERING`
+is still `NOT_RUN`, so `P06.validation=PARTIAL`; P08 and P09 gates are unchanged.
+
+The current-pair renderer path and exact source commits are now mapped in
+`tools/VK_RUNTIME_PROBES.md`; runtime `ERROR17 → SUCCESS18` remains `NOT_RUN`.
+No test-only fault hook was added. `P08.validation` remains `BLOCKED_EXTERNAL` by
+`firstheberg2-win`; formal `P09` remains `NOT_STARTED`.
+
+**P06 RUN3 error diagnostic (2026-09-27):** the diagnostic transaction
+`p06-run3-error-diag-20260927T071400Z` executed once on the qualified .288 guest.
+The host's real fence wait returned 0, the one-shot hook injected `-13`, and
+QEMU retired the correlated `ctx_id=331`, ring-1 fence with `status=-13` and
+`RESP_ERR_UNSPEC` (`0x1200`). The guest still returned `VK_TIMEOUT` after its
+30 s wait, reproducing `P06_RUNTIME_ERROR_PROPAGATION=FAIL`. The QEMU error
+maps uniquely by context/ring to the only post-release ring-1 submit, but the
+guest submit trace logs the local pre-KMD fence ID; the KMD-returned wire ID is
+not logged. QUERY_STATS reported no event registration/live event in all 979
+samples, including one 9.774 ms after the QEMU error, while Mesa's process
+telemetry reported one event wait and no fallback. Therefore the exact event
+registration and waited-wire-fence identity remain `NOT_PROVEN`; do not apply
+the opportunistic-drain patch from this evidence. A narrow per-fence trace and
+logging the returned wire ID are needed to select the next correction.
+`P06_RUNTIME_ERROR_ORDERING=PARTIAL`, `P06.validation=PARTIAL`, and
+`SUCCESS_CONTROL=NOT_RUN` remain. `P08.validation=PARTIAL`; `P09=NOT_STARTED`.
+The active container's tmpfs was remounted in place to 256 MiB and remains
+enlarged for the P06 cycle; QEMU, `qemu.pty`, QMP, and the guest stayed live.
+The pre-remount `qemu.pty` inode/mode was not captured, so the capacity recovery
+gate is recorded as `PARTIAL`. Full receipts are in
+`.fullstack/artifacts/p06/p06-run3-error-diag-20260927T071400Z/`.
+
+**P06 QUERY_STATS identity/V4 gate correction (2026-09-27):** the RUN3 Mesa
+probe selected LUID `00000000:00069453` by successful CTX_CREATE, stored that
+enumerated `AdapterLuid` in `helios->adapter_luid`, and copied it directly to
+renderer `deviceLUID`; the read-only reader filtered the same LUID. A raw
+sentinel follow-up proved the prior V2/V4 helpers did not receive any QUERY_STATS
+payload: status was 0 and the input header was echoed, but every byte after the
+16-byte header remained `0xA5` for declared sizes 88/152/200/232. The previous
+`out_present_streams_cap=0` was therefore the reader's own zero-initialized
+buffer, not a KMD response. C and Rust payload layouts agree, and the active
+service backing file matches the RUN3 package KMD hash; the package manifest
+records Helios source `1fe866c7`, whose V4 capacity is 64. The helper's
+adapter-scoped call passed null `hDevice`/`hContext`, while Mesa passes both and
+its source warns some Windows builds require the device. Thus V4 runtime support
+and loaded-image identity remain `NOT_PROVEN`; the raw result establishes only
+that this null-device route wrote no payload, not that QUERY_STATS V4 is
+unsupported. The exact Mesa candidate confirms the selected query adapter and
+RUN3 probe LUID are the same. It also passes device and context handles and warns
+that some Windows builds require the device, so the null handles are a plausible
+route explanation, not runtime-proven cause. No valid device/context handle is
+available without creating a device, which this phase forbids. The max returned
+prefix was header-only; the conditional V3-prefix reload branch does not apply,
+so no reload was attempted. The exact Mesa candidate also confirms the current
+submit trace runs before `helios_escape()` and is not authority for the KMD-assigned
+wire fence. No diagnostic build, fault transaction, or reload was performed. See
+`.fullstack/artifacts/p06/query-stats-v4-runtime-identity-20260927T0758Z/`.
+
+**P06 E1 versioned ATTEST (2026-10-01): GREEN_A=PASS** on Mesa
+`eeb1ca0b80009f1c9090eed333517588eab4f806` and KMD
+`9858a6cdead2435f8be30b892426825ecb7e8c3c` (.292/oem22), x64/x86.
+Real A/B/C compatibility is qualified. The new120-byte QUERY/ATTEST contract
+returns validated semantic classifications to the caller; old op9/600 RED
+remains preserved. Final-pair original regression4 rows and full matrix24
+rows pass, including lifetime/reuse, pending timeout0 and controlled
+COMPLETE/ERROR. Own ETW collection ended before the full regression;
+independent cleanup and desktop health pass, knob restored absent. Global
+ETW remains UNKNOWN. No new fault/reboot/build/install in this resumption.
+`P06.validation=PARTIAL`, error propagation FAIL, error ordering PARTIAL,
+RUN3 root cause NOT_YET_PROVEN, real error executions4, SUCCESS_CONTROL
+NOT_RUN and P09 NOT_STARTED remain unchanged. Evidence and per-case matrix:
+`.fullstack/artifacts/p06/e1-attest-transport-20260930/RESULT.md`.
+
+**P06 E1 Green B — preparation only (2026-10-01):**
+`P06_E1_SEMANTIC_GREEN_A=PASS` above is the approved checkpoint, bounded to
+Mesa eeb1ca0b / KMD9858a6c and its accepted matrix; old op9 RED remains.
+The recovered Green B contract and source gap map distinguish blocking
+pending wait, object-scoped notification, independent publication lifetime
+and exact real-submit completion. Controlled Green A publication is not
+real-path integration. No tests/build/CI/guest mutation were performed.
+Plan, explicit next authorizations and parent-ledger hashes:
+`.fullstack/artifacts/p06/e1-green-b-preparation-20261001/IMPLEMENTATION_PLAN.md`
+and its `LEDGER.md` / `AUTHORITY.json`. Green B NOT_RUN; downstream states
+and global ETW UNKNOWN unchanged. Main HEAD is not deployed-source authority.
+
+**P06 Install/Verify state contract (2026-10-04): .303 PASS OFFLINE.**
+The shared state normalizer preserves existing and previous observations and
+adds missing verifier-written properties; an unknown legacy digest is allowed
+only for a strictly newer candidate. Native Windows PowerShell 5.1 x64 tests
+reproduce the .300 failure and pass all eight cases on the final packaged
+scripts. Assembly now requires that packaged-byte gate before ZIP/seal;
+a valid container with old scripts is rejected. Candidate-version14,
+package decoder/environment8 and DXVK CPU9 regressions pass. Fresh Release
+and Debug, toolchain isolation, signatures, ten PE/PDB pairs and all69
+embedded files pass for 22.22.303.0. The installed .299 remains intact27/27,
+including state and registrations. .300 remains frozen and deploy-blocked;
+.301/.302 are occupied and superseded, with their failure evidence preserved.
+No deploy, reboot, runtime, capture, fault or publication was performed.
+BLACK_SCREEN_FIXED, DEVICE_LOSS_ORIGIN and DEADLOCK_IN_ORIGINAL_CAPTURE
+remain NOT_PROVEN. Evidence and final identities:
+[qualification report](.fullstack/artifacts/p06/install-state-contract-20261004/REPORT.md).
+
+**P06 .303 controlled deployment (2026-10-04): INSTALLATION_303=PARTIAL.**
+Exact qualified ZIP and native packaged schema8/8 passed. The official setup
+ran once, exit3010, new oem24.inf; its verifier produced .303 ACTIVE with all
+nine component observations and27/27 matching payloads before reboot. One
+QMP reset was issued; an additional Docker restart was observed, origin UNKNOWN.
+Official provisioning was observed Running then finished with a fresh timestamp
+and removed its own task. Final no-smoke verifier/static audit was launched,
+but subsequent SSH banner/command timeouts prevented final state/payload/tool
+readback and guest cleanup. Final activation remains NOT_PROVEN; no second
+reset, manual fix or rollback. Runtime/capture/fault/CI/publication NOT_RUN;
+black-screen/device-loss/deadlock diagnoses remain NOT_PROVEN. Evidence:
+[deployment report](.fullstack/artifacts/p06/deploy-303-20261004/REPORT.md).
 
 ## Self-contained installer and WinBoat provisioning, 2026-09-17
 

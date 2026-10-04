@@ -31,9 +31,38 @@ function Get-HeliosManifestPayloadDigest([Parameter(Mandatory)]$Manifest) {
     return ([BitConverter]::ToString($sha).Replace("-", "")).ToLowerInvariant()
 }
 
+# Normalize only metadata written by verification. Missing legacy identity or
+# rollback receipts remain unknown; never manufacture evidence of activation.
+# Preserve every existing value until verification has actual observations.
+function Initialize-HeliosInstallState([Parameter(Mandatory)]$State, $PreviousState = $null) {
+    $dictionary = $State -is [Collections.IDictionary]
+    $candidateVersion = if ($dictionary) { [string]$State['candidateVersion'] }
+        elseif ($State.PSObject.Properties['candidateVersion']) { [string]$State.candidateVersion }
+        else { "" }
+    if (-not $candidateVersion) { $candidateVersion = [string]$State.version }
+    $defaults = [ordered]@{
+        candidateVersion = $candidateVersion
+        preparedVersion = $candidateVersion
+        activeVersionObserved = ""
+        observedComponentVersions = if ($PreviousState -and
+            $PreviousState.PSObject.Properties['observedComponentVersions']) {
+            $PreviousState.observedComponentVersions
+        } else { [ordered]@{} }
+        restartPending = $true
+        versionState = "PREPARED"
+    }
+    foreach ($entry in $defaults.GetEnumerator()) {
+        if ($dictionary) {
+            if (-not $State.Contains($entry.Key)) { $State.Add($entry.Key, $entry.Value) }
+        } elseif (-not $State.PSObject.Properties[$entry.Key]) {
+            $State | Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value
+        }
+    }
+}
+
 function Assert-HeliosCandidateTransition(
     [Parameter(Mandatory)][string]$ExistingVersion,
-    [Parameter(Mandatory)][string]$ExistingPayloadDigest,
+    [Parameter(Mandatory)][AllowEmptyString()][string]$ExistingPayloadDigest,
     [Parameter(Mandatory)][string]$CandidateVersion,
     [Parameter(Mandatory)][string]$CandidatePayloadDigest
 ) {

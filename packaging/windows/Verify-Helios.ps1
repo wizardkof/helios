@@ -15,6 +15,7 @@ if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
     throw "No package-managed Helios installation was found at $statePath."
 }
 $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+Initialize-HeliosInstallState $state
 $failures = [Collections.Generic.List[string]]::new()
 $instanceId = ""
 $classKey = ""

@@ -65,7 +65,16 @@ function Import-VisualStudioEnvironment(
         }
         $clean = "call `"$devCmd`" -no_logo -clean_env && "
     }
-    $start.Arguments = "/d /s /c `"${clean}call `"$devCmd`" -no_logo -arch=$Architecture -host_arch=x64 && set`""
+    $toolset = ""
+    if ($env:HELIOS_MSVC_VERSION) {
+        if ($env:HELIOS_MSVC_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid MSVC pin." }
+        $toolset = " -vcvars_ver=$($env:HELIOS_MSVC_VERSION)"
+    }
+    if ($env:HELIOS_WINDOWS_KIT_VERSION) {
+        if ($env:HELIOS_WINDOWS_KIT_VERSION -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Invalid Windows kit pin." }
+        $toolset += " -winsdk=$($env:HELIOS_WINDOWS_KIT_VERSION)"
+    }
+    $start.Arguments = "/d /s /c `"${clean}call `"$devCmd`" -no_logo -arch=$Architecture -host_arch=x64$toolset && set`""
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     try {
@@ -101,7 +110,7 @@ function Find-WindowsKitTool([Parameter(Mandatory)][string]$Name) {
         throw "Windows Kits bin directory was not found at $kitsBin."
     }
     $tools = @(Get-ChildItem -LiteralPath $kitsBin -Filter $Name -File -Recurse |
-        Where-Object { $_.Directory.Name -in @("x64", "x86") } |
+        Where-Object { $_.Directory.Name -in @("x64", "x86") -and (-not $env:HELIOS_WINDOWS_KIT_VERSION -or $_.Directory.Parent.Name -eq $env:HELIOS_WINDOWS_KIT_VERSION) } |
         Sort-Object { ConvertTo-WindowsKitVersion $_.Directory.Parent.Name } -Descending)
     $tool = $tools | Where-Object { $_.Directory.Name -eq "x64" } | Select-Object -First 1
     if (-not $tool) { $tool = $tools | Select-Object -First 1 }
@@ -114,7 +123,7 @@ function Find-WindowsKitTool([Parameter(Mandatory)][string]$Name) {
 function Find-WindowsKitInclude {
     $includeRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
     $candidate = Get-ChildItem -LiteralPath $includeRoot -Directory |
-        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "km\ntddk.h") } |
+        Where-Object { (Test-Path -LiteralPath (Join-Path $_.FullName "km\ntddk.h")) -and (-not $env:HELIOS_WINDOWS_KIT_VERSION -or $_.Name -eq $env:HELIOS_WINDOWS_KIT_VERSION) } |
         Sort-Object { ConvertTo-WindowsKitVersion $_.Name } -Descending |
         Select-Object -First 1
     if (-not $candidate) {

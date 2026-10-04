@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "runner": "windows-2022",
+  "repositoryVisibility": "public",
+  "executor": "standard GitHub-hosted",
+  "paidRunner": false,
+  "expectedResources": {
+    "cpu": 4,
+    "ramGiB": 16,
+    "documentedStorageGiB": 14
+  },
+  "minimumResources": {
+    "cpu": 2,
+    "ramGiB": 14,
+    "freeDiskGiB": 14
+  },
+  "parallelism": {
+    "productWorkers": 2,
+    "cargoWorkers": 2,
+    "regressionProcesses": 1
+  },
+  "authority": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
+  "toolchainPins": "ci-toolchain-pins.json",
+  "notes": "Toolchain pins and functional build options unchanged. Resource exhaustion STOP; no tool/test/component fallback."
+}

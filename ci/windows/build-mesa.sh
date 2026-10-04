@@ -5,6 +5,10 @@ set -euo pipefail
 # converter rewrites the embedded `-includeD:/...` compiler argument into the
 # invalid `-includeD:A:/...` form before Meson sees it.
 export MSYS2_ARG_CONV_EXCL='*'
+if [[ "${GITHUB_ACTIONS:-}" != true && "${HELIOS_ALLOW_LOCAL_PRODUCT_BUILD:-}" != 1 ]]; then
+  printf 'LOCAL_PRODUCT_BUILDS=DISABLED_BY_DEFAULT\n' >&2; exit 1
+fi
+export HELIOS_MESON_LOCK_ROOT="${RUNNER_TEMP:?}/helios-mesa-locks"
 
 repo_root="$(cygpath -m "${1:?usage: build-mesa.sh REPO_ROOT OUTPUT_DIR [BUILD_DIR] [--clean|--reuse]}")"
 output_dir="$(cygpath -m "${2:?usage: build-mesa.sh REPO_ROOT OUTPUT_DIR [BUILD_DIR] [--clean|--reuse]}")"
@@ -33,8 +37,12 @@ case "${build_mode}" in
     ;;
 esac
 mkdir -p "${output_dir}"
+architecture=x64
+if [[ "${MSYSTEM:-}" == MINGW32 ]]; then architecture=x86; fi
+python "${repo_root}/ci/windows/assert_msys_pins.py" "${architecture}" "${output_dir}/msys2-pins.txt"
 
-meson setup "${setup_mode[@]}" "${build_dir}" "${mesa_src}" \
+
+python "${repo_root}/ci/windows/meson-isolated.py" setup "${setup_mode[@]}" "${build_dir}" "${mesa_src}" \
   --native-file "${native_file}" \
   "-Dc_args=-include${compat_header}" \
   -Dvulkan-drivers=virtio \
@@ -58,7 +66,7 @@ meson setup "${setup_mode[@]}" "${build_dir}" "${mesa_src}" \
   -Dxmlconfig=disabled \
   --buildtype=release
 
-meson compile -C "${build_dir}"
+python "${repo_root}/ci/windows/meson-isolated.py" compile -j "${HELIOS_BUILD_JOBS:?}" -C "${build_dir}"
 
 cp "${build_dir}/src/virtio/vulkan/vulkan_virtio.dll" "${output_dir}/"
 cp "${build_dir}/src/gallium/targets/wgl/libgallium_wgl.dll" "${output_dir}/"
@@ -106,3 +114,6 @@ PY
 } > "${output_dir}/imports.txt"
 
 printf 'Mesa artifact staged at %s\n' "${output_dir}"
+
+# Close the producer with the same exact package pin audit.
+python "${repo_root}/ci/windows/assert_msys_pins.py" "${architecture}" "${output_dir}/post-msys2-pins.txt"

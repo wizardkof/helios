@@ -6,6 +6,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "CI-Qualification.ps1")
+Assert-CIBackend
 . (Join-Path $PSScriptRoot "Initialize-HeliosBuild.ps1")
 
 $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path

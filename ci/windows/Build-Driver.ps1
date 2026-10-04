@@ -8,6 +8,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "Initialize-HeliosBuild.ps1")
+. (Join-Path $PSScriptRoot "CI-Qualification.ps1")
+Assert-CIBackend
+$env:HELIOS_CI_CONFIGURATION=$Configuration
+$receipts=Join-Path $BuildRoot "qualification-$Configuration"
+Write-CIFingerprint $RepoRoot $receipts pre
+Write-CIRustScriptContract $receipts pre
 
 # cargo's debug profile is named `dev` but writes to target/debug; the two names
 # are kept apart deliberately so neither is hardcoded downstream.
@@ -18,8 +24,8 @@ $mesonBuildType = if ($Configuration -eq "Debug") { "debug" } else { "release" }
 $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 # Candidate version allocation happens once before the Release/Debug matrix.
 # Each build worker verifies the same immutable lock and never allocates a number.
-& (Join-Path $RepoRoot "ci\windows\Verify-CandidateSource.ps1") -RepoRoot $RepoRoot `
-    -Configuration $Configuration -Architecture "x64+x86"
+& python (Join-Path $RepoRoot "tools\candidate_version.py") verify --portable --root $RepoRoot
+if ($LASTEXITCODE -ne 0) { throw "Candidate version/source lock is absent or stale." }
 # Reject stale checked-in INF/Cargo descriptions before starting engine builds.
 & python (Join-Path $RepoRoot "tools\sync-metadata.py") --check
 if ($LASTEXITCODE -ne 0) { throw "Metadata is stale; run tools/sync-metadata.py." }
@@ -68,23 +74,23 @@ foreach ($architecture in @("x64", "x86")) {
         "-Wno-c++20-extensions"
         "-Wno-unused-const-variable"
     ) -join " "
-    & meson.exe setup $dxvkBuild $dxvkSource `
+    & python $env:HELIOS_MESON_ENTRY setup $dxvkBuild $dxvkSource `
         --native-file $nativeFile --buildtype $mesonBuildType -Db_vscrt=mt `
         "-Dcpp_args=$dxvkCppArgs" "-Dc_args=/FI$compatHeader" `
         -Denable_d3d8=false -Denable_d3d9=false -Denable_d3d10=false `
         -Denable_d3d11=true -Denable_dxgi=true
     if ($LASTEXITCODE -ne 0) { throw "DXVK $architecture meson setup failed with exit code $LASTEXITCODE." }
-    & meson.exe compile -C $dxvkBuild
+    & python $env:HELIOS_MESON_ENTRY compile -j $env:HELIOS_BUILD_JOBS -C $dxvkBuild
     if ($LASTEXITCODE -ne 0) { throw "DXVK $architecture build failed with exit code $LASTEXITCODE." }
 
     # Static CRT for BOTH engines, so no VC++ redistributable is needed on the
     # target: DXVK and vkd3d are /MT, and the umd/umd12 crates are crt-static.
     # clang-cl uses the MSVC ABI; MinGW archives cannot be linked here.
-    & meson.exe setup $vkd3dBuild $vkd3dSource `
+    & python $env:HELIOS_MESON_ENTRY setup $vkd3dBuild $vkd3dSource `
         --native-file $nativeFile --buildtype $mesonBuildType -Db_vscrt=mt `
         -Denable_tests=false "-Dc_args=-Wno-error=incompatible-pointer-types"
     if ($LASTEXITCODE -ne 0) { throw "vkd3d $architecture meson setup failed with exit code $LASTEXITCODE." }
-    & meson.exe compile -C $vkd3dBuild helios_d3d12_static
+    & python $env:HELIOS_MESON_ENTRY compile -j $env:HELIOS_BUILD_JOBS -C $vkd3dBuild helios_d3d12_static
     if ($LASTEXITCODE -ne 0) { throw "vkd3d $architecture static engine build failed with exit code $LASTEXITCODE." }
     $engineBuilds[$architecture] = @{ dxvk = $dxvkBuild; vkd3d = $vkd3dBuild }
 }
@@ -129,7 +135,7 @@ Push-Location $kmdRoot
 try {
     $rustcVersion = (& rustc.exe --version) -join "`n"
     $cargoVersion = (& cargo.exe --version) -join "`n"
-    & cargo.exe make --profile $cargoMakeProfile --makefile Cargo.make.toml
+    & (Join-Path $PSScriptRoot "Invoke-IsolatedCargoMake.ps1") -KmdRoot $kmdRoot -Profile $cargoMakeProfile -AuditFile (Join-Path $receipts "producer-$Configuration.executions.log")
     if ($LASTEXITCODE -ne 0) { throw "Helios driver build failed with exit code $LASTEXITCODE." }
 } finally {
     Pop-Location
@@ -190,7 +196,7 @@ foreach ($architecture in @("x64", "x86")) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $alreadyBuilt = @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll", "helios_umd32.dll", "helios_umd12_32.dll") |
     Where-Object { Test-Path -LiteralPath (Join-Path $OutputDir $_) -PathType Leaf }
-if (@($alreadyBuilt).Count -gt 0) {
+if ($alreadyBuilt.Count -gt 0) {
     throw "Build output already contains a candidate artifact identity: $($alreadyBuilt -join ', '). Use a new output directory."
 }
 Copy-Item -Path (Join-Path $package "*") -Destination $OutputDir -Recurse -Force
@@ -284,4 +290,22 @@ foreach ($image in $imageRecords) {
     }
 }
 
+# Preserve engine symbols independently of the runtime payload.
+foreach($f in Get-ChildItem (Join-Path $BuildRoot $Configuration) -Recurse -File | Where-Object {$_.Extension -in '.pdb','.map'}){
+ $relative=$f.FullName.Substring($BuildRoot.Length+1)
+ $dest=Join-Path $OutputDir "symbols\engine\$relative"
+ New-Item -ItemType Directory -Force (Split-Path $dest -Parent)|Out-Null
+ Copy-Item $f.FullName $dest
+}
+& (Join-Path $PSScriptRoot 'Assert-CIToolchain.ps1') -ReceiptDir (Join-Path $receipts 'post-toolchain')
+& (Join-Path $PSScriptRoot 'Assert-ComponentToolchain.ps1') -Component driver -Phase post -ReceiptDir (Join-Path $receipts 'post-toolchain')
+Write-CIRustScriptContract $receipts post
+Write-CIFingerprint $RepoRoot $receipts post
+$executions=Get-Content (Join-Path $receipts "producer-$Configuration.executions.log") -Raw
+if($executions -notmatch ([regex]::Escape("PRODUCER_PROFILE=$cargoMakeProfile TASK=default"))){throw 'Current configuration producer audit absent'}
+if($executions -notmatch 'WDK_RUST_SCRIPT_Run.*rust-script 0.30.0' -or $executions -notmatch 'HOST_RUST_SCRIPT_EXEC.*rust-script 0.36.0.*copy-umd-to-package'){throw 'Actual host/private producer execution proof absent'}
+$executions|Set-Content (Join-Path $receipts 'producer-executions.txt') -Encoding UTF8
+& (Join-Path $PSScriptRoot 'Audit-DriverSymbols.ps1') -OutputDir $OutputDir -Configuration $Configuration -Version $candidateLock.version
+Write-CIHashIndex $OutputDir
+Write-CIHashIndex $receipts
 Write-Host "Driver artifact ($Configuration) staged at $OutputDir"

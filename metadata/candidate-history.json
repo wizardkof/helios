@@ -105,6 +105,58 @@
       "sourceFingerprint": "2b4d539daea0bafdd0de205fa5b8a0057c9dcbd2ac42c18b38176f76d24935b8",
       "status": "reserved",
       "version": "22.22.299.0"
+    },
+    {
+      "reservationDigest": "5a5a468b82327516c0dbdf6d600b8991f1ea8f51b6c65a0b85842ce5ab91a36d",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.300.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "7f11702f558869ad0fb7ce6a050127986432dc3d",
+        "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "b247e436b7155855ce03a9b8b5eb4f3e32ce3b2c4ee1b299307aee9ebe82271e",
+      "status": "reserved",
+      "version": "22.22.300.0"
+    },
+    {
+      "reservationDigest": "b10a51d1528f0b9a51ca2e64379319536fd6ec72acd1aed3058d43df22910e04",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.301.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "7f11702f558869ad0fb7ce6a050127986432dc3d",
+        "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "da771b66dd73ea6b9243c1330cc8f41f985c000551a964a11168a72b1916f70c",
+      "status": "reserved",
+      "version": "22.22.301.0"
+    },
+    {
+      "reservationDigest": "bd97181ac28a376a0654bc522afa01f89a1d1848d22c7e4ee60a65eb0b71d48d",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.302.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "7f11702f558869ad0fb7ce6a050127986432dc3d",
+        "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "7723e2a6242bd0c6ec7fbf1f1ceedb5f6ad248cb9dd1682a2120aceb8021a0b1",
+      "status": "reserved",
+      "version": "22.22.302.0"
+    },
+    {
+      "reservationDigest": "2ee5984d9d4931f6dad2ed5c3a7511d963c2fabf346f912ff3b043bd871712f8",
+      "reservationRef": "refs/helios/candidate-reservations/22.22.303.0",
+      "sourceCommits": {
+        "dxvk": "b79b310f292a95872114ec167a0f7e33a9bba9e7",
+        "helios": "7f11702f558869ad0fb7ce6a050127986432dc3d",
+        "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+        "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+      },
+      "sourceFingerprint": "c0c22ce710c037841c3ae08688c8dc30b8cd54864b0e78517c3f833021ee2132",
+      "status": "reserved",
+      "version": "22.22.303.0"
     }
   ],
   "reconciledAt": "2026-10-01",

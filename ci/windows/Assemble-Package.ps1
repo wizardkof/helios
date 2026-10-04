@@ -23,11 +23,26 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "CI-Qualification.ps1")
+Assert-CIBackend
+$env:HELIOS_CI_CONFIGURATION=$Configuration
 . (Join-Path $PSScriptRoot "Initialize-HeliosBuild.ps1")
 . (Join-Path $RepoRoot "packaging\windows\Helios-PackageCommon.ps1")
 . (Join-Path $RepoRoot "metadata\Read-HeliosMetadata.ps1")
-& (Join-Path $RepoRoot "ci\windows\Verify-CandidateSource.ps1") -RepoRoot $RepoRoot `
-    -Configuration $Configuration -Architecture "x64+x86"
+& python (Join-Path $RepoRoot "tools\candidate_version.py") verify --portable --root $RepoRoot
+if ($LASTEXITCODE -ne 0) { throw "Candidate source lock failed; refusing to assemble a package." }
+# Admit exact run/source/configuration-bound outputs before copying or signing.
+foreach($input in @(
+ @{path=$DriverArtifact;component='driver';configuration=$Configuration;arch='x64+x86'},
+ @{path=$MesaArtifact;component='mesa';configuration='Release';arch='x64'},
+ @{path=$MesaX86Artifact;component='mesa-x86';configuration='Release';arch='x86'},
+ @{path=$OpenClArtifact;component='opencl';configuration='Release';arch='x64'},
+ @{path=$LoadersArtifact;component='loaders';configuration='Release';arch='x64+x86'},
+ @{path=$CompatibilityArtifact;component='compatibility';configuration='Release';arch='x64'},
+ @{path=$InstallerArtifact;component='installer';configuration=$Configuration;arch='x64'})) {
+ & python (Join-Path $PSScriptRoot 'ci_artifact.py') verify --directory $input.path --source-root $RepoRoot --component $input.component --configuration $input.configuration --architecture $input.arch
+ if($LASTEXITCODE -ne 0){throw "Downloaded component identity/bytes failed: $($input.component)"}
+}
 $metadata = Read-HeliosMetadata $RepoRoot
 if ($Version -ne $metadata.HELIOS_KMD_VERSION) {
     throw "Package version $Version differs from kmd_render/driver-version.env ($($metadata.HELIOS_KMD_VERSION))."
@@ -101,11 +116,6 @@ function Invoke-SignTool([string]$SignTool, [string]$Thumbprint, [string]$Path) 
     if ($LASTEXITCODE -ne 0) { throw "signtool failed to sign $Path." }
 }
 
-function Assert-SignTool([string]$SignTool, [string]$Path, [string[]]$AdditionalArguments = @()) {
-    & $SignTool verify /pa /all /v @AdditionalArguments $Path
-    if ($LASTEXITCODE -ne 0) { throw "signtool could not verify the test signature for $Path." }
-}
-
 $shortCommit = $RepositoryCommit.Substring(0, 8)
 $configurationSuffix = if ($Configuration -eq "Debug") { "-debug" } else { "" }
 $packageId = "helios-windows-x64-$Version-$shortCommit$configurationSuffix"
@@ -147,7 +157,7 @@ $packageSource = Join-Path $RepoRoot "packaging\windows"
 # Only the scripts the installer runs after extraction are embedded. The
 # human-facing README is placed next to the final exe, not inside it, and the
 # old Install-Helios.cmd launcher is gone now that the exe is the entry point.
-foreach ($script in @("Install-Helios.ps1", "Uninstall-Helios.ps1", "Verify-Helios.ps1", "Helios-PackageCommon.ps1")) {
+foreach ($script in @("Install-Helios.ps1", "Uninstall-Helios.ps1", "Verify-Helios.ps1", "Helios-PackageCommon.ps1", "Test-HeliosInstallState.ps1")) {
     Copy-Required (Join-Path $packageSource $script) (Join-Path $stagingRoot $script)
 }
 # The Rust skeleton is NOT copied into the payload; it is the template the
@@ -176,7 +186,7 @@ $driverDate = $Matches[1].Trim()
 $infVersion = $Matches[2].Trim()
 if ($infVersion -ne $Version) { throw "INF DriverVer version $infVersion differs from candidate $Version." }
 try {
-    $driverDateValue = [DateTime]::ParseExact($driverDate, @("M/d/yyyy", "M/dd/yyyy", "MM/d/yyyy", "MM/dd/yyyy"), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None)
+    $driverDateValue = [DateTime]::ParseExact($driverDate, @("M/d/yyyy", "MM/dd/yyyy"), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None)
 } catch { throw "INF DriverVer date is invalid: $driverDate" }
 foreach ($name in @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll")) {
     Assert-HeliosPeArchitecture (Join-Path $driverOut $name) x64
@@ -187,6 +197,9 @@ foreach ($name in @("helios_umd32.dll", "helios_umd12_32.dll")) {
 foreach ($optional in @("helios_kmd_render.pdb", "helios_kmd_render.map", "helios_umd.pdb", "helios_umd12.pdb", "helios_umd32.pdb", "helios_umd12_32.pdb")) {
     $source = Join-Path $DriverArtifact $optional
     if (Test-Path -LiteralPath $source -PathType Leaf) { Copy-Required $source (Join-Path $symbolsRoot $optional) }
+}
+if(Test-Path (Join-Path $DriverArtifact 'symbols')){
+ Copy-Item (Join-Path $DriverArtifact 'symbols') (Join-Path $symbolsRoot 'engine') -Recurse -Force
 }
 $installerPdb = Join-Path $InstallerArtifact "HeliosSetup.pdb"
 if (Test-Path -LiteralPath $installerPdb -PathType Leaf) { Copy-Required $installerPdb (Join-Path $symbolsRoot "HeliosSetup.pdb") }
@@ -280,7 +293,6 @@ try {
     $certificateOut = Join-Path $stagingRoot "certificate\helios-ci-test.cer"
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $certificateOut) | Out-Null
     Export-Certificate -Cert $certificate -FilePath $certificateOut -Type CERT | Out-Null
-    Import-Certificate -FilePath $certificateOut -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
 
     # The catalog hashes the SYS and all four UMDs. Sign those first, generate the
     # catalog over the final bytes, and sign the catalog last.
@@ -305,23 +317,7 @@ try {
     $signable += @(Get-ChildItem -LiteralPath $mesaOut -Filter "*.dll" -File -Recurse | ForEach-Object FullName)
     $signable += @(Get-ChildItem -LiteralPath (Join-Path $payload "smoke") -Filter "*.exe" -File -Recurse | ForEach-Object FullName)
     foreach ($file in $signable) { Invoke-SignTool $signTool $certificate.Thumbprint $file }
-
-    $signedDriverImages = @(
-        (Join-Path $driverOut "helios_kmd_render.sys"),
-        (Join-Path $driverOut "helios_umd.dll"),
-        (Join-Path $driverOut "helios_umd12.dll"),
-        (Join-Path $driverOut "helios_umd32.dll"),
-        (Join-Path $driverOut "helios_umd12_32.dll")
-    )
-    foreach ($file in $signable + $signedDriverImages + @($catalog)) {
-        Assert-SignTool $signTool $file
-    }
-    foreach ($file in $signedDriverImages) {
-        & $signTool verify /pa /v /c $catalog $file
-        if ($LASTEXITCODE -ne 0) { throw "The signed catalog does not verify $([IO.Path]::GetFileName($file))." }
-    }
 } finally {
-    Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$($certificate.Thumbprint)" -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($certificate.Thumbprint)" -Force -ErrorAction SilentlyContinue
 }
 
@@ -329,7 +325,7 @@ $files = @()
 foreach ($file in Get-ChildItem -LiteralPath $stagingRoot -File -Recurse | Where-Object { $_.Name -ne "manifest.json" } | Sort-Object FullName) {
     $relative = $file.FullName.Substring($stagingRoot.Length + 1).Replace("\", "/")
     if ($relative -notlike "payload/*" -and $relative -notlike "certificate/*" -and
-        $relative -notlike "compatibility/*" -and $relative -notin @("Install-Helios.ps1", "Uninstall-Helios.ps1", "Verify-Helios.ps1", "Helios-PackageCommon.ps1")) { continue }
+        $relative -notlike "compatibility/*" -and $relative -notin @("Install-Helios.ps1", "Uninstall-Helios.ps1", "Verify-Helios.ps1", "Helios-PackageCommon.ps1", "Test-HeliosInstallState.ps1")) { continue }
     $architecture = if ($relative -match "(^|/)x86/" -or $relative -match "payload/driver/helios_umd(32|12_32)\.dll$") { "x86" }
         elseif ($relative -match "^payload/driver/" -or $relative -match "^payload/mesa/" -or $relative -match "^payload/loaders/" -or $relative -match "^payload/smoke/") { "x64" }
         else { "shared" }
@@ -404,8 +400,6 @@ $manifest = [ordered]@{
             direct3D = "DXVK D3D11 and vkd3d-proton D3D12 embedded WDDM UMDs"
             direct3D12DefaultEnabled = $true
             architectures = @("x64", "x86")
-            preSigningSha256 = @($driverFiles | ForEach-Object { [ordered]@{ name = $_.name; architecture = $_.architecture; size = $_.size; sha256 = $_.sha256 } })
-            payloadSha256 = $driverPayloadFiles
         }
         mesa = [ordered]@{
             version = [string]$mesaReceipt.upstreamVersion
@@ -467,6 +461,14 @@ if ($pack.ExitCode -ne 0) {
 }
 if (-not (Test-Path -LiteralPath $selfContained -PathType Leaf)) {
     throw "The self-contained installer was not produced at $selfContained."
+}
+& python (Join-Path $RepoRoot "ci\windows\Test-PackagedInstallState.py") --setup $selfContained --receipt (Join-Path $OutputDir "packaged-state-schema.json")
+if ($LASTEXITCODE -ne 0) { throw "Packaged native schema failed; no qualified ZIP permitted." }
+$provenanceInputs=Join-Path $OutputDir 'provenance-inputs'
+New-Item -ItemType Directory -Force $provenanceInputs|Out-Null
+foreach($input in @(@{name='driver';root=$DriverArtifact},@{name='mesa-x64';root=$MesaArtifact},@{name='mesa-x86';root=$MesaX86Artifact},@{name='opencl';root=$OpenClArtifact},@{name='loaders';root=$LoadersArtifact},@{name='compatibility';root=$CompatibilityArtifact})){
+ $dest=Join-Path $provenanceInputs $input.name;New-Item -ItemType Directory -Force $dest|Out-Null
+ Get-ChildItem $input.root -File|Where-Object {$_.Extension -in '.json','.txt'}|Copy-Item -Destination $dest
 }
 Copy-Item -LiteralPath (Join-Path $packageSource "README.md") -Destination $finalDir -Force
 

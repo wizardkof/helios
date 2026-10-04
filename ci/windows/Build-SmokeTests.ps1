@@ -16,7 +16,6 @@ Import-VisualStudioEnvironment -Architecture $Architecture
 Assert-Command "cl.exe" | Out-Null
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $source = Join-Path $RepoRoot "packaging\windows\probes"
-$fullstackProbeInclude = Join-Path $RepoRoot "tools\fullstack"
 
 & cl.exe /nologo /O2 /W4 /MT (Join-Path $source "vulkan-smoke.c") "/I$VulkanInclude" "/Fe:$(Join-Path $OutputDir 'vulkan-smoke.exe')" /link $VulkanLibrary
 if ($LASTEXITCODE -ne 0) { throw "Vulkan smoke probe compilation failed." }
@@ -32,7 +31,6 @@ if ($LASTEXITCODE -ne 0) { throw "OpenGL smoke probe compilation failed." }
 if ($LASTEXITCODE -ne 0) { throw "D3D11 smoke probe compilation failed." }
 & cl.exe /nologo /O2 /W4 /MT /EHsc `
     (Join-Path $RepoRoot "tools\d3d12_devicecreate_probe.cpp") `
-    "/I$fullstackProbeInclude" `
     "/Fe:$(Join-Path $OutputDir 'd3d12-smoke.exe')" /link d3d12.lib dxgi.lib dxguid.lib
 if ($LASTEXITCODE -ne 0) { throw "D3D12 smoke probe compilation failed." }
 & cl.exe /nologo /O2 /W4 /MT /EHsc `

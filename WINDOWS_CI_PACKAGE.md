@@ -1,5 +1,47 @@
 # Windows CI package
 
+## Canonical build policy — owner directive, 2026-10-04
+
+```text
+CANONICAL_BUILD_BACKEND=GITHUB_ACTIONS
+LOCAL_VM_ROLE=DEPLOY_AND_RUNTIME_ONLY
+LOCAL_PRODUCT_BUILDS=DISABLED_BY_DEFAULT
+GITHUB_ACTIONS_USED_FOR_FUTURE_CANDIDATES=YES
+PUBLICATION=NO
+```
+
+GitHub Actions owns future candidate source qualification, regressions, Release,
+Debug, symbols, signing and offline package qualification. WinBoat owns install,
+reboot, provisioning, static installation verification and graphical runtime.
+Do not build new product candidates, install extra build toolchains or repair the
+local VM's build environment without explicit owner authorization. Existing VM
+lifecycle authorization still applies to deploy/runtime; it does not authorize
+product builds. Historical local builds remain evidence with their original status.
+
+The unreserved CI infrastructure delta was prepared and reviewed in
+`.fullstack/work/p06-ci-canonical-20261004`; the reviewed CI delta is applied to the current workspace without a reservation.
+Native CI execution is **NOT_RUN**.
+Source changes must pass the existing monotonic candidate/source lock before a
+future build. No version is allocated just for this infrastructure migration,
+and different source must never reuse `.300` or `.303`. Integration prerequisites
+remain integration of the qualified DXVK queue/reentry overlay. CMake 3.31.6
+was recovered from five hash-matching historical package provenance caches. The workflow refuses absent
+regressions and missing producer pins; it does not substitute runner defaults.
+See [CI_BUILD_QUALIFICATION.md](docs/CI_BUILD_QUALIFICATION.md) for the contract and
+[the implementation report](.fullstack/artifacts/p06/ci-canonical-20261004/REPORT.md)
+for current evidence and limits.
+
+Historical `.299` rollback is preserved. `.300` stays frozen and deploy-blocked
+by the old installer contract. `.303` keeps Release PASS, Debug PASS, offline
+package PASS (69/69) and native packaged schema PASS (8/8); its deploy stays
+**PARTIAL** because post-reboot verification is incomplete. Migration does not
+promote that result. A separately authorized identical-source reproduction must
+be labeled `CI_REPRODUCTION_303`, retain distinct run/artifact identities and
+never overwrite the existing `.303` ZIP or receipts.
+
+`BLACK_SCREEN_FIXED`, `DEVICE_LOSS_ORIGIN`, `DEADLOCK_IN_ORIGINAL_CAPTURE`,
+`SSH_POST_REBOOT_CAUSE` and `EXTRA_CONTAINER_RESTART_CAUSE` remain **NOT_PROVEN**.
+
 The `Windows graphics and compute bundle` GitHub Actions workflow builds x64
 Windows archives (Release and Debug) that turn a clean Helios Windows 11 guest
 into a system-wide graphics/compute installation. It includes x86 Direct3D 11/12 and Vulkan/OpenGL
@@ -15,7 +57,8 @@ builds are not hosted-CI or native guest acceptance evidence.
 
 ## What the workflow builds
 
-The jobs are independent so an error points at the actual component:
+Candidate regressions and driver Release then Debug run first. Component jobs
+require that driver job; packaging requires every component:
 
 1. `driver` builds the DXVK and vkd3d-proton static cores, embeds them in
    `helios_umd.dll` (D3D11) and `helios_umd12.dll` (D3D12) for AMD64, and
@@ -33,13 +76,14 @@ The jobs are independent so an error points at the actual component:
    embeds the whole payload into a single self-contained `HeliosSetup.exe`, and
    creates `helios-windows-x64-<version>-<commit>[-debug].zip` containing that
    exe and its `README.md`. Debug symbols (`.pdb`/`.map`) are never embedded;
-   they are published separately as `<package>-symbols.zip`. The GitHub Actions
+   they are retained separately as `<package>-symbols.zip` in CI artifacts. The GitHub Actions
    artifact is named `helios-windows-x64-<version>-<Configuration>`, and
    downstream consumers pin that name (WinBoat's `build-guest-server.sh`).
 
 The workflow runs for pull requests and pushes to `master`, and can be started
-manually. A tag beginning with `v` also publishes the zip and its SHA-256 file
-as a GitHub Release.
+manually. Tags may trigger offline builds, but never authorize publication.
+The workflow has read-only repository permissions and no GitHub Release job.
+A public Release, public tag or external upload requires explicit authorization.
 
 ## Reproducibility and source pins
 

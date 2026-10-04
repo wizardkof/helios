@@ -1,5 +1,47 @@
 # TOOLCHAIN.md — Build Environment Setup
 
+## Canonical build policy — owner directive, 2026-10-04
+
+```text
+CANONICAL_BUILD_BACKEND=GITHUB_ACTIONS
+LOCAL_VM_ROLE=DEPLOY_AND_RUNTIME_ONLY
+LOCAL_PRODUCT_BUILDS=DISABLED_BY_DEFAULT
+GITHUB_ACTIONS_USED_FOR_FUTURE_CANDIDATES=YES
+PUBLICATION=NO
+```
+
+GitHub Actions owns future candidate source qualification, regressions, Release,
+Debug, symbols, signing and offline package qualification. WinBoat owns install,
+reboot, provisioning, static installation verification and graphical runtime.
+Do not build new product candidates, install extra build toolchains or repair the
+local VM's build environment without explicit owner authorization. Existing VM
+lifecycle authorization still applies to deploy/runtime; it does not authorize
+product builds. Historical local builds remain evidence with their original status.
+
+The unreserved CI infrastructure delta was prepared and reviewed in
+`.fullstack/work/p06-ci-canonical-20261004`; the reviewed CI delta is applied to the current workspace without a reservation.
+Native CI execution is **NOT_RUN**.
+Source changes must pass the existing monotonic candidate/source lock before a
+future build. No version is allocated just for this infrastructure migration,
+and different source must never reuse `.300` or `.303`. Integration prerequisites
+remain integration of the qualified DXVK queue/reentry overlay. CMake 3.31.6
+was recovered from five hash-matching historical package provenance caches. The workflow refuses absent
+regressions and missing producer pins; it does not substitute runner defaults.
+See [CI_BUILD_QUALIFICATION.md](docs/CI_BUILD_QUALIFICATION.md) for the contract and
+[the implementation report](.fullstack/artifacts/p06/ci-canonical-20261004/REPORT.md)
+for current evidence and limits.
+
+Historical `.299` rollback is preserved. `.300` stays frozen and deploy-blocked
+by the old installer contract. `.303` keeps Release PASS, Debug PASS, offline
+package PASS (69/69) and native packaged schema PASS (8/8); its deploy stays
+**PARTIAL** because post-reboot verification is incomplete. Migration does not
+promote that result. A separately authorized identical-source reproduction must
+be labeled `CI_REPRODUCTION_303`, retain distinct run/artifact identities and
+never overwrite the existing `.303` ZIP or receipts.
+
+`BLACK_SCREEN_FIXED`, `DEVICE_LOSS_ORIGIN`, `DEADLOCK_IN_ORIGINAL_CAPTURE`,
+`SSH_POST_REBOOT_CAUSE` and `EXTRA_CONTAINER_RESTART_CAUSE` remain **NOT_PROVEN**.
+
 > **⚠️ SUPERSEDED (2026-07-05) — install/verify steps are for the abandoned
 > System-class driver.** The active driver is the **WDDM render+display miniport**
 > (crate `kmd_render`, service/INF `helios_kmd_render`, `helios_kmd_render.cat`),
@@ -17,10 +59,12 @@
 ## Overview
 
 You need two environments:
-1. **Windows 11 Dev VM** — builds and runs the KMD (kernel-mode driver) and ICD
+1. **GitHub Actions Windows runner** — builds and qualifies the Windows product.
+   **WinBoat Windows 11 guest** — deploy and runtime only.
 2. **Linux Host** — builds and runs QEMU + virglrenderer (Venus)
 
-The Windows dev VM can be a separate VM from the target VM, or the same one if you're careful. Using separate VMs is strongly recommended.
+The local Windows build recipes below are historical reference. They do not
+authorize compiling future product candidates on WinBoat.
 
 ---
 

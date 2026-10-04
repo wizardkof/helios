@@ -286,6 +286,8 @@ $state = [ordered]@{
     driverFiles = @()
 }
 
+Initialize-HeliosInstallState $state -PreviousState $previousState
+
 New-Item -ItemType Directory -Force -Path $runtimeRoot,$stateRoot | Out-Null
 
 # The runtime root is keyed by packageId, so an existing one is always this

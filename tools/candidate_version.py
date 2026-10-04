@@ -17,7 +17,7 @@ VERSION_KEY = "HELIOS_KMD_VERSION="
 RESERVATION_REF_PREFIX = "refs/helios/candidate-reservations/"
 SOURCE_ROOTS = (
     "kmd_render", "umd", "umd12", "umd_common", "kmd_logic", "protocol",
-    "metadata", "installer", "packaging/windows", "ci/windows",
+    "metadata", "installer", "packaging/windows", "ci/windows", "ci/patches",
     "tools/win-mcp",
     "dxvk-helios", "vkd3d-proton-helios", "icd/mesa",
 )
