@@ -247,6 +247,18 @@
       "source": "{TEMP}/msys2-ninja-control.json.packages.json",
       "step": "msys_ninja_control",
       "required": false
+    },
+    {
+      "name": "msys2-package-pins",
+      "source": "{TEMP}/msys2-pins.json",
+      "step": "msys_ninja_control",
+      "required": true
+    },
+    {
+      "name": "msys2-archive-install",
+      "source": "{TEMP}/msys2-archive",
+      "step": "msys2_archive_product",
+      "required": true
     }
   ],
   "mesa_x86": [
@@ -297,6 +309,18 @@
       "source": "{TEMP}/msys2-ninja-control.json.packages.json",
       "step": "msys_ninja_control",
       "required": false
+    },
+    {
+      "name": "msys2-package-pins",
+      "source": "{TEMP}/msys2-pins.json",
+      "step": "msys_ninja_control",
+      "required": true
+    },
+    {
+      "name": "msys2-archive-install",
+      "source": "{TEMP}/msys2-archive",
+      "step": "msys2_archive_product",
+      "required": true
     }
   ],
   "opencl": [

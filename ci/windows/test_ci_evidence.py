@@ -39,4 +39,14 @@ class EvidenceTests(unittest.TestCase):
    self.assertEqual(self.m.expand_sources(entries,str(self.p),config)[0]['source'],str(self.p/('installer-'+config+'-producer.log')))
  def test_private_material_refused(self):
   f=self.p/'secret.pfx';f.write_text('secret');r=self.m.collect([self.entry('bad',f)],self.p/'out','failure');self.assertEqual(r['EVIDENCE_COLLECTION_RESULT'],'FAIL');self.assertFalse((self.p/'out/bad/secret.pfx').exists())
+ def test_mesa_msys_receipts_follow_workflow_and_roundtrip(self):
+  declarations=json.loads(Path(__file__).with_name('ci-evidence-sources.json').read_text())
+  for job in ('mesa','mesa_x86'):
+   temp=self.p/job;temp.mkdir()
+   receipt=temp/'msys2-pins.json';receipt.write_text('{"status":"FAIL","packages":[]}')
+   entries=[dict(e,outcome='failure') for e in declarations[job] if e['step']=='msys_ninja_control']
+   expanded=self.m.expand_sources(entries,str(temp),'Release')
+   report=self.m.collect(expanded,self.p/(job+'-out'),'failure')
+   self.assertIn(str(receipt),[row['source'] for row in report['files']])
+   self.m.verify(self.p/(job+'-out'))
 if __name__=='__main__':unittest.main()
