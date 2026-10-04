@@ -37,10 +37,11 @@ class WorkflowMsysParityTests(unittest.TestCase):
             verify_index = next(i for i, s in enumerate(steps) if s.get('id') == 'msys_ninja_control')
             consumer_index = next(i for i, s in enumerate(steps) if s.get('id') == 's08')
             provision, verify = steps[provision_index], steps[verify_index]
-            self.assertEqual(provision.get('if'), PRODUCT)
+            self.assertEqual(provision.get('if'), '${{ !inputs.infrastructure_only }}')
             self.assertIn('Install-PinnedMSYS2Packages.py" ' + arch + ' ', provision['run'])
-            self.assertEqual(verify.get('if'), PRODUCT)
+            self.assertEqual(verify.get('if'), '${{ !inputs.infrastructure_only }}')
             self.assertIn('assert_msys_pins.py" ' + arch + ' ', verify['run'])
+            self.assertIn('$RUNNER_TEMP/msys2-pins.json', verify['run'])
             self.assertLess(provision_index, verify_index)
             self.assertLess(verify_index, consumer_index)
             self.assertEqual(steps[consumer_index].get('if'), '${{ !inputs.infrastructure_only }}')

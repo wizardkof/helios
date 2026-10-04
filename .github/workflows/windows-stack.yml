@@ -369,19 +369,19 @@ jobs:
           bison flex
       id: s05
     - name: Install exact archived MSYS2 package pins for product
-      if: ${{ always() && !inputs.infrastructure_only }}
+      if: ${{ !inputs.infrastructure_only }}
       shell: msys2 {0}
       run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x64 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
       id: msys2_archive_product
     - name: Verify archived MSYS2 package pins for preflight
       if: ${{ always() && inputs.infrastructure_only }}
       shell: msys2 {0}
-      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/component-qualification/msys2-pins.json"
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/msys2-pins.json"
       id: msys2_archive_verify
     - name: Verify Mesa MSYS2 package pins for product job
-      if: ${{ always() && !inputs.infrastructure_only }}
+      if: ${{ !inputs.infrastructure_only }}
       shell: msys2 {0}
-      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/component-qualification/msys2-pins.json"
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/msys2-pins.json"
       id: msys_ninja_control
     - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
       if: ${{ !inputs.infrastructure_only }}
@@ -491,19 +491,19 @@ jobs:
           mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
       id: s05
     - name: Install exact archived MSYS2 package pins for product
-      if: ${{ always() && !inputs.infrastructure_only }}
+      if: ${{ !inputs.infrastructure_only }}
       shell: msys2 {0}
       run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x86 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
       id: msys2_archive_product
     - name: Verify archived MSYS2 package pins for preflight
       if: ${{ always() && inputs.infrastructure_only }}
       shell: msys2 {0}
-      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x86 "$RUNNER_TEMP/component-qualification/msys2-pins.json"
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x86 "$RUNNER_TEMP/msys2-pins.json"
       id: msys2_archive_verify
     - name: Verify Mesa MSYS2 package pins for product job
-      if: ${{ always() && !inputs.infrastructure_only }}
+      if: ${{ !inputs.infrastructure_only }}
       shell: msys2 {0}
-      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x86 "$RUNNER_TEMP/component-qualification/msys2-pins.json"
+      run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x86 "$RUNNER_TEMP/msys2-pins.json"
       id: msys_ninja_control
     - name: Pre-build fingerprint (Verify-CandidateSource.ps1)
       if: ${{ !inputs.infrastructure_only }}
