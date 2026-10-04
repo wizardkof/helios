@@ -59,7 +59,7 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
       run: git submodule update --init --recursive icd/mesa
-      id: s03
+      id: mesa_submodule
     - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
       with:
         msystem: UCRT64
