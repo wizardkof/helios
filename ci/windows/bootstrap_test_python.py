@@ -26,7 +26,7 @@ def bootstrap(receipts):
     try:before['yamlDistributionBefore']=importlib.metadata.version('PyYAML')
     except importlib.metadata.PackageNotFoundError:before['yamlDistributionBefore']='NOT_INSTALLED_IN_THIS_INTERPRETER'
     spec=importlib.util.find_spec('yaml');before['yamlImportCandidateBefore']=spec.origin if spec else None
-     (receipts/'before.json').write_text(json.dumps(before,indent=2)+'\n')
+    (receipts/'before.json').write_text(json.dumps(before,indent=2)+'\n')
     if sys.platform!='win32' or before['version']!=PINS['pythonVersion'] or before['bits']!=64 or platform.python_implementation()!='CPython':
         raise ValueError('Native CPython 3.12.10 x64 required')
     if 'msys' in sys.executable.lower() or 'ucrt64' in sys.executable.lower() or 'mingw' in sys.executable.lower():

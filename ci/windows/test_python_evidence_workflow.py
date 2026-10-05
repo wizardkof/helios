@@ -22,3 +22,10 @@ class WorkflowTests(unittest.TestCase):
         bootstrap=(ROOT/'ci/windows/bootstrap_test_python.py').read_text()
         self.assertIn("'--force-reinstall'",bootstrap)
         self.assertIn('yamlDistributionBefore',bootstrap)
+
+    def test_bootstrap_module_can_be_loaded_without_side_effects(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('bootstrap',ROOT/'ci/windows/bootstrap_test_python.py')
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.PINS['version'],'6.0.2')
