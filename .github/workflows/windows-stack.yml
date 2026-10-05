@@ -1672,14 +1672,22 @@ jobs:
     - name: Initialize historical pinned PowerShell
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
-    - name: Test real production guard RED
+    - name: Test real production guard GREEN
       shell: pwsh
-      run: ./ci/windows/Test-DriverOutputCollision.ps1 -Receipt "$env:RUNNER_TEMP/collision-red.json" -ExpectHistoricalRed
+      run: ./ci/windows/Test-DriverOutputCollision.ps1 -Receipt "$env:RUNNER_TEMP/collision-green.json"
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Run pertinent infrastructure suites
+      shell: pwsh
+      run: ./ci/windows/Initialize-TestPython.ps1 -Tests
     - uses: actions/upload-artifact@v7
       if: always()
       with:
         name: helios-qualifier-count-control-${{ github.run_id }}-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/collision-*.json
+        path: |
+          ${{ runner.temp }}/collision-*.json
+          ${{ runner.temp }}/python-test-dependencies/tests
         if-no-files-found: error
 
 
