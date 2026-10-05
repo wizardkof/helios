@@ -1,16 +1,27 @@
 """Copy only declared job outputs to one upload root; never edit originals."""
-import argparse,glob,hashlib,json,shutil,os
+import argparse,glob,hashlib,json,shutil,os,re
 from pathlib import Path
 
 def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+# Explicit admitted hidden metadata from the pinned public WIDL source plus synthetic controls.
+ADMITTED_HIDDEN = {'.gitignore','.gitattributes','.editorconfig','.gitlab-ci.yml','.mailmap','.evidence'}
+PRIVATE_PARTS = {'credentials','.ssh','.cargo','cargo_home','.git','.aws','.azure','.npmrc','.pypirc','.netrc','auth','authentication','tokens','without-dependencies'}
+PRIVATE_SUFFIXES = {'.pfx','.p12','.key','.pem','.dmp','.dump'}
+def selection_reason(p, relative):
+ if p.suffix.lower() in PRIVATE_SUFFIXES or any(x.lower() in PRIVATE_PARTS for x in p.parts):return 'PRIVATE_PATH'
+ if any(x.startswith('.') and x not in ADMITTED_HIDDEN for x in relative.parts):return 'UNADMITTED_HIDDEN_PATH'
+ data=p.read_bytes()
+ if re.search(rb'-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,}',data):return 'PRIVATE_CONTENT'
+ return None
+
 def safe(p):
  if p.is_symlink() or (getattr(p.stat(),'st_file_attributes',0)&0x400):raise ValueError('reparse/symlink refused')
- if p.suffix.lower() in {'.pfx','.p12','.key','.pem','.dmp','.dump'} or any(x.lower() in {'credentials','.ssh','.cargo','cargo_home'} for x in p.parts):raise ValueError('private material refused')
+ if p.suffix.lower() in PRIVATE_SUFFIXES or any(x.lower() in PRIVATE_PARTS for x in p.parts):raise ValueError('private material refused')
 def expand_sources(entries,temp,configuration):
  return [dict(e,source=e['source'].replace('{TEMP}',temp).replace('{CONFIG}',configuration)) for e in entries]
 def collect(entries,root,primary):
  root=Path(root);root.mkdir(parents=True,exist_ok=False)
- report=dict(PRIMARY_GATE_RESULT=primary,EVIDENCE_COLLECTION_RESULT='PASS',EVIDENCE_UPLOAD_RESULT='PENDING',sources=[],files=[])
+ report=dict(PRIMARY_GATE_RESULT=primary,EVIDENCE_COLLECTION_RESULT='PASS',EVIDENCE_UPLOAD_RESULT='PENDING',sources=[],files=[],excluded=[],policyVersion=1)
  for entry in entries:
   row=dict(entry,status='NOT_RUN',destination=entry['name']);report['sources'].append(row)
   if not entry['name'].replace('-','').replace('_','').isalnum():raise ValueError('unsafe logical name')
@@ -33,6 +44,12 @@ def collect(entries,root,primary):
     safe(src)
     files=sorted(x for x in src.rglob('*') if x.is_file()) if src.is_dir() else [src]
     for f in files:
+     relative=f.relative_to(src) if src.is_dir() else Path(f.name)
+     reason=selection_reason(f,relative)
+     if reason:
+      report['excluded'].append(dict(source=str(f),reason=reason,logicalSource=entry['name']))
+      if (entry['required'] and not src.is_dir()) or relative.as_posix() in entry.get('mandatoryFiles',[]):raise ValueError('required evidence excluded by policy')
+      continue
      safe(f);rel=Path(entry['name'])/((Path(src.name)/f.relative_to(src) if len(matches)>1 else f.relative_to(src)) if src.is_dir() else Path(f.name))
      if glob.has_magic(entry['source']):rel=Path(entry['name'])/f.relative_to(prefix)
      dest=root/rel

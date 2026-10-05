@@ -197,6 +197,18 @@
       "source": "{TEMP}/ninja-resolution",
       "step": "ninja_after_bootstrap",
       "required": false
+    },
+    {
+      "name": "python-test-dependencies",
+      "source": "{TEMP}/python-test-dependencies",
+      "step": "python_dependencies",
+      "required": true
+    },
+    {
+      "name": "product-python-dependencies",
+      "source": "{TEMP}/python-test-dependencies",
+      "step": "s19",
+      "required": true
     }
   ],
   "mesa": [
@@ -568,6 +580,28 @@
       "name": "required-s19-transcript",
       "source": "{TEMP}/helios-package-qualification/package-{CONFIG}-producer.log",
       "step": "s19",
+      "required": true
+    }
+  ],
+  "python_evidence_preflight": [
+    {
+      "name": "python-test-dependencies",
+      "source": "{TEMP}/python-test-dependencies",
+      "step": "python_dependencies",
+      "required": true
+    }
+  ],
+  "msys2_x86_preflight": [
+    {
+      "name": "msys2-archive",
+      "source": "{TEMP}/msys2-archive",
+      "step": "msys2_archive",
+      "required": true
+    },
+    {
+      "name": "msys2-control",
+      "source": "{TEMP}/msys2-ninja-control.json*",
+      "step": "msys_ninja_control",
       "required": true
     }
   ]

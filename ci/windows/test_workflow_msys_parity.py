@@ -56,12 +56,13 @@ class WorkflowMsysParityTests(unittest.TestCase):
             self.assertLess(provision, consumer)
             self.assertNotIn('continue-on-error', steps[provision])
             self.assertEqual(collect.get('if'), 'always()')
-            self.assertEqual(upload.get('if'), 'always()')
+            self.assertIn('always()', upload.get('if', ''))
+            self.assertIn('upload_evidence_seal.outcome', upload.get('if', ''))
 
 
     def test_x86_infrastructure_proof_job_isolated_from_product(self):
         job = self.jobs['msys2_x86_preflight']
-        self.assertEqual(job.get('if'), INFRA)
+        self.assertEqual(job.get('if'), '${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}')
         setup = next(s for s in job['steps'] if s.get('id') == 'setup_msys2')
         self.assertEqual(setup['with']['msystem'], 'MINGW32')
         provision = next(s for s in job['steps'] if s.get('id') == 'msys2_archive')
@@ -70,14 +71,15 @@ class WorkflowMsysParityTests(unittest.TestCase):
         self.assertIn('test-msys-ninja.sh', verify['run'])
         self.assertEqual(verify.get('shell'), 'msys2 {0}')
         upload = next(s for s in job['steps'] if s.get('id') == 'upload_evidence')
-        self.assertEqual(upload.get('if'), 'always()')
+        self.assertIn('always()', upload.get('if', ''))
+        self.assertIn('upload_evidence_seal.outcome', upload.get('if', ''))
         for name in ('release', 'driver_build', 'product'):
             self.assertNotIn(name, job.get('steps', []))
 
 
     def test_x86_infrastructure_proof_job_isolated_from_product(self):
         job = self.jobs['msys2_x86_preflight']
-        self.assertEqual(job.get('if'), INFRA)
+        self.assertEqual(job.get('if'), '${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}')
         setup = next(s for s in job['steps'] if s.get('id') == 'setup_msys2')
         self.assertEqual(setup['with']['msystem'], 'MINGW32')
         provision = next(s for s in job['steps'] if s.get('id') == 'msys2_archive')
@@ -86,7 +88,8 @@ class WorkflowMsysParityTests(unittest.TestCase):
         self.assertIn('test-msys-ninja.sh', verify['run'])
         self.assertEqual(verify.get('shell'), 'msys2 {0}')
         upload = next(s for s in job['steps'] if s.get('id') == 'upload_evidence')
-        self.assertEqual(upload.get('if'), 'always()')
+        self.assertIn('always()', upload.get('if', ''))
+        self.assertIn('upload_evidence_seal.outcome', upload.get('if', ''))
 
     def test_product_setup_packages_contain_the_archived_tools_pin(self):
         for job_name, prefix in (('mesa', 'mingw-w64-ucrt-x86_64-tools'),

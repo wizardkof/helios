@@ -1,0 +1,2 @@
+# Native CPython 3.12.10 x64 only. PyPI 6.0.2 wheel, independently hash-checked.
+PyYAML==6.0.2 --hash=sha256:7e7401d0de89a9a855c839bc697c079a4af81cf878373abd7dc625847d25cbd8

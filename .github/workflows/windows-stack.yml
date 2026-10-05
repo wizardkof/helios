@@ -64,7 +64,9 @@ jobs:
       with:
         msystem: UCRT64
         update: true
-        install: git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools bison flex
+        install: git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
+          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+          mingw-w64-ucrt-x86_64-tools bison flex
       id: msys2_setup
     - name: Restore exact archived MSYS2 package pins
       if: ${{ always() }}
@@ -76,10 +78,21 @@ jobs:
       shell: msys2 {0}
       run: python "$GITHUB_WORKSPACE/ci/windows/assert_msys_pins.py" x64 "$RUNNER_TEMP/msys2-archive/verified-packages.json"
       id: msys2_archive_verify
+    - name: Qualify exact native Python test dependencies
+      id: python_dependencies
+      shell: powershell
+      run: ./ci/windows/Initialize-TestPython.ps1 -Tests
     - name: Expected refusal and evidence collection control
       id: transport_fixture
       shell: powershell
       run: ./ci/windows/Test-CIEvidence.ps1
+    - name: Admit and seal transport_upload transport
+      id: transport_upload_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he-control" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ success() }}
     - name: Upload Windows evidence control
       id: transport_upload
       uses: actions/upload-artifact@v7
@@ -88,18 +101,24 @@ jobs:
         path: C:/he-control
         if-no-files-found: error
         retention-days: 90
-    - name: Download Windows evidence control
-      id: transport_download
+        include-hidden-files: true
+      if: ${{ always() && steps.transport_upload_seal.outcome == 'success' }}
+    - name: Download real transport_upload artifact
+      id: transport_upload_download
       uses: actions/download-artifact@v8
       with:
         name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
-        path: C:/he-roundtrip
-    - name: Verify downloaded Windows evidence identities
-      id: transport_verify
+        path: ${{ runner.temp }}/artifact-roundtrip-download/transport_upload
+      if: ${{ always() && steps.transport_upload.outcome == 'success' }}
+    - name: Verify real transport_upload roundtrip set size hashes
+      id: transport_upload_verify
       shell: powershell
-      run: 'python ./ci/windows/ci_evidence.py verify --root C:/he-roundtrip
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
 
-        if ($LASTEXITCODE -ne 0) { throw "Native artifact roundtrip failed" }'
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.transport_upload_download.outcome == 'success' }}
     - name: Ensure Windows Driver Kit is installed
       shell: pwsh
       run: ./ci/windows/Install-WindowsDriverKit.ps1
@@ -195,10 +214,15 @@ jobs:
     - name: Preserve selected tool directories across Visual Studio imports
       if: always()
       shell: pwsh
-      run: |
-        $paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent $env:HELIOS_WIDL }), (Join-Path (Join-Path 'C:/VulkanSDK' $env:VULKAN_SDK_VERSION) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+      run: '$paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent $env:HELIOS_WIDL
+        }), (Join-Path (Join-Path ''C:/VulkanSDK'' $env:VULKAN_SDK_VERSION) ''Bin'')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
+        Select-Object -Unique
+
         foreach ($path in $paths) { $path >> $env:GITHUB_PATH }
+
         "VULKAN_SDK=C:/VulkanSDK/$env:VULKAN_SDK_VERSION" >> $env:GITHUB_ENV
+
+        '
       id: preserve_pinned_paths
     - name: Validate selected native tools after VS environment initialization
       if: always()
@@ -242,9 +266,16 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
     - name: Build and qualify Release
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"release\" -Operation {\n  ./ci/windows/Build-QualifiedDriver.ps1\
-        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-driver-Release\" -Configuration Release -BuildRoot C:/hb/driver\n}\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"release\" -Operation {\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot\
+        \ $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-driver-Release\" -Configuration Release -BuildRoot C:/hb/driver\n}\n"
       id: s20
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Admit and seal s21 transport
+      id: s21_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-driver-Release" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
       if: ${{ !inputs.infrastructure_only }}
     - uses: actions/upload-artifact@v7
       with:
@@ -252,14 +283,38 @@ jobs:
         path: ${{ runner.temp }}/helios-driver-Release
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s21
-      if: ${{ !inputs.infrastructure_only }}
+      if: ${{ always() && steps.s21_seal.outcome == 'success' }}
+    - name: Download real s21 artifact
+      id: s21_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-driver-Release
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s21
+      if: ${{ always() && steps.s21.outcome == 'success' }}
+    - name: Verify real s21 roundtrip set size hashes
+      id: s21_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s21" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s21_download.outcome == 'success' }}
     - name: Build and qualify Debug only after Release PASS
       shell: pwsh
       run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"debug\" -Operation {\n  if ((Get-Content C:/hb/driver/qualification-Release/complete.txt\
-        \ -Raw).Trim() -ne 'PASS') { throw 'Release qualification incomplete' }\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE\
-        \ -OutputDir \"$env:RUNNER_TEMP/helios-driver-Debug\" -Configuration Debug -BuildRoot C:/hb/driver\n}\n"
+        \ -Raw).Trim() -ne 'PASS') { throw 'Release qualification incomplete' }\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir\
+        \ \"$env:RUNNER_TEMP/helios-driver-Debug\" -Configuration Debug -BuildRoot C:/hb/driver\n}\n"
       id: s22
+      if: ${{ !inputs.infrastructure_only }}
+    - name: Admit and seal s23 transport
+      id: s23_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-driver-Debug" --receipt "${{ runner.temp }}/artifact-roundtrip/s23.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
       if: ${{ !inputs.infrastructure_only }}
     - uses: actions/upload-artifact@v7
       with:
@@ -267,8 +322,25 @@ jobs:
         path: ${{ runner.temp }}/helios-driver-Debug
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s23
-      if: ${{ !inputs.infrastructure_only }}
+      if: ${{ always() && steps.s23_seal.outcome == 'success' }}
+    - name: Download real s23 artifact
+      id: s23_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-driver-Debug
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s23
+      if: ${{ always() && steps.s23.outcome == 'success' }}
+    - name: Verify real s23 roundtrip set size hashes
+      id: s23_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s23" --receipt "${{ runner.temp }}/artifact-roundtrip/s23.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s23_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -277,21 +349,47 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job driver -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve qualification and failure evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-driver-qualification-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-driver-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
+    if: ${{ !inputs.python_evidence_only }}
   msys2_x86_preflight:
-    if: ${{ always() && inputs.infrastructure_only }}
+    if: ${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}
     name: MSYS2 MINGW32 archived pins and native Ninja control
     runs-on: windows-2022
     timeout-minutes: 30
@@ -305,7 +403,8 @@ jobs:
       with:
         msystem: MINGW32
         update: true
-        install: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
+        install: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
+          mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
       id: setup_msys2
     - name: Install exact archived MSYS2 package pins
       shell: msys2 {0}
@@ -315,17 +414,47 @@ jobs:
       shell: msys2 {0}
       run: bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/msys2-ninja-control.json"
       id: msys_ninja_control
-    - name: Preserve x86 MSYS2 infrastructure evidence
+    - name: Collect x86 preflight evidence
+      id: collect_evidence
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job msys2_x86_preflight -Root C:/he
       if: always()
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
+    - name: Preserve x86 MSYS2 infrastructure evidence
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-msys2-x86-preflight-${{ github.run_id }}-${{ github.run_attempt }}
-        path: |
-          ${{ runner.temp }}/msys2-archive
-          ${{ runner.temp }}/msys2-ninja-control.json*
+        path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-msys2-x86-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
   mesa:
     if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
@@ -365,8 +494,8 @@ jobs:
         msystem: UCRT64
         update: true
         install: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
-          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools
-          bison flex
+          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+          mingw-w64-ucrt-x86_64-tools bison flex
       id: s05
     - name: Install exact archived MSYS2 package pins for product
       if: ${{ !inputs.infrastructure_only }}
@@ -409,8 +538,8 @@ jobs:
 
         Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
 
-        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa" --source-root $env:GITHUB_WORKSPACE --component mesa --configuration
-        Release --architecture x64
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa" --source-root $env:GITHUB_WORKSPACE --component mesa --configuration Release
+        --architecture x64
 
         if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
 
@@ -418,14 +547,38 @@ jobs:
 
         '
       id: s09
-    - uses: actions/upload-artifact@v7
+    - name: Admit and seal s10 transport
+      id: s10_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-mesa" --receipt "${{ runner.temp }}/artifact-roundtrip/s10.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
       if: ${{ !inputs.infrastructure_only }}
+    - uses: actions/upload-artifact@v7
+      if: ${{ always() && steps.s10_seal.outcome == 'success' }}
       with:
         name: helios-mesa
         path: ${{ runner.temp }}/helios-mesa
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s10
+    - name: Download real s10 artifact
+      id: s10_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-mesa
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s10
+      if: ${{ always() && steps.s10.outcome == 'success' }}
+    - name: Verify real s10 roundtrip set size hashes
+      id: s10_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s10" --receipt "${{ runner.temp }}/artifact-roundtrip/s10.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s10_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -434,19 +587,44 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job mesa -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve component qualification evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-mesa-qualification-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-mesa-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
   mesa_x86:
     if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
@@ -531,8 +709,8 @@ jobs:
 
         Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
 
-        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa-x86" --source-root $env:GITHUB_WORKSPACE --component mesa-x86
-        --configuration Release --architecture x86
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa-x86" --source-root $env:GITHUB_WORKSPACE --component mesa-x86 --configuration
+        Release --architecture x86
 
         if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
 
@@ -540,14 +718,38 @@ jobs:
 
         '
       id: s09
-    - uses: actions/upload-artifact@v7
+    - name: Admit and seal s10 transport
+      id: s10_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-mesa-x86" --receipt "${{ runner.temp }}/artifact-roundtrip/s10.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
       if: ${{ !inputs.infrastructure_only }}
+    - uses: actions/upload-artifact@v7
+      if: ${{ always() && steps.s10_seal.outcome == 'success' }}
       with:
         name: helios-mesa-x86
         path: ${{ runner.temp }}/helios-mesa-x86
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s10
+    - name: Download real s10 artifact
+      id: s10_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-mesa-x86
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s10
+      if: ${{ always() && steps.s10.outcome == 'success' }}
+    - name: Verify real s10 roundtrip set size hashes
+      id: s10_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s10" --receipt "${{ runner.temp }}/artifact-roundtrip/s10.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s10_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -556,19 +758,44 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job mesa_x86 -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve component qualification evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-mesa_x86-qualification-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-mesa_x86-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
   opencl:
     if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
@@ -695,14 +922,38 @@ jobs:
 
         '
       id: s15
-    - if: ${{ !inputs.infrastructure_only }}
+    - name: Admit and seal s16 transport
+      id: s16_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-opencl" --receipt "${{ runner.temp }}/artifact-roundtrip/s16.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ !inputs.infrastructure_only }}
+    - if: ${{ always() && steps.s16_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-opencl
         path: ${{ runner.temp }}/helios-opencl
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s16
+    - name: Download real s16 artifact
+      id: s16_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-opencl
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s16
+      if: ${{ always() && steps.s16.outcome == 'success' }}
+    - name: Verify real s16 roundtrip set size hashes
+      id: s16_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s16" --receipt "${{ runner.temp }}/artifact-roundtrip/s16.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s16_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -711,19 +962,44 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job opencl -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve component qualification evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-opencl-qualification-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-opencl-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
   loaders:
     if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
@@ -779,8 +1055,8 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
       run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Build-KhronosLoaders.ps1\
-        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-loaders\" -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit\
-        \ $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
+        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-loaders\" -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT\
+        \ -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
       id: s08
     - name: Post-build producer toolchain
       if: ${{ !inputs.infrastructure_only }}
@@ -803,14 +1079,38 @@ jobs:
 
         '
       id: s10
-    - if: ${{ !inputs.infrastructure_only }}
+    - name: Admit and seal s11 transport
+      id: s11_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-loaders" --receipt "${{ runner.temp }}/artifact-roundtrip/s11.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ !inputs.infrastructure_only }}
+    - if: ${{ always() && steps.s11_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-loaders
         path: ${{ runner.temp }}/helios-loaders
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s11
+    - name: Download real s11 artifact
+      id: s11_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-loaders
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s11
+      if: ${{ always() && steps.s11.outcome == 'success' }}
+    - name: Verify real s11 roundtrip set size hashes
+      id: s11_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s11" --receipt "${{ runner.temp }}/artifact-roundtrip/s11.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s11_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -819,19 +1119,44 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job loaders -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve component qualification evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-loaders-qualification-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-loaders-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
   compatibility:
     if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
     needs:
@@ -906,14 +1231,38 @@ jobs:
 
         '
       id: s09
-    - if: ${{ !inputs.infrastructure_only }}
+    - name: Admit and seal s10 transport
+      id: s10_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-compatibility" --receipt "${{ runner.temp }}/artifact-roundtrip/s10.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ !inputs.infrastructure_only }}
+    - if: ${{ always() && steps.s10_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-compatibility
         path: ${{ runner.temp }}/helios-compatibility
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s10
+    - name: Download real s10 artifact
+      id: s10_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-compatibility
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s10
+      if: ${{ always() && steps.s10.outcome == 'success' }}
+    - name: Verify real s10 roundtrip set size hashes
+      id: s10_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s10" --receipt "${{ runner.temp }}/artifact-roundtrip/s10.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s10_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -922,21 +1271,47 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job compatibility -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve component qualification evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-compatibility-qualification-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-compatibility-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
   package:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' && needs.mesa.result == 'success' && needs.mesa_x86.result == 'success' && needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success' }}
+    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' && needs.mesa.result == 'success' && needs.mesa_x86.result == 'success' &&
+      needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success' }}
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     env:
       HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
@@ -1049,15 +1424,15 @@ jobs:
     - name: Build the self-contained installer skeleton
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"installer-${{ matrix.configuration\
-        \ }}\" -Operation {\n  ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-installer\" -Configuration\
-        \ ${{ matrix.configuration }}\n}\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"installer-${{ matrix.configuration }}\" -Operation\
+        \ {\n  ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-installer\" -Configuration ${{ matrix.configuration\
+        \ }}\n}\n"
       id: s16
     - name: Seal installer producer identity
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: 'python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root $env:GITHUB_WORKSPACE --component installer
-        --configuration ''${{ matrix.configuration }}'' --architecture x64
+      run: 'python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root $env:GITHUB_WORKSPACE --component installer --configuration
+        ''${{ matrix.configuration }}'' --architecture x64
 
         if($LASTEXITCODE -ne 0){throw ''Installer identity sealing failed''}
 
@@ -1067,8 +1442,7 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
       id: metadata
       shell: pwsh
-      run: '$version = (Get-Content kmd_render/driver-version.env | Where-Object { $_ -match ''^HELIOS_KMD_VERSION='' }) -replace ''^HELIOS_KMD_VERSION='',
-        ''''
+      run: '$version = (Get-Content kmd_render/driver-version.env | Where-Object { $_ -match ''^HELIOS_KMD_VERSION='' }) -replace ''^HELIOS_KMD_VERSION='', ''''
 
         "version=$version" >> $env:GITHUB_OUTPUT
 
@@ -1082,14 +1456,14 @@ jobs:
     - name: Assemble and test-sign bundle
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"package-${{ matrix.configuration\
-        \ }}\" -Operation {\n  ./ci/windows/Assemble-Package.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact \"$env:RUNNER_TEMP/artifacts/driver\" -MesaArtifact\
-        \ \"$env:RUNNER_TEMP/artifacts/mesa\" -MesaX86Artifact \"$env:RUNNER_TEMP/artifacts/mesa-x86\" -OpenClArtifact \"$env:RUNNER_TEMP/artifacts/opencl\"\
-        \ -LoadersArtifact \"$env:RUNNER_TEMP/artifacts/loaders\" -CompatibilityArtifact \"$env:RUNNER_TEMP/artifacts/compatibility\" -InstallerArtifact\
-        \ \"$env:RUNNER_TEMP/helios-installer\" -OutputDir \"$env:RUNNER_TEMP/helios-package\" -Configuration '${{ matrix.configuration }}' -Version '${{\
-        \ steps.metadata.outputs.version }}' -RepositoryCommit $env:GITHUB_SHA -MesaCommit '${{ steps.metadata.outputs.mesa }}' -DxvkCommit '${{ steps.metadata.outputs.dxvk\
-        \ }}' -Vkd3dCommit '${{ steps.metadata.outputs.vkd3d }}' -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit\
-        \ $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"package-${{ matrix.configuration }}\" -Operation\
+        \ {\n  ./ci/windows/Assemble-Package.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact \"$env:RUNNER_TEMP/artifacts/driver\" -MesaArtifact \"$env:RUNNER_TEMP/artifacts/mesa\"\
+        \ -MesaX86Artifact \"$env:RUNNER_TEMP/artifacts/mesa-x86\" -OpenClArtifact \"$env:RUNNER_TEMP/artifacts/opencl\" -LoadersArtifact \"$env:RUNNER_TEMP/artifacts/loaders\"\
+        \ -CompatibilityArtifact \"$env:RUNNER_TEMP/artifacts/compatibility\" -InstallerArtifact \"$env:RUNNER_TEMP/helios-installer\" -OutputDir \"$env:RUNNER_TEMP/helios-package\"\
+        \ -Configuration '${{ matrix.configuration }}' -Version '${{ steps.metadata.outputs.version }}' -RepositoryCommit $env:GITHUB_SHA -MesaCommit '${{ steps.metadata.outputs.mesa\
+        \ }}' -DxvkCommit '${{ steps.metadata.outputs.dxvk }}' -Vkd3dCommit '${{ steps.metadata.outputs.vkd3d }}' -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit\
+        \ $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n\
+        }\n"
       id: s19
     - name: Independent final package extraction and native audit
       if: ${{ !inputs.infrastructure_only }}
@@ -1108,21 +1482,44 @@ jobs:
 
         Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" post
 
-        @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content
-        "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
+        @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
 
         Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
 
         '
       id: s20
-    - if: ${{ !inputs.infrastructure_only }}
+    - name: Admit and seal s21 transport
+      id: s21_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-package" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ !inputs.infrastructure_only }}
+    - if: ${{ always() && steps.s21_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-windows-x64-${{ steps.metadata.outputs.version }}-${{ matrix.configuration }}
         path: ${{ runner.temp }}/helios-package
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: s21
+    - name: Download real s21 artifact
+      id: s21_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-windows-x64-${{ steps.metadata.outputs.version }}-${{ matrix.configuration }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/s21
+      if: ${{ always() && steps.s21.outcome == 'success' }}
+    - name: Verify real s21 roundtrip set size hashes
+      id: s21_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s21" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.s21_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -1131,24 +1528,150 @@ jobs:
         HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
         HELIOS_PRIMARY_RESULT: ${{ job.status }}
       run: ./ci/windows/Collect-CIEvidence.ps1 -Job package -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
     - name: Preserve package qualification and failure evidence
-      if: always()
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
       with:
         name: helios-package-receipts-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: C:/he
         if-no-files-found: error
         retention-days: 90
+        include-hidden-files: true
       id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-package-receipts-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
     - name: Report separate evidence outcomes
       if: always()
       shell: powershell
-      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}"
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
+  python_evidence_preflight:
+    name: Native Python test dependency and evidence contracts
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only }}
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+      id: checkout
+      with:
+        submodules: false
+        fetch-depth: 1
+    - uses: actions/setup-python@v7
+      id: python_setup
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Bootstrap exact native test interpreter and real consumer RED GREEN
+      shell: powershell
+      run: ./ci/windows/Initialize-TestPython.ps1 -Control -Tests
+      id: python_dependencies
+    - name: Synthetic admitted hidden and private exclusion control
+      shell: powershell
+      run: ./ci/windows/Test-CIEvidence.ps1 -Root C:/he-control
+      id: transport_fixture
+    - name: Admit and seal transport_upload transport
+      id: transport_upload_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he-control" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ success() }}
+    - name: Upload focused evidence control
+      uses: actions/upload-artifact@v7
+      id: transport_upload
+      with:
+        name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he-control
+        if-no-files-found: error
+        retention-days: 90
+        include-hidden-files: true
+      if: ${{ always() && steps.transport_upload_seal.outcome == 'success' }}
+    - name: Download real transport_upload artifact
+      id: transport_upload_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/transport_upload
+      if: ${{ always() && steps.transport_upload.outcome == 'success' }}
+    - name: Verify real transport_upload roundtrip set size hashes
+      id: transport_upload_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.transport_upload_download.outcome == 'success' }}
+    - name: Collect focused dependency receipts
+      id: collect_evidence
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job python_evidence_preflight -Root C:/he
+      if: always()
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
+    - name: Upload focused Python evidence
+      id: upload_evidence
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-python-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+        include-hidden-files: true
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-python-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
 'on':
   workflow_dispatch:
     inputs:
       infrastructure_only:
         description: Provision and verify every CI toolchain job without product builds or candidate reservation
+        type: boolean
+        default: false
+      python_evidence_only:
+        description: Focused native Python dependencies and evidence transport controls only; requires infrastructure_only=true
         type: boolean
         default: false
   push:
