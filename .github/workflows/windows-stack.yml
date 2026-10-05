@@ -1682,3 +1682,22 @@ jobs:
   pull_request:
     branches:
     - master
+
+  qualifier_count_control:
+    if: ${{ !inputs.infrastructure_only && inputs.python_evidence_only }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7
+    - name: Initialize historical pinned PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Test real production guard RED
+      shell: pwsh
+      run: ./ci/windows/Test-DriverOutputCollision.ps1 -Receipt "$env:RUNNER_TEMP/collision-red.json" -ExpectHistoricalRed
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: helios-qualifier-count-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/collision-*.json
+        if-no-files-found: error
