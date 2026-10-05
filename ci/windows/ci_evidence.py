@@ -8,9 +8,11 @@ ADMITTED_HIDDEN = {'.gitignore','.gitattributes','.editorconfig','.gitlab-ci.yml
 PRIVATE_PARTS = {'credentials','.ssh','.cargo','cargo_home','.git','.aws','.azure','.npmrc','.pypirc','.netrc','auth','authentication','tokens','without-dependencies'}
 PRIVATE_SUFFIXES = {'.pfx','.p12','.key','.pem','.dmp','.dump'}
 def selection_reason(p, relative):
+ if p.stem.lower() in {'auth','authentication','credentials','token','tokens','secrets','secret'}:return 'AUTH_CONFIGURATION'
  if p.suffix.lower() in PRIVATE_SUFFIXES or any(x.lower() in PRIVATE_PARTS for x in p.parts):return 'PRIVATE_PATH'
  if any(x.startswith('.') and x not in ADMITTED_HIDDEN for x in relative.parts):return 'UNADMITTED_HIDDEN_PATH'
  data=p.read_bytes()
+ if re.search(rb'(?i)authorization[\"\' ]*[:=][\"\' ]*bearer[ ]+[^\s\"\']+|[\"\'](?:access_token|refresh_token|client_secret|password|private_key)[\"\'][ ]*:[ ]*[\"\'][^\"\']+',data):return 'AUTH_CONTENT'
  if re.search(rb'-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,}',data):return 'PRIVATE_CONTENT'
  return None
 
@@ -31,7 +33,7 @@ def collect(entries,root,primary):
    row['status']='MISSING_REQUIRED' if entry['required'] else 'NOT_PRODUCED'
    if entry['required']:report['EVIDENCE_COLLECTION_RESULT']='FAIL'
    continue
-  row['status']='PRESENT';count=0
+  row['status']='PRESENT';count=0;admitted=set()
   prefix=Path(entry['source'])
   if glob.has_magic(entry['source']):
    parts=[]
@@ -56,16 +58,19 @@ def collect(entries,root,primary):
      if dest.exists():raise ValueError('destination collision')
      before=digest(f);dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(f,dest)
      if before!=digest(dest) or before!=digest(f):raise ValueError('source changed during copy')
+     admitted.add(relative.as_posix())
      report['files'].append(dict(source=str(f),destination=rel.as_posix(),size=dest.stat().st_size,sha256=before));count+=1
+   missing_mandatory=set(entry.get('mandatoryFiles',[]))-admitted
+   if missing_mandatory:raise ValueError('mandatory evidence absent or excluded: '+', '.join(sorted(missing_mandatory)))
    row['status']='COPIED'
    if entry['required'] and not count:row['status']='MISSING_REQUIRED';report['EVIDENCE_COLLECTION_RESULT']='FAIL'
   except (OSError,ValueError) as err:row['status']='READ_OR_COPY_FAILURE';row['reason']=str(err);report['EVIDENCE_COLLECTION_RESULT']='FAIL'
  (root/'collection-manifest.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
  return report
 
-def verify(root):
+def verify(root,allow_failed_collection=False):
  root=Path(root);r=json.loads((root/'collection-manifest.json').read_text(encoding='utf-8-sig'))
- if r['EVIDENCE_COLLECTION_RESULT']!='PASS':raise ValueError('collection failed')
+ if r['EVIDENCE_COLLECTION_RESULT']!='PASS' and not allow_failed_collection:raise ValueError('collection failed')
  expected={'collection-manifest.json'}
  for row in r['files']:
   rel=Path(row['destination'])

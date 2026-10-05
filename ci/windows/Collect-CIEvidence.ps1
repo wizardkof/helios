@@ -8,7 +8,9 @@ foreach($s in $sources.$Job) {
  $p=$steps.PSObject.Properties[$s.step]
  if($p){$outcome=$p.Value.outcome}
  $source=$s.source # Shared Python expansion uses RUNNER_TEMP / HELIOS_CI_CONFIGURATION.
- $spec+=@{name=$s.name;source=$source;outcome=$outcome;required=$s.required}
+ $entry=@{name=$s.name;source=$source;outcome=$outcome;required=$s.required}
+ if($s.PSObject.Properties['mandatoryFiles']){$entry.mandatoryFiles=@($s.mandatoryFiles)}
+ $spec+=$entry
 }
 $specPath=Join-Path $env:RUNNER_TEMP 'evidence-sources.json'
 ConvertTo-Json -InputObject $spec -Depth 5|Set-Content $specPath -Encoding UTF8

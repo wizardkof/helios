@@ -39,3 +39,17 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.m.verify(out)
         f.write_text('longer')
         with self.assertRaises(ValueError): self.m.verify(out)
+
+    def test_mandatory_absent_and_excluded_fail(self):
+        src=self.root/'src';src.mkdir();(src/'safe.txt').write_text('safe')
+        r=self.m.collect([dict(name='fixture',source=str(src),outcome='success',required=True,mandatoryFiles=['missing.json'])],self.root/'missing-out','success')
+        self.assertEqual(r['EVIDENCE_COLLECTION_RESULT'],'FAIL')
+        (src/'private.pfx').write_text('synthetic')
+        r=self.m.collect([dict(name='fixture',source=str(src),outcome='success',required=True,mandatoryFiles=['private.pfx'])],self.root/'excluded-out','success')
+        self.assertEqual(r['EVIDENCE_COLLECTION_RESULT'],'FAIL')
+
+    def test_auth_configuration_and_bearer_excluded(self):
+        src=self.root/'src';src.mkdir();(src/'safe.txt').write_text('safe')
+        (src/'authentication.json').write_text('{"Authorization":"Bearer synthetic_token_for_fixture_only"}')
+        (src/'ordinary.txt').write_text('Authorization: Bearer synthetic_token_for_fixture_only')
+        r=self.collect();self.assertEqual(len(r['files']),1);self.assertEqual(len(r['excluded']),2)

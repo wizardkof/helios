@@ -148,7 +148,12 @@
       "name": "pinned-widl",
       "source": "{TEMP}/pinned-widl",
       "step": "widl_build",
-      "required": false
+      "required": false,
+      "mandatoryFiles": [
+        "widl.exe",
+        "widl-build.json",
+        "wine-11.12.tar.xz"
+      ]
     },
     {
       "name": "msys2-archive-install",
@@ -202,13 +207,23 @@
       "name": "python-test-dependencies",
       "source": "{TEMP}/python-test-dependencies",
       "step": "python_dependencies",
-      "required": true
+      "required": true,
+      "mandatoryFiles": [
+        "before.json",
+        "after.json",
+        "acquisition.json"
+      ]
     },
     {
       "name": "product-python-dependencies",
       "source": "{TEMP}/python-test-dependencies",
       "step": "s19",
-      "required": true
+      "required": true,
+      "mandatoryFiles": [
+        "before.json",
+        "after.json",
+        "acquisition.json"
+      ]
     }
   ],
   "mesa": [
@@ -588,7 +603,12 @@
       "name": "python-test-dependencies",
       "source": "{TEMP}/python-test-dependencies",
       "step": "python_dependencies",
-      "required": true
+      "required": true,
+      "mandatoryFiles": [
+        "before.json",
+        "after.json",
+        "acquisition.json"
+      ]
     }
   ],
   "msys2_x86_preflight": [
