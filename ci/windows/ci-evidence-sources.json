@@ -790,7 +790,7 @@
     {
       "name": "product-python-dependencies",
       "source": "{TEMP}/product-python-test-dependencies",
-      "step": "s19",
+      "step": "dxvk_diagnostic",
       "required": true,
       "mandatoryFiles": [
         "before.json",
