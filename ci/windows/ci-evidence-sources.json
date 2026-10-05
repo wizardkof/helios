@@ -635,5 +635,186 @@
       "step": "msys_ninja_control",
       "required": true
     }
+  ],
+  "dxvk_array_diagnostic": [
+    {
+      "name": "runner",
+      "source": "{TEMP}/runner-qualification",
+      "step": "s01",
+      "required": true
+    },
+    {
+      "name": "ninja-resolution",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_install",
+      "required": true
+    },
+    {
+      "name": "kit",
+      "source": "{TEMP}/component-qualification",
+      "step": "s15",
+      "required": true
+    },
+    {
+      "name": "kit-required-receipt",
+      "source": "{TEMP}/component-qualification/windows-kit.json",
+      "step": "s15",
+      "required": true
+    },
+    {
+      "name": "isolation-audit",
+      "source": "C:/hb/isolation/bootstrap.executions.log",
+      "step": "s16",
+      "required": true
+    },
+    {
+      "name": "isolation-generate",
+      "source": "C:/hb/isolation/make-*/Generate.toml",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "isolation-driver",
+      "source": "C:/hb/isolation/make-*/Driver.toml",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "isolation-wdk",
+      "source": "C:/hb/isolation/make-*/Wdk.toml",
+      "step": "s16",
+      "required": false
+    },
+    {
+      "name": "qualification",
+      "source": "C:/hb/qualification",
+      "step": "s17",
+      "required": true
+    },
+    {
+      "name": "ninja-receipt-control",
+      "source": "C:/hb/ninja-receipt-control",
+      "step": "ninja_receipt_control",
+      "required": false
+    },
+    {
+      "name": "tool-selection",
+      "source": "{TEMP}/tool-selection",
+      "step": "llvm_select",
+      "required": false
+    },
+    {
+      "name": "selected-tool-paths",
+      "source": "{TEMP}/tool-selection/pinned-tool-paths.json",
+      "step": "selected_tool_paths",
+      "required": false
+    },
+    {
+      "name": "llvm-install",
+      "source": "{TEMP}/tool-selection/pinned-llvm-install.json",
+      "step": "s10",
+      "required": true
+    },
+    {
+      "name": "pinned-widl",
+      "source": "{TEMP}/pinned-widl",
+      "step": "widl_build",
+      "required": false,
+      "mandatoryFiles": [
+        "widl.exe",
+        "widl-build.json",
+        "wine-11.12.tar.xz"
+      ]
+    },
+    {
+      "name": "msys2-archive-install",
+      "source": "{TEMP}/msys2-archive",
+      "step": "msys2_archive",
+      "required": false
+    },
+    {
+      "name": "msys2-ninja-preflight",
+      "source": "{TEMP}/msys2-ninja-control.json*",
+      "step": "msys_ninja_control",
+      "required": false
+    },
+    {
+      "name": "ninja-install",
+      "source": "{TEMP}/ninja-qualification",
+      "step": "ninja_setup",
+      "required": true
+    },
+    {
+      "name": "ninja-resolution-after-vs",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_bootstrap",
+      "required": false
+    },
+    {
+      "name": "ninja-receipt-tests",
+      "source": "{TEMP}/ninja-receipt-tests",
+      "step": "ninja_receipt_tests",
+      "required": false
+    },
+    {
+      "name": "ninja-consumer-tests",
+      "source": "{TEMP}/ninja-consumer-tests",
+      "step": "ninja_consumer_tests",
+      "required": false
+    },
+    {
+      "name": "ninja-resolution-after-official",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_official",
+      "required": false
+    },
+    {
+      "name": "ninja-resolution-after-bootstrap",
+      "source": "{TEMP}/ninja-resolution",
+      "step": "ninja_after_bootstrap",
+      "required": false
+    },
+    {
+      "name": "python-test-dependencies",
+      "source": "{TEMP}/python-test-dependencies",
+      "step": "python_dependencies",
+      "required": true,
+      "mandatoryFiles": [
+        "before.json",
+        "after.json",
+        "acquisition.json",
+        "tests/tests-0.log",
+        "tests/tests-1.log"
+      ]
+    },
+    {
+      "name": "product-python-dependencies",
+      "source": "{TEMP}/product-python-test-dependencies",
+      "step": "s19",
+      "required": true,
+      "mandatoryFiles": [
+        "before.json",
+        "after.json",
+        "acquisition.json",
+        "tests/tests-0.log",
+        "tests/tests-1.log"
+      ]
+    },
+    {
+      "name": "dxvk-array",
+      "source": "C:/hb/dxvk-array-diagnostic",
+      "step": "dxvk_diagnostic",
+      "required": true,
+      "mandatoryFiles": [
+        "result.json",
+        "commands.txt",
+        "source-identity.json",
+        "dxvk_queue.cpp",
+        "meson-logs/testlog.json",
+        "compile_commands.json",
+        "build.ninja",
+        "meson-info/intro-tests.json"
+      ]
+    }
   ]
 }

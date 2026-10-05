@@ -1,0 +1,268 @@
+name: DXVK array matched native diagnostic
+'on':
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  PYTHON_VERSION: 3.12.10
+  PYTHONDONTWRITEBYTECODE: '1'
+  NINJA_VERSION: 1.13.2
+  CMAKE_VERSION: 3.31.6
+  CARGO_BUILD_JOBS: '2'
+  CMAKE_BUILD_PARALLEL_LEVEL: '2'
+  HELIOS_BUILD_JOBS: '2'
+  HELIOS_MSVC_VERSION: 14.44.35207
+  HELIOS_WINDOWS_KIT_VERSION: 10.0.26100.0
+  CANONICAL_BUILD_BACKEND: GITHUB_ACTIONS
+  LOCAL_VM_ROLE: DEPLOY_AND_RUNTIME_ONLY
+  PUBLICATION: 'NO'
+  LOCAL_PRODUCT_BUILDS: DISABLED_BY_DEFAULT
+  GITHUB_ACTIONS_USED_FOR_FUTURE_CANDIDATES: 'YES'
+  MESON_VERSION: 1.11.2
+  RUST_TOOLCHAIN: nightly-2026-07-14
+  RUSTUP_TOOLCHAIN: nightly-2026-07-14
+  CARGO_MAKE_VERSION: 0.37.24
+  RUST_SCRIPT_VERSION: 0.36.0
+  LLVM_VERSION: 22.1.8
+  VULKAN_SDK_VERSION: 1.4.350.0
+  CLVK_REPOSITORY: https://github.com/winboat-org/clvk-helios.git
+  CLVK_COMMIT: 56c626132782bf083a80a6c17f5ca763be0ff8fb
+  VULKAN_LOADER_COMMIT: 06830240f7a70599053f47b5f10af543e8c3daf6
+  VULKAN_HEADERS_COMMIT: 11d6898377797e07dbd543aaaa367e4465074597
+  OPENCL_LOADER_COMMIT: 18fdcd58286376124f938948aa8ed156079c1c16
+  OPENCL_HEADERS_COMMIT: 6fe718c31a45fe25151362a72ef041c3a1047cbd
+jobs:
+  diagnostic:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: s00
+    - name: Observe frozen CI executor profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
+      id: s01
+    - name: Initialize pinned PowerShell independently
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+      id: s02
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: s06
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: UCRT64
+        update: true
+        install: git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
+          mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+          mingw-w64-ucrt-x86_64-tools bison flex
+      id: msys2_setup
+    - name: Restore exact archived MSYS2 package pins
+      if: ${{ always() }}
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x64 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
+      id: msys2_archive
+    - name: Qualify exact native Python test dependencies
+      id: python_dependencies
+      shell: powershell
+      run: ./ci/windows/Initialize-TestPython.ps1 -Tests
+    - name: Expected refusal and evidence collection control
+      id: transport_fixture
+      shell: powershell
+      run: ./ci/windows/Test-CIEvidence.ps1
+    - name: Admit and seal transport_upload transport
+      id: transport_upload_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he-control" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ success() }}
+    - name: Upload Windows evidence control
+      id: transport_upload
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he-control
+        if-no-files-found: error
+        retention-days: 90
+        include-hidden-files: true
+      if: ${{ always() && steps.transport_upload_seal.outcome == 'success' }}
+    - name: Download real transport_upload artifact
+      id: transport_upload_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-evidence-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/transport_upload
+      if: ${{ always() && steps.transport_upload.outcome == 'success' }}
+    - name: Verify real transport_upload roundtrip set size hashes
+      id: transport_upload_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.transport_upload_download.outcome == 'success' }}
+    - name: Ensure Windows Driver Kit is installed
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+      id: s15
+    - name: Initialize release source-lock submodules
+      shell: pwsh
+      run: git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+      id: s03
+    - name: Install Meson
+      shell: pwsh
+      run: python -m pip install "meson==${env:MESON_VERSION}"
+      id: s07
+    - name: Observe Ninja after Python package setup
+      shell: pwsh
+      run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-meson-python-package-setup -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
+      id: ninja_after_install
+    - name: Install upstream Ninja 1.13.2 by release identity
+      shell: pwsh
+      run: ./ci/windows/Install-OfficialNinja.ps1 -ReceiptDir "$env:RUNNER_TEMP/ninja-qualification"
+      id: ninja_setup
+    - name: Observe Ninja after official acquisition
+      shell: pwsh
+      run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-official-ninja-acquisition -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
+      id: ninja_after_official
+    - name: Build pinned Wine 11.12 WIDL from official source
+      if: always()
+      shell: msys2 {0}
+      run: bash ./ci/windows/build-pinned-widl.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pinned-widl"
+      id: widl_build
+    - name: Observe pinned WIDL candidates
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Select-CIPinnedWidl.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: widl_select
+    - name: Install official LLVM 22.1.8 release
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: s10
+    - name: Select pinned LLVM compiler
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: llvm_select
+    - name: Restore Vulkan SDK
+      uses: actions/cache@v4
+      with:
+        path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
+        key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
+      id: s11
+    - name: Install and validate Vulkan SDK
+      shell: pwsh
+      run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
+      id: s12
+    - name: Install Rust nightly
+      if: always()
+      uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+      with:
+        toolchain: ${{ env.RUST_TOOLCHAIN }}
+        components: rust-src
+        targets: i686-pc-windows-msvc
+      id: s13
+    - name: Install Rust build helpers
+      if: always()
+      shell: pwsh
+      run: 'cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
+
+        cargo install rust-script --locked --version $env:RUST_SCRIPT_VERSION
+
+        '
+      id: s14
+    - name: Initialize isolated host and private WDK producers
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Initialize-CIIsolation.ps1
+      id: s16
+    - name: Preserve selected tool directories across Visual Studio imports
+      if: always()
+      shell: pwsh
+      run: '$paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent $env:HELIOS_WIDL
+        }), (Join-Path (Join-Path ''C:/VulkanSDK'' $env:VULKAN_SDK_VERSION) ''Bin'')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
+        Select-Object -Unique
+
+        foreach ($path in $paths) { $path >> $env:GITHUB_PATH }
+
+        "VULKAN_SDK=C:/VulkanSDK/$env:VULKAN_SDK_VERSION" >> $env:GITHUB_ENV
+
+        '
+      id: preserve_pinned_paths
+    - name: Validate selected native tools after VS environment initialization
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Assert-PinnedToolPaths.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
+      id: selected_tool_paths
+    - name: Observe Ninja after all driver bootstrap path changes
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-driver-bootstrap-before-vs-import -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
+      id: ninja_after_bootstrap
+    - name: Enforce exact native toolchain pins
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Assert-CIToolchain.ps1 -ReceiptDir C:/hb/qualification
+      id: s17
+    - name: Enforce current producer pins
+      if: always()
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component driver -ReceiptDir C:/hb/qualification
+      id: s18
+    - name: Matched DXVK real translation units and nine CPU regressions
+      id: dxvk_diagnostic
+      shell: pwsh
+      run: ./ci/windows/Run-DxvkArrayDiagnostic.ps1 -RepoRoot $env:GITHUB_WORKSPACE
+    - name: Collect explicit failure and qualification evidence
+      id: collect_evidence
+      if: always()
+      shell: powershell
+      env:
+        HELIOS_STEPS_JSON: ${{ toJSON(steps) }}
+        HELIOS_PRIMARY_RESULT: ${{ job.status }}
+      run: ./ci/windows/Collect-CIEvidence.ps1 -Job dxvk_array_diagnostic -Root C:/he
+    - name: Admit and seal upload_evidence transport
+      id: upload_evidence_seal
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
+      if: ${{ always() }}
+    - name: Preserve qualification and failure evidence
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-dxvk-array-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+        path: C:/he
+        if-no-files-found: error
+        retention-days: 90
+        include-hidden-files: true
+      id: upload_evidence
+    - name: Download real upload_evidence artifact
+      id: upload_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-dxvk-array-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/upload_evidence
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+    - name: Verify real upload_evidence roundtrip set size hashes
+      id: upload_evidence_verify
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
+
+        Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
+    - name: Report separate evidence outcomes
+      if: always()
+      shell: powershell
+      run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
+        steps.upload_evidence_verify.outcome }}
