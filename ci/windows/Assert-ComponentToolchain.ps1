@@ -9,7 +9,10 @@ $vs=$null;$vc=$null
 $observer=Join-Path $PSScriptRoot 'Observe-NinjaResolution.ps1'
 try{& $observer -Phase "immediately-before-component-$Component-vs-import" -ReceiptDir $ReceiptDir}catch{$blocked.Add([pscustomobject]@{name='ninja-observer-pre-vs';reason=$_.Exception.Message})}
 try{Import-VisualStudioEnvironment -Architecture x64}catch{$blocked.Add([pscustomobject]@{name='visual-studio-environment-x64';reason=$_.Exception.Message})}
-$priority=@($env:HELIOS_LLVM_BIN, $(if($env:HELIOS_NINJA){Split-Path -Parent $env:HELIOS_NINJA}), $(if($env:HELIOS_WIDL){Split-Path -Parent $env:HELIOS_WIDL}), (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+# Normalize the complete pipeline, including its zero/one-result cases.
+$priority=@(
+    @($env:HELIOS_LLVM_BIN, $(if($env:HELIOS_NINJA){Split-Path -Parent $env:HELIOS_NINJA}), $(if($env:HELIOS_WIDL){Split-Path -Parent $env:HELIOS_WIDL}), (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+)
 if($priority.Count){$env:PATH=(@($priority)+@($env:PATH -split ';'|Where-Object {$_ -and $_ -notin $priority}|Select-Object -Unique)) -join ';'}
 if(Test-Path -LiteralPath (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Include/vulkan/vulkan.h')){$env:VULKAN_SDK=Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion}
 try{& $observer -Phase "immediately-after-component-$Component-vs-import" -ReceiptDir $ReceiptDir}catch{$blocked.Add([pscustomobject]@{name='ninja-observer-post-vs';reason=$_.Exception.Message})}
@@ -81,13 +84,13 @@ if($rcPath){
 $psPath=[string]$pins.powerShell7.installPath
 $checks.Add((Invoke-CIToolCheck -Name 'pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString()') -ExpectedVersion $pins.powerShell7.version -VersionPattern ('^'+[regex]::Escape($pins.powerShell7.version)+'$') -Phase $Phase -ExpectedResolvedPath $psPath))
 if($Component -eq 'opencl'){
-    $vulkanRoot=[string]$env:VULKAN_SDK;$vulkanPass=$vulkanRoot -and (Split-Path $vulkanRoot.TrimEnd('\\','/')) -ceq $pins.vulkanSdkVersion -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Include/vulkan/vulkan.h') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Lib/vulkan-1.lib') -PathType Leaf)
+    $vulkanRoot=[string]$env:VULKAN_SDK;$vulkanPass=$vulkanRoot -and (Split-Path -Leaf $vulkanRoot.TrimEnd([char[]]@('\','/'))) -ceq $pins.vulkanSdkVersion -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Include/vulkan/vulkan.h') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $vulkanRoot 'Lib/vulkan-1.lib') -PathType Leaf)
     Add-ComponentValueCheck 'VULKAN_SDK' $pins.vulkanSdkVersion $vulkanRoot ([bool]$vulkanPass) $vulkanRoot
 }
 if($Component -eq 'driver'){
     try{. (Join-Path $PSScriptRoot 'CI-Qualification.ps1');Write-CIRustScriptContract $ReceiptDir $Phase}catch{$blocked.Add([pscustomobject]@{name='rust-script-host-private';reason=$_.Exception.Message})}
 }
-$receipt=New-CIToolReceipt -Name "$Component-producer-toolchain-$Phase" -Checks @($checks.ToArray()) -Blocked @($blocked.ToArray()) -Context @{component=$Component;phase=$Phase;visualStudio=$vs;msvc=$observedMsvc;vulkanSdk=$env:VULKAN_SDK;selectedNinja=$env:HELIOS_NINJA}
+$receipt=New-CIToolReceipt -Name "$Component-producer-toolchain-$Phase" -Checks @($checks.ToArray()) -Blocked @($blocked.ToArray()) -Context @{component=$Component;phase=$Phase;visualStudio=$vs;msvc=$observedMsvc;vulkanSdk=$env:VULKAN_SDK;selectedNinja=$env:HELIOS_NINJA;priorityDirectories=@($priority);priorityCount=$priority.Count}
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir "$Phase-producer-tools.json") -Receipt $receipt
 Write-Host (ConvertTo-Json -InputObject $receipt -Depth 16)
 Assert-CIToolReceiptPass -Receipt $receipt

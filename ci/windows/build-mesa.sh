@@ -43,11 +43,8 @@ python "${repo_root}/ci/windows/assert_msys_pins.py" "${architecture}" "${output
 
 # Mesa's Meson build consumes the MSYS2-native Ninja role. Keep this separate
 # from the upstream Windows Ninja used by PowerShell/CMake jobs.
-export NINJA="$(command -v ninja.exe || command -v ninja)"
-if [[ -z "${NINJA}" ]]; then
-    echo "MSYS2 Ninja was not resolved" >&2
-    exit 1
-fi
+source "${repo_root}/ci/windows/select-msys-ninja.sh"
+helios_select_msys_ninja
 python "${repo_root}/ci/windows/assert_msys_ninja.py" "${architecture}" "${NINJA}" "${output_dir}/msys2-ninja.json"
 
 

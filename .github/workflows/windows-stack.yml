@@ -1776,7 +1776,7 @@ jobs:
       if: ${{ always() }}
       shell: powershell
       run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
-  
+
         if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
     - uses: actions/upload-artifact@v7
       id: upload_control
@@ -1798,7 +1798,7 @@ jobs:
       if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
       shell: powershell
       run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
-  
+
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
   component_msys_control:
     name: Mesa ${{ matrix.arch }} production-policy Ninja control
@@ -1835,22 +1835,22 @@ jobs:
       id: ninja_control
       shell: msys2 {0}
       run: 'mkdir -p "$RUNNER_TEMP/component-control"
-  
+
         export MSYS2_ARG_CONV_EXCL=''*''
-  
+
         bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/component-control/msys-ninja.json"'
     - name: Preserve package acquisition
       if: always()
       shell: powershell
       run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/component-control" | Out-Null
-  
+
         Copy-Item "$env:RUNNER_TEMP/msys2-archive/install.json" "$env:RUNNER_TEMP/component-control/package-acquisition.json"'
     - name: Seal focal receipts
       id: upload_control_seal
       if: ${{ always() }}
       shell: powershell
       run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
-  
+
         if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
     - uses: actions/upload-artifact@v7
       id: upload_control
@@ -1872,7 +1872,131 @@ jobs:
       if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
       shell: powershell
       run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
-  
+
+        if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  component_checker_control:
+    name: Real ${{ matrix.component }} toolchain checker control
+    runs-on: windows-2022
+    timeout-minutes: 60
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.component_controls_only && inputs.component_controls_green }}
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+        - compatibility
+        - loaders
+        - opencl
+        - package
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: checkout
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: python_setup
+    - name: Initialize pinned PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Provision only selected Windows kit requirements
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
+      id: kit
+    - name: Provision CMake only for consuming components
+      if: ${{ matrix.component == 'loaders' || matrix.component == 'opencl' }}
+      shell: pwsh
+      run: python -m pip install "cmake==$env:CMAKE_VERSION"
+      id: cmake
+    - name: Install upstream Ninja 1.13.2 by release identity
+      shell: pwsh
+      run: ./ci/windows/Install-OfficialNinja.ps1 -ReceiptDir "$env:RUNNER_TEMP/ninja-qualification"
+      id: ninja_setup
+      if: ${{ matrix.component == 'opencl' }}
+    - name: Install pinned sccache binary
+      shell: pwsh
+      run: '$root=Join-Path $env:RUNNER_TEMP ''sccache-0.18.0''
+
+        $archive=Join-Path $env:RUNNER_TEMP ''sccache-0.18.0.zip''
+
+        Invoke-WebRequest https://github.com/mozilla/sccache/releases/download/v0.18.0/sccache-v0.18.0-x86_64-pc-windows-msvc.zip -OutFile $archive
+
+        Expand-Archive $archive $root
+
+        $exe=@(Get-ChildItem $root -Recurse -Filter sccache.exe)
+
+        if($exe.Count -ne 1){throw ''Pinned sccache executable missing''}
+
+        $exe[0].DirectoryName >> $env:GITHUB_PATH
+
+        '
+      id: s07
+      if: ${{ matrix.component == 'opencl' }}
+    - name: Restore Vulkan SDK
+      uses: actions/cache@v4
+      with:
+        path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
+        key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
+      id: s08
+      if: ${{ matrix.component == 'opencl' }}
+    - name: Install and validate Vulkan SDK
+      shell: pwsh
+      run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
+      id: s09
+      if: ${{ matrix.component == 'opencl' }}
+    - name: Run real component checker
+      shell: pwsh
+      id: checker
+      run: "$component='${{ matrix.component }}'\nif($PSVersionTable.PSVersion.ToString() -ne '7.6.6' -or $PSVersionTable.PSEdition -ne 'Core' -or -not [Environment]::Is64BitProcess){throw\
+        \ 'Expected PowerShell 7.6.6/Core x64'}\nif($component -eq 'package') {\n    $env:HELIOS_LLVM_BIN='';$env:HELIOS_WIDL='';$env:HELIOS_NINJA=''\n    ./ci/windows/Assert-ComponentToolchain.ps1\
+        \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-zero\"\n    $zero=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-zero/pre-producer-tools.json\"\
+        \ -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne 0){throw 'Package zero priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path $env:RUNNER_TEMP\
+        \ 'package-one-priority'\n    New-Item -ItemType Directory -Force $env:HELIOS_LLVM_BIN|Out-Null\n    ./ci/windows/Assert-ComponentToolchain.ps1 -Component package\
+        \ -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-one\"\n    $one=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-one/pre-producer-tools.json\"\
+        \ -Raw|ConvertFrom-Json\n    if($one.context.priorityCount -ne 1){throw 'Package one priority fixture not isolated'}\n} else {\n    ./ci/windows/Assert-ComponentToolchain.ps1\
+        \ -Component $component -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/checker\"\n}\nWrite-Host ($component.ToUpperInvariant()+'_TOOLCHAIN_CONTROL=PASS')"
+    - name: Preserve receipts and execution context
+      id: preserve_control
+      if: always()
+      shell: powershell
+      env:
+        CONTROL_STEPS: ${{ toJSON(steps) }}
+        CONTROL_RESULT: ${{ job.status }}
+      run: "$out=Join-Path $env:RUNNER_TEMP 'component-control'\nNew-Item -ItemType Directory -Force $out|Out-Null\nforeach($name in @('component-qualification','runner-qualification','ninja-qualification')){\n\
+        \ $root=Join-Path $env:RUNNER_TEMP $name\n if(Test-Path $root){foreach($file in @(Get-ChildItem $root -Recurse -File|Where-Object {$_.Extension -in '.json','.log'})){\n\
+        \  $relative=$file.FullName.Substring($root.Length).TrimStart('')\n  $destination=Join-Path (Join-Path $out $name) $relative\n  New-Item -ItemType Directory\
+        \ -Force (Split-Path $destination -Parent)|Out-Null\n  Copy-Item -LiteralPath $file.FullName -Destination $destination\n }}\n}\n@{headSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;component='${{\
+        \ matrix.component }}';jobResult=$env:CONTROL_RESULT;steps=($env:CONTROL_STEPS|ConvertFrom-Json);sourceStatus=(& git status --porcelain=v1 --untracked-files=no)}|ConvertTo-Json\
+        \ -Depth 20|Set-Content (Join-Path $out 'control-context.json') -Encoding utf8"
+    - name: Seal focal receipts
+      id: upload_control_seal
+      if: ${{ always() }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
+      with:
+        name: helios-component-checker-${{ matrix.component }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/component-control
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-component-checker-${{ matrix.component }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/control-download
+    - name: Verify focal receipts roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
+
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
 'on':
   workflow_dispatch:

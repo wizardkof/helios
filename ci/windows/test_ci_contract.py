@@ -71,7 +71,7 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         self.assertIn("$expectedVulkanRoot = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\\','/')", checker)
         self.assertIn("$Expected = ([string]$Expected).Replace('\\','/').TrimEnd('/')", checker)
         component = Path(__file__).with_name('Assert-ComponentToolchain.ps1').read_text()
-        self.assertIn("$vulkanRoot.TrimEnd('\\\\','/')", component)
+        self.assertIn("Split-Path -Leaf $vulkanRoot.TrimEnd([char[]]@('\\','/'))", component)
 
     def test_driver_and_diagnostic_control_share_producer_audit_verifier(self):
         from pathlib import Path
