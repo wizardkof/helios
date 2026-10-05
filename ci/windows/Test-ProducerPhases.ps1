@@ -18,9 +18,14 @@ $failed=$false
 try{Invoke-OpenCLNative 'pwsh.exe' @('-NoProfile','-Command','exit 37')}catch{$failed=$true}
 $receipt=Get-Content (Join-Path $ReceiptDir 'PHASE_FAILURE_CONTROL.json') -Raw|ConvertFrom-Json
 if(-not $failed -or $receipt.status -ne 'FAIL' -or $receipt.exit -ne 37){throw 'Native phase failure was not preserved'}
+$global:LASTEXITCODE=0
+Write-Host 'PHASE_FAILURE_EXIT_37_CONTROL=PASS'
 foreach($file in @('Build-OpenCL.ps1','Invoke-OpenCLBudget.ps1','Producer-Phases.ps1')){
  $tokens=$null;$errors=$null
  [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $file),[ref]$tokens,[ref]$errors)
+ Write-Host ($file+' parseErrors='+$errors.Count)
  if($errors.Count){throw "Parse errors in $file : $errors"}
 }
 @{status='PASS';phases=$phases;nativeFailureExit=37;product='NOT_RUN'}|ConvertTo-Json|Set-Content (Join-Path $ReceiptDir 'phases-control.json') -Encoding utf8
+# The exit-37 refusal was asserted above; report success of this negative control.
+$global:LASTEXITCODE=0

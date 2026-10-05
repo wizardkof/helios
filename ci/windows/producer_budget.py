@@ -120,9 +120,10 @@ def supervise(args):
     path = root / 'producer-budget.json'
     atomic_json(path, receipt)
     process = None
-    job = WindowsJob()
+    job = None
     try:
         with (root / 'stdout.log').open('wb') as stdout, (root / 'stderr.log').open('wb') as stderr:
+            job = WindowsJob()
             if effective <= 0:
                 receipt['status'], receipt['supervisorExit'] = 'TIMEOUT', 124
             else:
@@ -157,22 +158,29 @@ def supervise(args):
         receipt['error'] = str(error)
     finally:
         try:
-            receipt['activeProcessesBeforeCleanup'] = job.active()
-            job.terminate()
-            until = time.monotonic() + 15
-            while job.active() and time.monotonic() < until:
-                time.sleep(0.1)
-            receipt['activeProcessesAfterCleanup'] = job.active()
-            receipt['processTreeTerminated'] = receipt['activeProcessesAfterCleanup'] == 0
-            if not receipt['processTreeTerminated']:
-                receipt['status'], receipt['supervisorExit'] = 'FAIL', 125
+            if job is None:
+                # No child was created; preserve initialization refusal too.
+                receipt['activeProcessesBeforeCleanup'] = 0
+                receipt['activeProcessesAfterCleanup'] = 0
+                receipt['processTreeTerminated'] = True
+            else:
+                receipt['activeProcessesBeforeCleanup'] = job.active()
+                job.terminate()
+                until = time.monotonic() + 15
+                while job.active() and time.monotonic() < until:
+                    time.sleep(0.1)
+                receipt['activeProcessesAfterCleanup'] = job.active()
+                receipt['processTreeTerminated'] = receipt['activeProcessesAfterCleanup'] == 0
+                if not receipt['processTreeTerminated']:
+                    receipt['status'], receipt['supervisorExit'] = 'FAIL', 125
             if process is not None:
                 process.wait(timeout=15)
         except Exception as error:
             receipt['cleanupError'] = str(error)
             receipt['status'], receipt['supervisorExit'] = 'FAIL', 125
         finally:
-            job.close()
+            if job is not None:
+                job.close()
         phase_file = root / 'phase-current.json'
         if phase_file.is_file():
             receipt['lastPhase'] = json.loads(phase_file.read_text(encoding='utf-8-sig'))
