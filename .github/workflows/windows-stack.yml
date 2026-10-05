@@ -1673,6 +1673,9 @@ jobs:
       with:
         submodules: false
         fetch-depth: 1
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
     - name: Install pinned Rust toolchain
       uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
       with:
@@ -1713,15 +1716,37 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Integrated producer diagnostic task failed' }
           & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditExit.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')
         } finally { Pop-Location }
-    - name: Upload producer audit control evidence
-      uses: actions/upload-artifact@v7
+    - name: Admit and seal producer audit control evidence
+      id: producer_audit_upload_seal
       if: always()
+      shell: powershell
+      run: |
+        python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/producer-audit-control" --receipt "${{ runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Producer audit artifact admission/seal failed' }
+    - name: Upload producer audit control evidence
+      id: producer_audit_upload
+      uses: actions/upload-artifact@v7
+      if: ${{ always() && steps.producer_audit_upload_seal.outcome == 'success' }}
       with:
         name: helios-producer-audit-control-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/producer-audit-control
         if-no-files-found: error
         retention-days: 90
         include-hidden-files: true
+    - name: Download real producer audit control artifact
+      id: producer_audit_upload_download
+      if: ${{ always() && steps.producer_audit_upload.outcome == 'success' }}
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-producer-audit-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload
+    - name: Verify real producer audit control roundtrip
+      id: producer_audit_upload_verify
+      if: ${{ always() && steps.producer_audit_upload_download.outcome == 'success' }}
+      shell: powershell
+      run: |
+        python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
+        if ($LASTEXITCODE -ne 0) { throw 'EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL' }
 'on':
   workflow_dispatch:
     inputs:
