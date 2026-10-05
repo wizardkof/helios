@@ -27,7 +27,27 @@ NOT_USED by Meson. No component/product build occurred. All seven artifacts
 passed seal/upload/download/verify. Portable ci/windows 69/69 and candidate
 version 15/15 PASS; independent final review found no critical/important defect.
 Evidence: .fullstack/artifacts/p06/component-controls-20261005/REPORT.md.
-New product qualification remains NOT_RUN until separately frozen and dispatched.
+After all control gates and independent review passed, remote ledger allocated
+22.22.312.0. Frozen HEAD654391bc9c63cc770013d1508b76909604e4c663,
+fingerprint f61fadb62dc75dde787755344ea4585d9ee84ce2bce50ae3db84b4dbd14ed543;
+all three producer pins retained and clean checkout/remote lock PASS.
+Single product run37356930190 attempt1 concluded FAILURE. Python, native
+regressions9/9, real producer audit, Release, Debug and Compatibility PASS;
+Release/Debug/Compatibility artifact identities and native roundtrips PASS.
+Loaders passed its repaired checker then failed compiling the smoke probe:
+probe_common.h is absent from the frozen source tree (fatal C1083).
+Both Mesa architectures passed strict native Ninja identity/execution at the
+correct MSYS2 root, then failed coredata serialization with WindowsPath/pickle
+exceptions. OpenCL passed its pre-build gates but exceeded the three-hour job
+limit; GitHub concluded cancelled, with build completion NOT_PROVEN. Its job
+log returns BlobNotFound and is absent from the aggregate log ZIP; annotations
+and API evidence preserve the observed timeout without inferring compiler cause.
+Package SKIPPED/NOT_RUN_DEPENDENCY_FAILURE; native packaged schema NOT_RUN.
+Nine product archives plus ten RED/GREEN archives are preserved and verified.
+Collection/transport PASS remains separate from failed builds. No candidate
+edit, retry, manual cancellation, next reservation, deployment or publication.
+Frozen .310/.311 remain untouched. New frontiers are source completeness for
+Loaders, Mesa WindowsPath serialization and OpenCL job completion/duration.
 
 ## P06 native Python first frontier — 2026-10-05
 
