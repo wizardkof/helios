@@ -1569,7 +1569,7 @@ jobs:
   python_evidence_preflight:
     name: Native Python test dependency and evidence contracts
     runs-on: windows-2022
-    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only }}
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@v7
@@ -1747,6 +1747,133 @@ jobs:
       run: |
         python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
         if ($LASTEXITCODE -ne 0) { throw 'EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL' }
+  component_inputs_control:
+    name: Native priority and Vulkan SDK input controls
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.component_controls_only }}
+    timeout-minutes: 20
+    steps:
+    - &id001
+      uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+      id: checkout
+    - &id002
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: python_setup
+    - name: Initialize pinned PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Execute production assignments under StrictMode
+      id: inputs_control
+      shell: pwsh
+      run: ./ci/windows/Test-ComponentToolchainInputs.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-control"
+    - name: Seal focal receipts
+      id: upload_control_seal
+      if: ${{ always() }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
+  
+        if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
+      with:
+        name: helios-component-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/component-control
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-component-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/control-download
+    - name: Verify focal receipts roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
+  
+        if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  component_msys_control:
+    name: Mesa ${{ matrix.arch }} production-policy Ninja control
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.component_controls_only }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x64
+          system: UCRT64
+          packages: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
+            mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+            mingw-w64-ucrt-x86_64-tools bison flex
+        - arch: x86
+          system: MINGW32
+          packages: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
+            mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
+    steps:
+    - *id001
+    - *id002
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: ${{ matrix.system }}
+        update: true
+        install: ${{ matrix.packages }}
+      id: msys_setup
+    - name: Restore archived package pins
+      id: packages
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" "${{ matrix.arch }}" "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
+    - name: Exercise minimal consumer with production argument policy
+      id: ninja_control
+      shell: msys2 {0}
+      run: 'mkdir -p "$RUNNER_TEMP/component-control"
+  
+        export MSYS2_ARG_CONV_EXCL=''*''
+  
+        bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/component-control/msys-ninja.json"'
+    - name: Preserve package acquisition
+      if: always()
+      shell: powershell
+      run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/component-control" | Out-Null
+  
+        Copy-Item "$env:RUNNER_TEMP/msys2-archive/install.json" "$env:RUNNER_TEMP/component-control/package-acquisition.json"'
+    - name: Seal focal receipts
+      id: upload_control_seal
+      if: ${{ always() }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
+  
+        if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
+      with:
+        name: helios-component-msys-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/component-control
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-component-msys-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/control-download
+    - name: Verify focal receipts roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
+  
+        if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
 'on':
   workflow_dispatch:
     inputs:
@@ -1760,6 +1887,14 @@ jobs:
         default: false
       producer_audit_control_only:
         description: Run the isolated host and private WDK producer audit control; requires infrastructure_only=true and python_evidence_only=true
+        type: boolean
+        default: false
+      component_controls_only:
+        description: Focal component controls only; requires infrastructure_only=true and python_evidence_only=true
+        type: boolean
+        default: false
+      component_controls_green:
+        description: Also run real component checker provisioning after focal RED has been preserved
         type: boolean
         default: false
   push:
