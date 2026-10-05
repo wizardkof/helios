@@ -4,6 +4,24 @@ import yaml
 
 ROOT=Path(__file__).parents[2]
 class WorkflowTests(unittest.TestCase):
+    def test_product_bootstrap_stops_after_failure_before_evidence_collection(self):
+        w=yaml.safe_load((ROOT/'.github/workflows/windows-stack.yml').read_text())
+        expensive={'msys2_archive','widl_build','s10','widl_select','llvm_select',
+                   's13','s14','s16','preserve_pinned_paths','selected_tool_paths',
+                   'ninja_after_bootstrap','s17','s18'}
+        for step in w['jobs']['driver']['steps']:
+            if step.get('id') in expensive:
+                condition=step.get('if','')
+                self.assertIn('success()',condition,step['id'])
+                self.assertIn('inputs.infrastructure_only',condition,step['id'])
+                self.assertNotIn('always()',condition,step['id'])
+        for job in ('driver','package'):
+            collect=next(s for s in w['jobs'][job]['steps'] if s.get('id')=='collect_evidence')
+            self.assertIn('always()',collect['if'])
+        for step in w['jobs']['package']['steps']:
+            if step.get('id') in ('s13','llvm_select'):
+                self.assertIn('success()',step.get('if',''),step['id'])
+
     def test_native_requirements_and_every_upload_roundtrip(self):
         w=yaml.safe_load((ROOT/'.github/workflows/windows-stack.yml').read_text())
         self.assertIn('python_evidence_preflight',w['jobs'])

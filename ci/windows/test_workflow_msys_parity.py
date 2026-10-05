@@ -17,7 +17,7 @@ class WorkflowMsysParityTests(unittest.TestCase):
         driver = self.jobs['driver']
         steps = {s.get('id'): s for s in driver['steps']}
         provision = steps['msys2_archive']
-        self.assertEqual(provision.get('if'), '${{ always() }}')
+        self.assertEqual(provision.get('if'), '${{ success() || inputs.infrastructure_only }}')
         self.assertIn('Install-PinnedMSYS2Packages.py" x64 ', provision['run'])
         self.assertEqual(steps['msys2_archive_verify'].get('if'), INFRA)
         self.assertEqual(steps['msys_ninja_control'].get('if'), INFRA)

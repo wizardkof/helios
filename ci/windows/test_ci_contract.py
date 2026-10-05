@@ -35,10 +35,14 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         for name in ('Install Rust nightly', 'Install Rust build helpers', 'Initialize isolated host and private WDK producers', 'Install Meson', 'Install and validate Vulkan SDK'):
             step = next(step for step in steps if step.get('name') == name)
-            self.assertIn('always()', step.get('if', 'always()'), name)
+            if name in ('Install Meson', 'Install and validate Vulkan SDK'):
+                self.assertNotIn('if',step,name)
+            else:
+                self.assertEqual(step['if'],'${{ success() || inputs.infrastructure_only }}',name)
         for name in ('Build pinned Wine 11.12 WIDL from official source', 'Capture Mesa MSYS2 package and Ninja consumer preflight'):
             step = next(step for step in steps if step.get('name') == name)
-            self.assertIn('always()', step.get('if', 'always()'))
+            expected='${{ success() || inputs.infrastructure_only }}' if name.startswith('Build pinned') else '${{ always() && inputs.infrastructure_only }}'
+            self.assertEqual(step['if'],expected,name)
 
     def test_widl_build_uses_msys_make_and_disables_unneeded_freetype(self):
         from pathlib import Path

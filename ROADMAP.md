@@ -1,5 +1,29 @@
 # ROADMAP — Stage: Correctness and D3D12
 
+## P06 native Python first frontier — 2026-10-05
+
+Candidate 22.22.310.0 remains FROZEN_FIRST_FAILURE: product run 37289000125
+failed native Python test dependency qualification, then was cancelled. Its logs
+are permanently unavailable (empty returned archive), artifacts NONE and detailed
+historical root cause NOT_PROVEN. No product retry or candidate source edit occurred.
+
+Exact-source diagnostic 37337278987 on fb0790d reproduced a consumer failure:
+acquisition/hash, pip installation and yaml import PASS; ci/windows ran 65 tests
+and failed test_python_evidence_workflow with KeyError 'id'. The producer control
+upload lacked the ID and seal/download/verify required by the existing contract.
+Partial evidence survived collection FAIL and transport PASS; later test receipts
+were absent because control/tests-0 stopped execution. This explains the new
+diagnostic, not the lost historical error text.
+
+Unreserved correction 11ec3a3 supplies the complete producer-control roundtrip
+and exact native Python setup. Native focal run 37337888351 PASS: both isolated
+and native suites 65/65 and 15/15, collection and real artifact transport PASS.
+Product jobs SKIPPED. A separate regression guards costly product bootstrap
+steps against continuation after failure while retaining unconditional evidence
+collection and infrastructure controls. No bootstrap pins or retry policy changed.
+Deployment, guest runtime and black-screen/device-loss attribution remain NOT_RUN
+or NOT_PROVEN as applicable.
+
 ## Canonical build policy — owner directive, 2026-10-04
 
 ```text

@@ -69,7 +69,7 @@ jobs:
           mingw-w64-ucrt-x86_64-tools bison flex
       id: msys2_setup
     - name: Restore exact archived MSYS2 package pins
-      if: ${{ always() }}
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: msys2 {0}
       run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" x64 "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
       id: msys2_archive
@@ -155,7 +155,7 @@ jobs:
       run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-official-ninja-acquisition -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
       id: ninja_after_official
     - name: Build pinned Wine 11.12 WIDL from official source
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: msys2 {0}
       run: bash ./ci/windows/build-pinned-widl.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pinned-widl"
       id: widl_build
@@ -165,17 +165,17 @@ jobs:
       run: bash ./ci/windows/test-msys-ninja.sh "$GITHUB_WORKSPACE" "$RUNNER_TEMP/msys2-ninja-control.json"
       id: msys_ninja_control
     - name: Observe pinned WIDL candidates
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Select-CIPinnedWidl.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: widl_select
     - name: Install official LLVM 22.1.8 release
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: s10
     - name: Select pinned LLVM compiler
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: llvm_select
@@ -190,7 +190,7 @@ jobs:
       run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
       id: s12
     - name: Install Rust nightly
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
       with:
         toolchain: ${{ env.RUST_TOOLCHAIN }}
@@ -198,7 +198,7 @@ jobs:
         targets: i686-pc-windows-msvc
       id: s13
     - name: Install Rust build helpers
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: 'cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
 
@@ -207,12 +207,12 @@ jobs:
         '
       id: s14
     - name: Initialize isolated host and private WDK producers
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Initialize-CIIsolation.ps1
       id: s16
     - name: Preserve selected tool directories across Visual Studio imports
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: '$paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent $env:HELIOS_WIDL
         }), (Join-Path (Join-Path ''C:/VulkanSDK'' $env:VULKAN_SDK_VERSION) ''Bin'')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
@@ -225,17 +225,17 @@ jobs:
         '
       id: preserve_pinned_paths
     - name: Validate selected native tools after VS environment initialization
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Assert-PinnedToolPaths.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: selected_tool_paths
     - name: Observe Ninja after all driver bootstrap path changes
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Observe-NinjaResolution.ps1 -Phase after-driver-bootstrap-before-vs-import -ReceiptDir "$env:RUNNER_TEMP/ninja-resolution"
       id: ninja_after_bootstrap
     - name: Enforce exact native toolchain pins
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Assert-CIToolchain.ps1 -ReceiptDir C:/hb/qualification
       id: s17
@@ -255,7 +255,7 @@ jobs:
       run: ./ci/windows/Test-CINinjaConsumers.ps1 -RepoRoot $env:GITHUB_WORKSPACE -ReceiptDir "$env:RUNNER_TEMP/ninja-consumer-tests"
       id: ninja_consumer_tests
     - name: Enforce current producer pins
-      if: always()
+      if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
       run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component driver -ReceiptDir C:/hb/qualification
       id: s18
@@ -355,7 +355,7 @@ jobs:
       run: 'python ./ci/windows/artifact_roundtrip.py seal --root "C:/he" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
-      if: ${{ always() }}
+      if: always()
     - name: Preserve qualification and failure evidence
       if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
       uses: actions/upload-artifact@v7
@@ -1403,12 +1403,12 @@ jobs:
         '
       id: s11
     - name: Install official LLVM 22.1.8 release
-      if: always()
+      if: ${{ success() }}
       shell: pwsh
       run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: s13
     - name: Select pinned LLVM compiler
-      if: always()
+      if: ${{ success() }}
       shell: pwsh
       run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: llvm_select
