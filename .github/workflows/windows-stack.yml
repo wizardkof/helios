@@ -1569,7 +1569,8 @@ jobs:
   python_evidence_preflight:
     name: Native Python test dependency and evidence contracts
     runs-on: windows-2022
-    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only }}
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only && !inputs.frontier_controls_only
+      }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@v7
@@ -1682,11 +1683,15 @@ jobs:
         toolchain: ${{ env.RUST_TOOLCHAIN }}
     - name: Install pinned cargo-make and host helper
       shell: pwsh
-      run: |
-        cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
-        if ($LASTEXITCODE -ne 0) { throw 'cargo-make install failed' }
+      run: 'cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
+
+        if ($LASTEXITCODE -ne 0) { throw ''cargo-make install failed'' }
+
         cargo install rust-script --locked --version $env:RUST_SCRIPT_VERSION
-        if ($LASTEXITCODE -ne 0) { throw 'host rust-script install failed' }
+
+        if ($LASTEXITCODE -ne 0) { throw ''host rust-script install failed'' }
+
+        '
     - name: Ensure pinned Windows Driver Kit is installed
       shell: pwsh
       run: ./ci/windows/Install-WindowsDriverKit.ps1
@@ -1695,34 +1700,30 @@ jobs:
       run: ./ci/windows/Initialize-CIIsolation.ps1
     - name: Run actual adapted WDK and host diagnostic tasks
       shell: pwsh
-      run: |
-        $auditRoot = Join-Path $env:RUNNER_TEMP 'producer-audit-control'
-        New-Item -ItemType Directory -Path $auditRoot | Out-Null
-        Push-Location (Join-Path $env:GITHUB_WORKSPACE 'kmd_render')
-        try {
-          $redAudit = Join-Path $auditRoot 'producer-audit-red.executions.jsonl'
-          $redTranscript = Join-Path $auditRoot 'producer-audit-red.console.log'
-          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task 'producer-audit-diagnostic' -AuditFile $redAudit -ControlOriginalRustRunner 2>&1 | Tee-Object -FilePath $redTranscript
-          if ($LASTEXITCODE -ne 0) { throw 'Original CargoMake @rust RED control task failed' }
-          $selectedLine = Select-String -Path $redTranscript -Pattern 'HOST_SELECTED_EXECUTABLE=(.+)' | Select-Object -Last 1
-          $taskPathLine = Select-String -Path $redTranscript -Pattern 'HOST_TASK_PATH=(.+)' | Select-Object -Last 1
-          if (!$selectedLine) { throw 'Could not observe actual CargoMake @rust executable path' }
-          if (!$taskPathLine) { throw 'Could not observe CargoMake task PATH' }
-          $selectedExecutable = $selectedLine.Matches[0].Groups[1].Value.Trim()
-          $taskPath = $taskPathLine.Matches[0].Groups[1].Value.Trim()
-          [ordered]@{selectedExecutable=$selectedExecutable;expectedHostExecutable=$env:HELIOS_HOST_RUST_SCRIPT;effectiveTaskPath=$taskPath;dispatcherDirectory=(Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch')}|ConvertTo-Json -Compress|Set-Content (Join-Path $auditRoot 'producer-audit-red-resolution.json') -Encoding UTF8
-          if ($selectedExecutable -cne $env:HELIOS_HOST_RUST_SCRIPT) { throw "Observed unexpected CargoMake @rust executable: $selectedExecutable" }
-          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task 'producer-audit-diagnostic' -AuditFile (Join-Path $auditRoot 'producer-audit-diagnostic.executions.jsonl')
-          if ($LASTEXITCODE -ne 0) { throw 'Integrated producer diagnostic task failed' }
-          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditExit.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')
-        } finally { Pop-Location }
+      run: "$auditRoot = Join-Path $env:RUNNER_TEMP 'producer-audit-control'\nNew-Item -ItemType Directory -Path $auditRoot | Out-Null\nPush-Location (Join-Path $env:GITHUB_WORKSPACE\
+        \ 'kmd_render')\ntry {\n  $redAudit = Join-Path $auditRoot 'producer-audit-red.executions.jsonl'\n  $redTranscript = Join-Path $auditRoot 'producer-audit-red.console.log'\n\
+        \  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release\
+        \ -Task 'producer-audit-diagnostic' -AuditFile $redAudit -ControlOriginalRustRunner 2>&1 | Tee-Object -FilePath $redTranscript\n  if ($LASTEXITCODE -ne 0)\
+        \ { throw 'Original CargoMake @rust RED control task failed' }\n  $selectedLine = Select-String -Path $redTranscript -Pattern 'HOST_SELECTED_EXECUTABLE=(.+)'\
+        \ | Select-Object -Last 1\n  $taskPathLine = Select-String -Path $redTranscript -Pattern 'HOST_TASK_PATH=(.+)' | Select-Object -Last 1\n  if (!$selectedLine)\
+        \ { throw 'Could not observe actual CargoMake @rust executable path' }\n  if (!$taskPathLine) { throw 'Could not observe CargoMake task PATH' }\n  $selectedExecutable\
+        \ = $selectedLine.Matches[0].Groups[1].Value.Trim()\n  $taskPath = $taskPathLine.Matches[0].Groups[1].Value.Trim()\n  [ordered]@{selectedExecutable=$selectedExecutable;expectedHostExecutable=$env:HELIOS_HOST_RUST_SCRIPT;effectiveTaskPath=$taskPath;dispatcherDirectory=(Join-Path\
+        \ $env:HELIOS_ISOLATION_ROOT 'host-dispatch')}|ConvertTo-Json -Compress|Set-Content (Join-Path $auditRoot 'producer-audit-red-resolution.json') -Encoding\
+        \ UTF8\n  if ($selectedExecutable -cne $env:HELIOS_HOST_RUST_SCRIPT) { throw \"Observed unexpected CargoMake @rust executable: $selectedExecutable\" }\n \
+        \ & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task\
+        \ 'producer-audit-diagnostic' -AuditFile (Join-Path $auditRoot 'producer-audit-diagnostic.executions.jsonl')\n  if ($LASTEXITCODE -ne 0) { throw 'Integrated\
+        \ producer diagnostic task failed' }\n  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditExit.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path\
+        \ $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')\n} finally {\
+        \ Pop-Location }\n"
     - name: Admit and seal producer audit control evidence
       id: producer_audit_upload_seal
       if: always()
       shell: powershell
-      run: |
-        python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/producer-audit-control" --receipt "${{ runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
-        if ($LASTEXITCODE -ne 0) { throw 'Producer audit artifact admission/seal failed' }
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/producer-audit-control" --receipt "${{ runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw ''Producer audit artifact admission/seal failed'' }
+
+        '
     - name: Upload producer audit control evidence
       id: producer_audit_upload
       uses: actions/upload-artifact@v7
@@ -1744,9 +1745,12 @@ jobs:
       id: producer_audit_upload_verify
       if: ${{ always() && steps.producer_audit_upload_download.outcome == 'success' }}
       shell: powershell
-      run: |
-        python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
-        if ($LASTEXITCODE -ne 0) { throw 'EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL' }
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/producer_audit_upload.json"
+
+        if ($LASTEXITCODE -ne 0) { throw ''EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL'' }
+
+        '
   component_inputs_control:
     name: Native priority and Vulkan SDK input controls
     runs-on: windows-2022
@@ -1951,9 +1955,9 @@ jobs:
       run: "$component='${{ matrix.component }}'\nif($PSVersionTable.PSVersion.ToString() -ne '7.6.6' -or $PSVersionTable.PSEdition -ne 'Core' -or -not [Environment]::Is64BitProcess){throw\
         \ 'Expected PowerShell 7.6.6/Core x64'}\nif($component -eq 'package') {\n    $env:HELIOS_LLVM_BIN='';$env:HELIOS_WIDL='';$env:HELIOS_NINJA=''\n    ./ci/windows/Assert-ComponentToolchain.ps1\
         \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-zero\"\n    $zero=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-zero/pre-producer-tools.json\"\
-        \ -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne 0){throw 'Package zero priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path $env:RUNNER_TEMP\
-        \ 'package-one-priority'\n    New-Item -ItemType Directory -Force $env:HELIOS_LLVM_BIN|Out-Null\n    ./ci/windows/Assert-ComponentToolchain.ps1 -Component package\
-        \ -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-one\"\n    $one=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-one/pre-producer-tools.json\"\
+        \ -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne 0){throw 'Package zero priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path\
+        \ $env:RUNNER_TEMP 'package-one-priority'\n    New-Item -ItemType Directory -Force $env:HELIOS_LLVM_BIN|Out-Null\n    ./ci/windows/Assert-ComponentToolchain.ps1\
+        \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-one\"\n    $one=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-one/pre-producer-tools.json\"\
         \ -Raw|ConvertFrom-Json\n    if($one.context.priorityCount -ne 1){throw 'Package one priority fixture not isolated'}\n} else {\n    ./ci/windows/Assert-ComponentToolchain.ps1\
         \ -Component $component -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/checker\"\n}\nWrite-Host ($component.ToUpperInvariant()+'_TOOLCHAIN_CONTROL=PASS')"
     - name: Preserve receipts and execution context
@@ -1998,6 +2002,138 @@ jobs:
       run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
 
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  frontier_loaders_control:
+    name: Loaders exact probe header RED
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.frontier_controls_only }}
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        submodules: false
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Initialize pinned PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Provision pinned Windows kit
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+    - name: Exact historical probe compilation
+      shell: pwsh
+      run: ./ci/windows/Test-ProbeHeader.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-control"
+    - name: Seal focal receipts
+      id: upload_control_seal
+      if: ${{ always() }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
+      with:
+        name: helios-frontier-header-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/component-control
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-frontier-header-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/control-download
+    - name: Verify focal receipts roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  frontier_mesa_control:
+    name: Mesa ${{ matrix.arch }} real wrap import-order reproduction
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.frontier_controls_only }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x64
+          system: UCRT64
+          packages: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
+            mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
+            mingw-w64-ucrt-x86_64-tools bison flex
+        - arch: x86
+          system: MINGW32
+          packages: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
+            mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        submodules: false
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      id: python_setup
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: ${{ matrix.system }}
+        update: true
+        install: ${{ matrix.packages }}
+      id: msys_setup
+    - name: Restore archived package pins
+      id: packages
+      shell: msys2 {0}
+      run: python "$GITHUB_WORKSPACE/ci/windows/Install-PinnedMSYS2Packages.py" "${{ matrix.arch }}" "$RUNNER_TEMP/msys2-archive" "$RUNNER_TEMP/msys2-archive/install.json"
+    - name: Real diff_files wrap RED and import-order-only GREEN
+      shell: msys2 {0}
+      run: 'export MSYS2_ARG_CONV_EXCL=''*''
+
+        source ./ci/windows/select-msys-ninja.sh
+
+        helios_select_msys_ninja
+
+        mkdir -p "$RUNNER_TEMP/component-control"
+
+        python ./ci/windows/assert_msys_pins.py "${{ matrix.arch }}" "$RUNNER_TEMP/component-control/pins.json"
+
+        python ./ci/windows/assert_msys_ninja.py "${{ matrix.arch }}" "$NINJA" "$RUNNER_TEMP/component-control/ninja.json"
+
+        python ./ci/windows/test_meson_serialization.py "$(cygpath -m "$GITHUB_WORKSPACE")" "$(cygpath -m "$RUNNER_TEMP/component-control/serialization")"'
+    - name: Seal focal receipts
+      id: upload_control_seal
+      if: ${{ always() }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
+      with:
+        name: helios-frontier-mesa-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/component-control
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-frontier-mesa-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/control-download
+    - name: Verify focal receipts roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
 'on':
   workflow_dispatch:
     inputs:
@@ -2019,6 +2155,14 @@ jobs:
         default: false
       component_controls_green:
         description: Also run real component checker provisioning after focal RED has been preserved
+        type: boolean
+        default: false
+      frontier_controls_only:
+        description: Native .312 frontier controls without product; requires infrastructure_only and python_evidence_only
+        type: boolean
+        default: false
+      frontier_controls_green:
+        description: Full corrected frontier preflight after RED mechanism proof
         type: boolean
         default: false
   push:
