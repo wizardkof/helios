@@ -39,7 +39,7 @@ if($LASTEXITCODE -ne 0){throw 'Private install-only control could not execute'}
 Expect-AuditRefusal 'PRIVATE_INSTALL_ONLY' $installOnly
 
 Expect-AuditRefusal 'WRONG_TASK' $valid 'release' 'some-other-task'
-Expect-AuditRefusal 'WRONG_PROFILE' $valid 'debug' 'isolation-host-probe'
+Expect-AuditRefusal 'WRONG_PROFILE' $valid 'dev' 'isolation-host-probe'
 
 $crossInvocation=Join-Path $AuditDirectory 'negative-cross-invocation.jsonl'
 $mixed=@($lines | ForEach-Object { $item=$_|ConvertFrom-Json; if($item.event -eq 'host-run'){$item.invocation=[guid]::NewGuid().ToString('N')}; $item|ConvertTo-Json -Compress -Depth 8 })

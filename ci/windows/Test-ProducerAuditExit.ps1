@@ -59,5 +59,14 @@ try {
     $acceptedRoot=Invoke-ControlChild 'WRONG_HELPER_ACCEPTED' $harness $RedResolutionFile $false
 } finally { $env:HELIOS_ISOLATION_ROOT=$originalRoot }
 if (!(Select-String -Path (Join-Path $acceptedRoot 'console.log') -SimpleMatch 'runner accepted wrong helper version')) { throw 'CONTROL_EXIT_WRONG_HELPER_ACCEPTED=FAIL wrong failure' }
+# Debug production uses cargo-make's real dev profile. Exercise the same recipe and verifier.
+$devAudit=Join-Path $AuditDirectory 'producer-audit-dev.executions.jsonl'
+Push-Location $KmdRoot
+try {
+    & (Join-Path $PSScriptRoot 'Invoke-IsolatedCargoMake.ps1') -KmdRoot $KmdRoot -Profile dev -Task producer-audit-diagnostic -AuditFile $devAudit
+    if($LASTEXITCODE -ne 0){throw 'PRODUCER_DEV_PROFILE=FAIL diagnostic execution failed'}
+} finally { Pop-Location }
+& (Join-Path $PSScriptRoot 'Test-ProducerExecutionAudit.ps1') -AuditFile $devAudit -ExpectedProfile dev -ExpectedHostTask isolation-host-probe -ExpectedPrivateRoot $env:HELIOS_WDK_PRIVATE_ROOT -ExpectedHostExecutable $env:HELIOS_HOST_RUST_SCRIPT | Write-Host
+Write-Host 'PRODUCER_DEV_PROFILE=PASS'
 Write-Host 'CONTROL_EXIT_RED_GREEN=PASS'
 $global:LASTEXITCODE=0

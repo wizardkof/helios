@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$AuditFile,
-    [Parameter(Mandatory)][ValidateSet('release','debug')][string]$ExpectedProfile,
+    [Parameter(Mandatory)][ValidateSet('release','dev')][string]$ExpectedProfile,
     [Parameter(Mandatory)][string]$ExpectedHostTask,
     [Parameter(Mandatory)][string]$ExpectedPrivateRoot,
     [Parameter(Mandatory)][string]$ExpectedHostExecutable
