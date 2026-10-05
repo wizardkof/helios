@@ -17,3 +17,8 @@ class WorkflowTests(unittest.TestCase):
         run=(ROOT/'ci/windows/Run-CandidateRegressions.ps1').read_text()
         self.assertIn('Initialize-TestPython.ps1',run)
         self.assertIn('& $python -m unittest',run)
+
+    def test_pinned_wheel_is_installed_even_if_same_version_preexists(self):
+        bootstrap=(ROOT/'ci/windows/bootstrap_test_python.py').read_text()
+        self.assertIn("'--force-reinstall'",bootstrap)
+        self.assertIn('yamlDistributionBefore',bootstrap)

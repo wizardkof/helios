@@ -22,7 +22,11 @@ def identity():
 
 def bootstrap(receipts):
     receipts.mkdir(parents=True, exist_ok=True)
-    before=identity(); (receipts/'before.json').write_text(json.dumps(before,indent=2)+'\n')
+    before=identity()
+    try:before['yamlDistributionBefore']=importlib.metadata.version('PyYAML')
+    except importlib.metadata.PackageNotFoundError:before['yamlDistributionBefore']='NOT_INSTALLED_IN_THIS_INTERPRETER'
+    spec=importlib.util.find_spec('yaml');before['yamlImportCandidateBefore']=spec.origin if spec else None
+     (receipts/'before.json').write_text(json.dumps(before,indent=2)+'\n')
     if sys.platform!='win32' or before['version']!=PINS['pythonVersion'] or before['bits']!=64 or platform.python_implementation()!='CPython':
         raise ValueError('Native CPython 3.12.10 x64 required')
     if 'msys' in sys.executable.lower() or 'ucrt64' in sys.executable.lower() or 'mingw' in sys.executable.lower():
@@ -33,7 +37,7 @@ def bootstrap(receipts):
     wheel.write_bytes(data)
     (receipts/'acquisition.json').write_text(json.dumps(dict(**PINS,size=len(data),observedSha256=hashlib.sha256(data).hexdigest()),indent=2)+'\n')
     # Never invoke pip/py from PATH: install into this very interpreter.
-    subprocess.run([sys.executable,'-m','pip','install','--disable-pip-version-check','--no-deps','--no-index','--only-binary=:all:',
+    subprocess.run([sys.executable,'-m','pip','install','--disable-pip-version-check','--no-deps','--force-reinstall','--no-index','--only-binary=:all:',
                     '--find-links',str(receipts),'--require-hashes','-r',str(HERE/'python-test-requirements.txt')],check=True)
     import yaml
     if importlib.metadata.version('PyYAML')!=PINS['version']: raise ValueError('PyYAML installed version mismatch')
