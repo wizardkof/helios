@@ -5,6 +5,7 @@ $ErrorActionPreference='Stop'
 $script:ProducerPhaseRoot=$ReceiptDir
 $script:ProducerIdentities=[ordered]@{helios=$env:GITHUB_SHA;fixture='NO_PRODUCT_BUILD'}
 New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
+try {
 $phases=@('PHASE_CLONE_CLVK','PHASE_SUBMODULES','PHASE_CLSPV_PATCHES','PHASE_FETCH_LLVM','PHASE_CMAKE_CONFIGURE','PHASE_BUILD','PHASE_STAGE')
 foreach($name in $phases){
  Start-ProducerPhase $name
@@ -16,6 +17,7 @@ foreach($name in $phases){
 Start-ProducerPhase 'PHASE_FAILURE_CONTROL'
 $failed=$false
 try{Invoke-OpenCLNative 'pwsh.exe' @('-NoProfile','-Command','exit 37')}catch{$failed=$true}
+Write-Host ('PHASE_FAILURE_CAUGHT='+$failed)
 $receipt=Get-Content (Join-Path $ReceiptDir 'PHASE_FAILURE_CONTROL.json') -Raw|ConvertFrom-Json
 if(-not $failed -or $receipt.status -ne 'FAIL' -or $receipt.exit -ne 37){throw 'Native phase failure was not preserved'}
 $global:LASTEXITCODE=0
@@ -29,3 +31,9 @@ foreach($file in @('Build-OpenCL.ps1','Invoke-OpenCLBudget.ps1','Producer-Phases
 @{status='PASS';phases=$phases;nativeFailureExit=37;product='NOT_RUN'}|ConvertTo-Json|Set-Content (Join-Path $ReceiptDir 'phases-control.json') -Encoding utf8
 # The exit-37 refusal was asserted above; report success of this negative control.
 $global:LASTEXITCODE=0
+} catch {
+    $diagnostic=@{status='FAIL';exception=$_.Exception.ToString();stack=$_.ScriptStackTrace;position=$_.InvocationInfo.PositionMessage}
+    $diagnostic|ConvertTo-Json -Depth 6|Set-Content (Join-Path $ReceiptDir 'phases-control-error.json') -Encoding utf8
+    Write-Host ($diagnostic|ConvertTo-Json -Compress)
+    throw
+}
