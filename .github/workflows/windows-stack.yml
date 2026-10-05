@@ -1681,15 +1681,37 @@ jobs:
     - name: Run pertinent infrastructure suites
       shell: pwsh
       run: ./ci/windows/Initialize-TestPython.ps1 -Tests
-    - uses: actions/upload-artifact@v7
+    - name: Seal control receipts
+      id: upload_control_seal
       if: always()
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/collision-control" | Out-Null
+        Copy-Item "$env:RUNNER_TEMP/collision-*.json" "$env:RUNNER_TEMP/collision-control"
+        Copy-Item "$env:RUNNER_TEMP/python-test-dependencies/tests" "$env:RUNNER_TEMP/collision-control/tests" -Recurse
+        python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/collision-control" --receipt "$env:RUNNER_TEMP/collision-transport.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Control seal failed' }
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
       with:
         name: helios-qualifier-count-control-${{ github.run_id }}-${{ github.run_attempt }}
-        path: |
-          ${{ runner.temp }}/collision-*.json
-          ${{ runner.temp }}/python-test-dependencies/tests
+        path: ${{ runner.temp }}/collision-control
+        include-hidden-files: true
         if-no-files-found: error
-
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-qualifier-count-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/collision-download
+    - name: Verify control receipt roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: pwsh
+      run: |
+        python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/collision-download" --receipt "$env:RUNNER_TEMP/collision-transport.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Control roundtrip failed' }
 
 'on':
   workflow_dispatch:
