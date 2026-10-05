@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Initialize-HeliosBuild.ps1')
 Assert-CIBackend
 Import-VisualStudioEnvironment
-& (Join-Path $PSScriptRoot 'Initialize-TestPython.ps1') -ReceiptDir "$env:RUNNER_TEMP/python-test-dependencies" -Tests
+& (Join-Path $PSScriptRoot 'Initialize-TestPython.ps1') -ReceiptDir "$env:RUNNER_TEMP/product-python-test-dependencies" -Tests
 $python=Join-Path $env:pythonLocation 'python.exe'
 & (Join-Path $PSScriptRoot 'Measure-CIRunner.ps1') -ReceiptDir $ReceiptDir -Producer regressions
 Write-CIFingerprint $RepoRoot $ReceiptDir pre

@@ -211,18 +211,22 @@
       "mandatoryFiles": [
         "before.json",
         "after.json",
-        "acquisition.json"
+        "acquisition.json",
+        "tests/tests-0.log",
+        "tests/tests-1.log"
       ]
     },
     {
       "name": "product-python-dependencies",
-      "source": "{TEMP}/python-test-dependencies",
+      "source": "{TEMP}/product-python-test-dependencies",
       "step": "s19",
       "required": true,
       "mandatoryFiles": [
         "before.json",
         "after.json",
-        "acquisition.json"
+        "acquisition.json",
+        "tests/tests-0.log",
+        "tests/tests-1.log"
       ]
     }
   ],
@@ -607,7 +611,14 @@
       "mandatoryFiles": [
         "before.json",
         "after.json",
-        "acquisition.json"
+        "acquisition.json",
+        "control/control.json",
+        "control/red.log",
+        "control/red-identity.json",
+        "control/tests-0.log",
+        "control/tests-1.log",
+        "tests/tests-0.log",
+        "tests/tests-1.log"
       ]
     }
   ],
