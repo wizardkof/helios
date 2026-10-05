@@ -1711,7 +1711,7 @@ jobs:
           if ($selectedExecutable -cne $env:HELIOS_HOST_RUST_SCRIPT) { throw "Observed unexpected CargoMake @rust executable: $selectedExecutable" }
           & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task 'producer-audit-diagnostic' -AuditFile (Join-Path $auditRoot 'producer-audit-diagnostic.executions.jsonl')
           if ($LASTEXITCODE -ne 0) { throw 'Integrated producer diagnostic task failed' }
-          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditControl.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')
+          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditExit.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')
         } finally { Pop-Location }
     - name: Upload producer audit control evidence
       uses: actions/upload-artifact@v7

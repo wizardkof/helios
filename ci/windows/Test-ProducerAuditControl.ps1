@@ -90,3 +90,7 @@ if($incompatibleEvents|Where-Object event -eq 'host-run'){throw 'INCOMPATIBLE_HE
 if(!($incompatibleEvents|Where-Object {$_.event -eq 'host-helper-rejected' -and $_.version -eq 'rust-script 9.99.0' -and $_.exitCode -eq 92})){throw 'INCOMPATIBLE_HELPER=FAIL expected version gate was not observed'}
 try { & $verifier -AuditFile $incompatibleAudit -ExpectedProfile release -ExpectedHostTask isolation-host-probe -ExpectedPrivateRoot $env:HELIOS_WDK_PRIVATE_ROOT -ExpectedHostExecutable $originalHost | Out-Null; throw 'INCOMPATIBLE_HELPER=FAIL verifier accepted wrong-version helper' } catch { if ($_.Exception.Message -like '*verifier accepted wrong-version helper*') { throw }; if ($_.Exception.Message -notlike '*PRODUCER_CHILD_EXECUTION_FAILED*') { throw "INCOMPATIBLE_HELPER=FAIL unexpected verifier refusal: $($_.Exception.Message)" }; Write-Host "AUDIT_NEGATIVE_INCOMPATIBLE_HELPER=PASS ($($_.Exception.Message)); version=9.99.0; exitCode=92" }
 Write-Host 'PRODUCER_AUDIT_RED_GREEN=PASS'
+
+Write-Host "CONTROL_NATIVE_EXIT_RESIDUE=$LASTEXITCODE"
+# Expected native failures have been checked above; only the control harness succeeds.
+$global:LASTEXITCODE = 0
