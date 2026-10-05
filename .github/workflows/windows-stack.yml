@@ -1569,7 +1569,7 @@ jobs:
   python_evidence_preflight:
     name: Native Python test dependency and evidence contracts
     runs-on: windows-2022
-    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only }}
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only }}
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@v7
@@ -1663,6 +1663,65 @@ jobs:
 
         Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
       if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
+  producer_audit_control:
+    name: Integrated host and private WDK producer audit control
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.producer_audit_control_only }}
+    timeout-minutes: 35
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+    - name: Install pinned Rust toolchain
+      uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+      with:
+        toolchain: ${{ env.RUST_TOOLCHAIN }}
+    - name: Install pinned cargo-make and host helper
+      shell: pwsh
+      run: |
+        cargo install cargo-make --locked --version $env:CARGO_MAKE_VERSION
+        if ($LASTEXITCODE -ne 0) { throw 'cargo-make install failed' }
+        cargo install rust-script --locked --version $env:RUST_SCRIPT_VERSION
+        if ($LASTEXITCODE -ne 0) { throw 'host rust-script install failed' }
+    - name: Ensure pinned Windows Driver Kit is installed
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+    - name: Initialize isolated producer helpers
+      shell: pwsh
+      run: ./ci/windows/Initialize-CIIsolation.ps1
+    - name: Run actual adapted WDK and host diagnostic tasks
+      shell: pwsh
+      run: |
+        $auditRoot = Join-Path $env:RUNNER_TEMP 'producer-audit-control'
+        New-Item -ItemType Directory -Path $auditRoot | Out-Null
+        Push-Location (Join-Path $env:GITHUB_WORKSPACE 'kmd_render')
+        try {
+          $redAudit = Join-Path $auditRoot 'producer-audit-red.executions.jsonl'
+          $redTranscript = Join-Path $auditRoot 'producer-audit-red.console.log'
+          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task 'producer-audit-diagnostic' -AuditFile $redAudit -ControlOriginalRustRunner 2>&1 | Tee-Object -FilePath $redTranscript
+          if ($LASTEXITCODE -ne 0) { throw 'Original CargoMake @rust RED control task failed' }
+          $selectedLine = Select-String -Path $redTranscript -Pattern 'HOST_SELECTED_EXECUTABLE=(.+)' | Select-Object -Last 1
+          $taskPathLine = Select-String -Path $redTranscript -Pattern 'HOST_TASK_PATH=(.+)' | Select-Object -Last 1
+          if (!$selectedLine) { throw 'Could not observe actual CargoMake @rust executable path' }
+          if (!$taskPathLine) { throw 'Could not observe CargoMake task PATH' }
+          $selectedExecutable = $selectedLine.Matches[0].Groups[1].Value.Trim()
+          $taskPath = $taskPathLine.Matches[0].Groups[1].Value.Trim()
+          [ordered]@{selectedExecutable=$selectedExecutable;expectedHostExecutable=$env:HELIOS_HOST_RUST_SCRIPT;effectiveTaskPath=$taskPath;dispatcherDirectory=(Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch')}|ConvertTo-Json -Compress|Set-Content (Join-Path $auditRoot 'producer-audit-red-resolution.json') -Encoding UTF8
+          if ($selectedExecutable -cne $env:HELIOS_HOST_RUST_SCRIPT) { throw "Observed unexpected CargoMake @rust executable: $selectedExecutable" }
+          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task 'producer-audit-diagnostic' -AuditFile (Join-Path $auditRoot 'producer-audit-diagnostic.executions.jsonl')
+          if ($LASTEXITCODE -ne 0) { throw 'Integrated producer diagnostic task failed' }
+          & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditControl.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')
+        } finally { Pop-Location }
+    - name: Upload producer audit control evidence
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: helios-producer-audit-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/producer-audit-control
+        if-no-files-found: error
+        retention-days: 90
+        include-hidden-files: true
 'on':
   workflow_dispatch:
     inputs:
@@ -1672,6 +1731,10 @@ jobs:
         default: false
       python_evidence_only:
         description: Focused native Python dependencies and evidence transport controls only; requires infrastructure_only=true
+        type: boolean
+        default: false
+      producer_audit_control_only:
+        description: Run the isolated host and private WDK producer audit control; requires infrastructure_only=true and python_evidence_only=true
         type: boolean
         default: false
   push:

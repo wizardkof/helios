@@ -1,4 +1,4 @@
-param([string]$KmdRoot,[string]$Profile,[string]$Task="default",[Parameter(Mandatory)][string]$AuditFile)
+param([string]$KmdRoot,[string]$Profile,[string]$Task="default",[Parameter(Mandatory)][string]$AuditFile,[switch]$ControlOriginalRustRunner)
 $ErrorActionPreference='Stop'
 $cargo=$env:HELIOS_PINNED_CARGO
 $hostTool=$env:HELIOS_HOST_RUST_SCRIPT
@@ -6,7 +6,8 @@ $private=$env:HELIOS_WDK_PRIVATE_ROOT
 $expected='E7362E736CB2954856E15F662CCE6E300C744CEA2B91B8C0E4C05B8D81DE05BD'
 $run=Join-Path $env:HELIOS_ISOLATION_ROOT ('make-'+$Profile+'-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $run | Out-Null
-$names=@('PATH','CARGO_INSTALL_ROOT','HELIOS_HOST_RUST_SCRIPT','HELIOS_PINNED_CARGO','HELIOS_RUST_SCRIPT_AUDIT')
+$invocation=[guid]::NewGuid().ToString('N')
+$names=@('PATH','CARGO_INSTALL_ROOT','HELIOS_HOST_RUST_SCRIPT','HELIOS_PINNED_CARGO','HELIOS_RUST_SCRIPT_AUDIT','HELIOS_PRODUCER_PROFILE','HELIOS_PRODUCER_INVOCATION')
 $previous=@{};foreach($name in $names){$previous[$name]=[Environment]::GetEnvironmentVariable($name,'Process')}
 $hostBefore=(Get-FileHash $hostTool).Hash
 $make=Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch\cargo.exe'
@@ -16,7 +17,9 @@ try {
  $env:HELIOS_HOST_RUST_SCRIPT=$hostTool;$env:HELIOS_PINNED_CARGO=$cargo
  if(Test-Path $AuditFile){throw 'Fresh per-invocation producer audit required'}
  $env:HELIOS_RUST_SCRIPT_AUDIT=$AuditFile
- "PRODUCER_PROFILE=$Profile TASK=$Task RUN=$run"|Set-Content $AuditFile -Encoding UTF8
+ $env:HELIOS_PRODUCER_PROFILE=$Profile;$env:HELIOS_PRODUCER_INVOCATION=$invocation
+ $header=[ordered]@{event='invocation';invocation=$invocation;profile=$Profile;task=$Task;run=$run}|ConvertTo-Json -Compress
+ [IO.File]::WriteAllText($AuditFile,$header+"`n",[Text.UTF8Encoding]::new($false))
  $env:PATH="$(Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch');$env:PATH"
  Remove-Item Env:CARGO_INSTALL_ROOT -ErrorAction SilentlyContinue
  $top=Get-Content (Join-Path $KmdRoot 'Cargo.make.toml') -Raw
@@ -49,8 +52,30 @@ try {
 script_runner = "@rust"
 script = """
 println!("HOST_FOCAL_TASK_EXECUTED=YES");
+println!("HOST_TASK_PATH={}", std::env::var("PATH").unwrap_or_default());
+use std::process::Command;
+let query = format!("$child=Get-CimInstance Win32_Process -Filter 'ProcessId={}' ; $parent=Get-CimInstance Win32_Process -Filter ('ProcessId='+$child.ParentProcessId) ; $parent.ExecutablePath", std::process::id());
+let selected = Command::new("powershell.exe").arg("-NoProfile").arg("-Command").arg(query).output().expect("query selected script runner");
+assert!(selected.status.success(), "selected script runner process query failed");
+println!("HOST_SELECTED_EXECUTABLE={}", String::from_utf8_lossy(&selected.stdout).trim());
+"""
+
+[tasks.producer-audit-diagnostic]
+dependencies = ["setup-wdk-config-env-vars", "isolation-host-probe"]
+
+[tasks.producer-audit-diagnostic-fail]
+dependencies = ["setup-wdk-config-env-vars", "isolation-host-probe-fail"]
+
+[tasks.isolation-host-probe-fail]
+script_runner = "@rust"
+script = """
+std::process::exit(17);
 """
 '@
+if(-not $ControlOriginalRustRunner){
+ $dispatch=(Join-Path $env:HELIOS_ISOLATION_ROOT 'host-dispatch\rust-script.exe').Replace('\','/')
+ $top=[regex]::Replace($top,'(?m)^script_runner\s*=\s*"@rust"\s*$','script_runner = "'+$dispatch+'"'+"`nscript_extension = `"rs`"")
+}
  $local=Join-Path $run 'Driver.toml';[IO.File]::WriteAllText($local,$top)
  Write-Output "EFFECTIVE_WDK_RECIPE_SOURCE=$origin SHA256=$expected"
  Write-Output "CANDIDATE_MAKEFILE_SHA256=$((Get-FileHash (Join-Path $KmdRoot 'Cargo.make.toml')).Hash)"

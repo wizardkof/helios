@@ -20,13 +20,21 @@ $version=(& $tool --version) -join ''
 if($LASTEXITCODE -ne 0 -or $version -ne 'rust-script 0.30.0'){throw 'WDK private version mismatch'}
 $hash=(Get-FileHash -LiteralPath $tool).Hash
 $receipt="WDK_RUST_SCRIPT_$Mode path=$tool version=$version sha256=$hash task=$TaskName cargoHome=$env:CARGO_HOME installRoot=$env:CARGO_INSTALL_ROOT"
-[IO.File]::AppendAllText($env:HELIOS_RUST_SCRIPT_AUDIT,$receipt+"`n")
 Write-Output $receipt
 if($Mode -eq 'Run'){
  Write-Output "WDK_EXECUTABLE_PATH=$tool"
  Write-Output "WDK_EXECUTABLE_VERSION=$version"
- & $tool --base-path $BasePath $ScriptPath @RustArgs
- if($LASTEXITCODE -ne 0){throw "WDK private execution failed: $LASTEXITCODE"}
+ $exitCode=0
+ try { & $tool --base-path $BasePath $ScriptPath @RustArgs; $exitCode=$LASTEXITCODE }
+ catch { $exitCode=94 }
+ $event=[ordered]@{event='wdk-run';invocation=$env:HELIOS_PRODUCER_INVOCATION;profile=$env:HELIOS_PRODUCER_PROFILE;task=$TaskName;version=$version;executable=$tool;sha256=$hash;args=@('--base-path',$BasePath,$ScriptPath)+$RustArgs;exitCode=[int]$exitCode}
+ $json=$event|ConvertTo-Json -Compress -Depth 6
+ [IO.File]::AppendAllText($env:HELIOS_RUST_SCRIPT_AUDIT,$json+"`n",[Text.UTF8Encoding]::new($false))
+ if($exitCode -ne 0){throw "WDK private execution failed: $exitCode"}
+} else {
+ $event=[ordered]@{event='wdk-install';invocation=$env:HELIOS_PRODUCER_INVOCATION;profile=$env:HELIOS_PRODUCER_PROFILE;task=$TaskName;version=$version;executable=$tool;sha256=$hash;exitCode=0}
+ $json=$event|ConvertTo-Json -Compress -Depth 6
+ [IO.File]::AppendAllText($env:HELIOS_RUST_SCRIPT_AUDIT,$json+"`n",[Text.UTF8Encoding]::new($false))
 }
 if((Get-FileHash -LiteralPath $hostTool).Hash -ne $hostHash){throw 'HOST_RUST_SCRIPT_MUTATED during private WDK operation'}
 exit 0

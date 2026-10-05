@@ -301,9 +301,9 @@ foreach($f in Get-ChildItem (Join-Path $BuildRoot $Configuration) -Recurse -File
 & (Join-Path $PSScriptRoot 'Assert-ComponentToolchain.ps1') -Component driver -Phase post -ReceiptDir (Join-Path $receipts 'post-toolchain')
 Write-CIRustScriptContract $receipts post
 Write-CIFingerprint $RepoRoot $receipts post
-$executions=Get-Content (Join-Path $receipts "producer-$Configuration.executions.log") -Raw
-if($executions -notmatch ([regex]::Escape("PRODUCER_PROFILE=$cargoMakeProfile TASK=default"))){throw 'Current configuration producer audit absent'}
-if($executions -notmatch 'WDK_RUST_SCRIPT_Run.*rust-script 0.30.0' -or $executions -notmatch 'HOST_RUST_SCRIPT_EXEC.*rust-script 0.36.0.*copy-umd-to-package'){throw 'Actual host/private producer execution proof absent'}
+$executionAudit=Join-Path $receipts "producer-$Configuration.executions.log"
+& (Join-Path $PSScriptRoot 'Test-ProducerExecutionAudit.ps1') -AuditFile $executionAudit -ExpectedProfile $cargoMakeProfile -ExpectedHostTask 'copy-umd-to-package' -ExpectedPrivateRoot $env:HELIOS_WDK_PRIVATE_ROOT -ExpectedHostExecutable $env:HELIOS_HOST_RUST_SCRIPT
+$executions=Get-Content -LiteralPath $executionAudit -Raw
 $executions|Set-Content (Join-Path $receipts 'producer-executions.txt') -Encoding UTF8
 & (Join-Path $PSScriptRoot 'Audit-DriverSymbols.ps1') -OutputDir $OutputDir -Configuration $Configuration -Version $candidateLock.version
 Write-CIHashIndex $OutputDir
