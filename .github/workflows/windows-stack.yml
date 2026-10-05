@@ -2134,6 +2134,53 @@ jobs:
       run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
 
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  frontier_opencl_control:
+    name: OpenCL native Job Object timeout harness
+    runs-on: windows-2022
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.frontier_controls_only }}
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+        submodules: false
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Synthetic producer exits timeout and descendants
+      shell: powershell
+      run: 'python ./ci/windows/test_producer_budget.py --root "$env:RUNNER_TEMP/component-control"
+
+        if($LASTEXITCODE -ne 0){throw "OPENCL_TIMEOUT_HARNESS_CONTROL=FAIL"}'
+    - name: Seal focal receipts
+      id: upload_control_seal
+      if: ${{ always() }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/component-control" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Seal failed" }'
+    - uses: actions/upload-artifact@v7
+      id: upload_control
+      if: ${{ always() && steps.upload_control_seal.outcome == 'success' }}
+      with:
+        name: helios-frontier-opencl-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/component-control
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_control_download
+      if: ${{ always() && steps.upload_control.outcome == 'success' }}
+      with:
+        name: helios-frontier-opencl-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/control-download
+    - name: Verify focal receipts roundtrip
+      id: upload_control_verify
+      if: ${{ always() && steps.upload_control_download.outcome == 'success' }}
+      shell: powershell
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
+
+        if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
 'on':
   workflow_dispatch:
     inputs:

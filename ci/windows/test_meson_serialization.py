@@ -24,8 +24,10 @@ def main():
     historical = subprocess.check_output(['git', '-C', str(repo), 'show', BASE + ':ci/windows/meson-isolated.py'], text=True)
     corrected = historical.replace('from pathlib import Path\nimport sys\nimport mesonbuild.wrap.wrap as wrap\nfrom mesonbuild import mesonmain', 'import sys\nfrom mesonbuild import mesonmain\nimport mesonbuild.wrap.wrap as wrap\nfrom pathlib import Path')
     assert corrected != historical
-    source = root / 'source'
-    package = root / 'wrap-origin'
+    work = root.parent / ('meson-work-' + root.name)
+    work.mkdir(parents=True, exist_ok=True)
+    source = work / 'source'
+    package = work / 'wrap-origin'
     package.mkdir(exist_ok=True)
     (package / 'meson.build').write_text("project('wrapped', 'c')\nwrapped = static_library('wrapped', 'wrapped.c')\n", encoding='utf-8')
     (package / 'wrapped.c').write_text('int wrapped(void) { return 1; }\n', encoding='utf-8')
@@ -49,12 +51,12 @@ def main():
     if args.production:
         variants['production'] = (repo / 'ci/windows/meson-isolated.py').read_text()
     os.environ['HELIOS_CONTROL_WRAP'] = str(wrapfile)
-    os.environ['HELIOS_MESON_LOCK_ROOT'] = str(root / 'external-locks')
+    os.environ['HELIOS_MESON_LOCK_ROOT'] = str(work / 'external-locks')
     results = {}
     for name, text in variants.items():
-        entry = root / (name + '.py')
+        entry = work / (name + '.py')
         entry.write_text(text.replace("    sys.exit(mesonmain.main())", instrumentation + "    sys.exit(mesonmain.main())"), encoding='utf-8')
-        build = root / (name + '-build')
+        build = work / (name + '-build')
         setup = run([sys.executable, str(entry), 'setup', str(build), str(source)], root / (name + '-setup.log'))
         output = (root / (name + '-setup.log')).read_text(encoding='utf-8')
         if name == 'historical':
@@ -69,8 +71,8 @@ def main():
             executable = build / 'hello.exe'
             assert subprocess.run([str(executable)]).returncode == 0
             assert 'MESON_WRAP_LOCK_REDIRECT=' in output
-            assert not list(source.rglob('meson.lock')), 'Wrap lock leaked into source'
-            locks = list((root / 'external-locks').rglob('meson.lock'))
+            assert not list(source.rglob('.wraplock')), 'Wrap lock leaked into source'
+            locks = list((work / 'external-locks').rglob('.wraplock'))
             assert locks, 'External lock not observed'
             results[name] = {'setup': setup, 'compileReconfigureRecompile': exits, 'coredataSha256': hashlib.sha256((build / 'meson-private' / 'coredata.dat').read_bytes()).hexdigest(), 'externalLocks': [str(x) for x in locks], 'status': 'PASS'}
     receipt = {'status': 'PASS', 'python': sys.version, 'system': os.environ.get('MSYSTEM'), 'historicalSourceSha256': hashlib.sha256(historical.encode()).hexdigest(), 'singleVariable': 'ENTRYPOINT_IMPORT_ORDER', 'results': results}
