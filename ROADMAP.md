@@ -1,5 +1,34 @@
 # ROADMAP — Stage: Correctness and D3D12
 
+## P06 component frontiers — 2026-10-05
+
+Frozen .311 (5f9f37eb2d0d938ec56db9d691457c957fc3acf8), product run
+37338834595 attempt 1: Python PASS, native DXVK regressions 9/9 PASS,
+real producer dispatch/audit PASS, Release PASS and Debug PASS. Their artifact
+roundtrips passed. PRODUCTION_RECIPE_DISPATCH_INTEGRATION remains qualified.
+Five component jobs failed independently: compatibility/loaders Count cardinality;
+Mesa x64/x86 POSIX Ninja identity with Windows argument conversion disabled;
+OpenCL double-backslash TrimEnd binder. Final package NOT_RUN_DEPENDENCY_FAILURE.
+The candidate remains immutable and was not retried.
+
+Unreserved component branch preserves native RED run 37354960658: Core 7.6.6/x64
+reproduces zero/one priority failures and Vulkan binder errors; UCRT64/MINGW32
+reproduce the two incorrect D:/ Ninja paths and WinError 2 with package pins PASS.
+Correction normalizes the entire priority pipeline, uses explicit Vulkan char[]
+and exact directory leaf plus header/library gates, and shares one cygpath-based
+Ninja selector between Mesa production and its minimal consumer control.
+
+Native GREEN run 37355794142 (edef397) PASS: compatibility/loaders/opencl real
+producer checker, package real checker with zero/one priority, 22 input cases,
+and both Mesa minimal setup/compile/reconfigure/recompile controls. Selected,
+checked, Meson-detected and actual backend Ninja identities agree; exact package
+pins and Ninja version 1.13.2 PASS; native poison negative control PASS, poison
+NOT_USED by Meson. No component/product build occurred. All seven artifacts
+passed seal/upload/download/verify. Portable ci/windows 69/69 and candidate
+version 15/15 PASS; independent final review found no critical/important defect.
+Evidence: .fullstack/artifacts/p06/component-controls-20261005/REPORT.md.
+New product qualification remains NOT_RUN until separately frozen and dispatched.
+
 ## P06 native Python first frontier — 2026-10-05
 
 Candidate 22.22.310.0 remains FROZEN_FIRST_FAILURE: product run 37289000125
