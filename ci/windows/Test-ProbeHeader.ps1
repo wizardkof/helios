@@ -10,11 +10,21 @@ if($headers.Count -ne 1 -or $headers[0] -ne 'tools/fullstack/probe_common.h'){th
 $blob=(& git -C $repo rev-parse HEAD:tools/fullstack/probe_common.h).Trim()
 $actual=(& git -C $repo hash-object tools/fullstack/probe_common.h).Trim()
 if($actual -ne $blob){throw 'Header Git blob mismatch'}
+$historical=Join-Path $env:RUNNER_TEMP 'historical-probe-source'
+New-Item -ItemType Directory -Force $historical|Out-Null
+$archive=Join-Path $env:RUNNER_TEMP 'historical-probe-source.tar'
+& git -C $repo archive --format=tar "--output=$archive" 654391bc9c63cc770013d1508b76909604e4c663 tools/d3d12_devicecreate_probe.cpp tools/fullstack/probe_common.h
+if($LASTEXITCODE -ne 0){throw 'Frozen probe archive failed'}
+& tar.exe -xf $archive -C $historical
+if($LASTEXITCODE -ne 0){throw 'Frozen probe extraction failed'}
 Push-Location $ReceiptDir
 try {
- & cl.exe /nologo /O2 /W4 /MT /EHsc (Join-Path $repo 'tools/d3d12_devicecreate_probe.cpp') "/Fe:$(Join-Path $ReceiptDir 'd3d12-smoke.exe')" /link d3d12.lib dxgi.lib dxguid.lib 2>&1|Tee-Object -FilePath (Join-Path $ReceiptDir 'red.log')
+ & cl.exe /nologo /O2 /W4 /MT /EHsc (Join-Path $historical 'tools/d3d12_devicecreate_probe.cpp') "/Fe:$(Join-Path $ReceiptDir 'd3d12-smoke.exe')" /link d3d12.lib dxgi.lib dxguid.lib 2>&1|Tee-Object -FilePath (Join-Path $ReceiptDir 'red.log')
  $code=$LASTEXITCODE
  $output=Get-Content (Join-Path $ReceiptDir 'red.log') -Raw
  if($code -eq 0 -or $output -notmatch 'C1083.*probe_common.h'){throw 'Historical C1083 not reproduced'}
  [ordered]@{status='PASS';expectedFailure='C1083_PROBE_COMMON_HEADER';exit=$code;header=$headers[0];gitBlob=$blob;fileBlob=$actual;headSha=$env:GITHUB_SHA}|ConvertTo-Json|Set-Content (Join-Path $ReceiptDir 'header-red.json') -Encoding utf8
 } finally {Pop-Location}
+
+# The expected native refusal is a successful negative control, never a product result.
+$global:LASTEXITCODE=0

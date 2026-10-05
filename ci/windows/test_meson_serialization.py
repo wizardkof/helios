@@ -24,7 +24,7 @@ def main():
     historical = subprocess.check_output(['git', '-C', str(repo), 'show', BASE + ':ci/windows/meson-isolated.py'], text=True)
     corrected = historical.replace('from pathlib import Path\nimport sys\nimport mesonbuild.wrap.wrap as wrap\nfrom mesonbuild import mesonmain', 'import sys\nfrom mesonbuild import mesonmain\nimport mesonbuild.wrap.wrap as wrap\nfrom pathlib import Path')
     assert corrected != historical
-    work = root.parent / ('meson-work-' + root.name)
+    work = root.parent.parent / ('meson-work-' + root.name)
     work.mkdir(parents=True, exist_ok=True)
     source = work / 'source'
     package = work / 'wrap-origin'

@@ -40,7 +40,7 @@
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include "probe_common.h"
+#include "fullstack/probe_common.h"
 
 #include <cstdio>
 #include <cstring>

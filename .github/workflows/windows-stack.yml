@@ -802,13 +802,16 @@ jobs:
     - driver
     name: CLVK with embedded clspv
     runs-on: windows-2022
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
     - uses: actions/checkout@v7
       with:
         submodules: false
         fetch-depth: 1
       id: s00
+    - name: Set internal OpenCL preservation deadline
+      shell: powershell
+      run: '"HELIOS_OPENCL_PRESERVE_DEADLINE=$([DateTime]::UtcNow.AddMinutes(330).ToString(''o''))" >> $env:GITHUB_ENV'
     - name: Observe frozen CI executor profile
       shell: powershell
       run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
@@ -898,8 +901,9 @@ jobs:
     - name: Build CLVK
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Build-OpenCL.ps1\
-        \ -OutputDir \"$env:RUNNER_TEMP/helios-opencl\" -ClvkRepository $env:CLVK_REPOSITORY -ClvkCommit $env:CLVK_COMMIT\n}\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Invoke-OpenCLBudget.ps1\
+        \ -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/opencl-phases\" -OutputDir \"$env:RUNNER_TEMP/helios-opencl\" -ClvkRepository $env:CLVK_REPOSITORY\
+        \ -ClvkCommit $env:CLVK_COMMIT\n}\n"
       id: s13
     - name: Post-build producer toolchain
       if: ${{ !inputs.infrastructure_only }}
@@ -2003,10 +2007,10 @@ jobs:
 
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
   frontier_loaders_control:
-    name: Loaders exact probe header RED
+    name: Loaders header RED and actual smoke compile GREEN
     runs-on: windows-2022
     if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.frontier_controls_only }}
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
     - uses: actions/checkout@v7
       with:
@@ -2024,6 +2028,20 @@ jobs:
     - name: Exact historical probe compilation
       shell: pwsh
       run: ./ci/windows/Test-ProbeHeader.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-control"
+    - name: Restore Vulkan SDK for compile-only control
+      if: ${{ inputs.frontier_controls_green }}
+      uses: actions/cache@v4
+      with:
+        path: C:/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
+        key: vulkan-sdk-windows-x64-full-v1-${{ env.VULKAN_SDK_VERSION }}
+    - name: Install pinned Vulkan SDK for probes
+      if: ${{ inputs.frontier_controls_green }}
+      shell: pwsh
+      run: ./ci/windows/Install-VulkanSdk.ps1 -Version $env:VULKAN_SDK_VERSION
+    - name: Compile actual complete smoke probe set
+      if: ${{ inputs.frontier_controls_green }}
+      shell: pwsh
+      run: ./ci/windows/Test-SmokeProbeCompile.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-control"
     - name: Seal focal receipts
       id: upload_control_seal
       if: ${{ always() }}
@@ -2057,7 +2075,7 @@ jobs:
     name: Mesa ${{ matrix.arch }} real wrap import-order reproduction
     runs-on: windows-2022
     if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.frontier_controls_only }}
-    timeout-minutes: 35
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -2080,6 +2098,12 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       id: python_setup
+    - name: Initialize exact Mesa source for configuration control
+      if: ${{ inputs.frontier_controls_green }}
+      shell: powershell
+      run: 'git submodule update --init --recursive icd/mesa
+
+        if($LASTEXITCODE -ne 0){throw "Mesa submodule checkout failed"}'
     - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
       with:
         msystem: ${{ matrix.system }}
@@ -2104,7 +2128,19 @@ jobs:
 
         python ./ci/windows/assert_msys_ninja.py "${{ matrix.arch }}" "$NINJA" "$RUNNER_TEMP/component-control/ninja.json"
 
-        python ./ci/windows/test_meson_serialization.py "$(cygpath -m "$GITHUB_WORKSPACE")" "$(cygpath -m "$RUNNER_TEMP/component-control/serialization")"'
+        # Run below after choosing production mode.
+
+        # python ./ci/windows/test_meson_serialization.py "$(cygpath -m "$GITHUB_WORKSPACE")" "$(cygpath -m "$RUNNER_TEMP/component-control/serialization")"
+
+        args=()
+
+        if [[ ''${{ inputs.frontier_controls_green }}'' == true ]]; then args+=(--production); fi
+
+        python ./ci/windows/test_meson_serialization.py "$(cygpath -m "$GITHUB_WORKSPACE")" "$(cygpath -m "$RUNNER_TEMP/component-control/serialization")" "${args[@]}"'
+    - name: Real Mesa setup through DirectX-Headers and CoreData only
+      if: ${{ inputs.frontier_controls_green }}
+      shell: msys2 {0}
+      run: bash ./ci/windows/test-mesa-configuration.sh
     - name: Seal focal receipts
       id: upload_control_seal
       if: ${{ always() }}
@@ -2147,11 +2183,18 @@ jobs:
     - uses: actions/setup-python@v7
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+    - name: Initialize pinned PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
     - name: Synthetic producer exits timeout and descendants
       shell: powershell
       run: 'python ./ci/windows/test_producer_budget.py --root "$env:RUNNER_TEMP/component-control"
 
         if($LASTEXITCODE -ne 0){throw "OPENCL_TIMEOUT_HARNESS_CONTROL=FAIL"}'
+    - name: Atomic phase receipt and failure controls
+      if: ${{ inputs.frontier_controls_green }}
+      shell: pwsh
+      run: ./ci/windows/Test-ProducerPhases.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-control/phases"
     - name: Seal focal receipts
       id: upload_control_seal
       if: ${{ always() }}

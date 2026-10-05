@@ -1,10 +1,11 @@
 """Local Meson entrypoint: retain wrap locking outside candidate source roots."""
 import hashlib
 import os
-from pathlib import Path
 import sys
-import mesonbuild.wrap.wrap as wrap
+# Meson installs its Windows pathlib implementation before wrap captures Path.
 from mesonbuild import mesonmain
+import mesonbuild.wrap.wrap as wrap
+from pathlib import Path
 
 OriginalDirectoryLock = wrap.DirectoryLock
 

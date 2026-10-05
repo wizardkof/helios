@@ -432,6 +432,18 @@
       "source": "{TEMP}/ninja-resolution",
       "step": "ninja_after_bootstrap",
       "required": false
+    },
+    {
+      "name": "opencl-phases-and-budget",
+      "source": "{TEMP}/component-qualification/opencl-phases",
+      "step": "s13",
+      "required": true,
+      "mandatoryFiles": [
+        "producer-budget.json",
+        "stdout.log",
+        "stderr.log",
+        "command.json"
+      ]
     }
   ],
   "loaders": [

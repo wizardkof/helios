@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$OutputDir,
+    [Parameter(Mandatory)][string]$ReceiptDir,
     [string]$SourceRoot = "C:\clvk-src",
     [string]$BuildRoot = "C:\clvk-build",
     [string]$ClvkRepository = "https://github.com/winboat-org/clvk-helios.git",
@@ -28,17 +29,31 @@ foreach ($relativePath in @("Include\vulkan\vulkan.h", "Lib\vulkan-1.lib")) {
     }
 }
 
+
+. (Join-Path $PSScriptRoot 'Producer-Phases.ps1')
+$script:ProducerPhaseRoot=$ReceiptDir
+New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
+$script:ProducerIdentities=[ordered]@{helios=$env:GITHUB_SHA;clvkExpected=$ClvkCommit;clvkRepository=$ClvkRepository;clvkActual=$null;clspvActual=$null;llvmActual=$null;patches=@()}
+if(Test-Path -LiteralPath $ClspvPatchDir -PathType Container){
+    $script:ProducerIdentities.patches=@(Get-ChildItem -LiteralPath $ClspvPatchDir -Filter '*.patch' -File|Sort-Object Name|ForEach-Object {@{name=$_.Name;sha256=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})
+}
+$script:ProducerPhase=$null
+try {
 if (Test-Path -LiteralPath $SourceRoot) { Remove-Item -LiteralPath $SourceRoot -Recurse -Force }
 if (Test-Path -LiteralPath $BuildRoot) { Remove-Item -LiteralPath $BuildRoot -Recurse -Force }
 
-& git clone --filter=blob:none --recursive $ClvkRepository $SourceRoot
-if ($LASTEXITCODE -ne 0) { throw "Failed to clone clvk." }
+Start-ProducerPhase 'PHASE_CLONE_CLVK'
+Invoke-OpenCLNative 'git' @('clone','--filter=blob:none','--recursive',$ClvkRepository,$SourceRoot)
+Complete-ProducerPhase 0
+Start-ProducerPhase 'PHASE_SUBMODULES'
 Push-Location $SourceRoot
 try {
-    & git checkout --detach $ClvkCommit
-    if ($LASTEXITCODE -ne 0) { throw "Failed to check out clvk $ClvkCommit." }
-    & git submodule update --init --recursive
-    if ($LASTEXITCODE -ne 0) { throw "Failed to initialize clvk submodules." }
+    Invoke-OpenCLNative 'git' @('checkout','--detach',$ClvkCommit)
+    Invoke-OpenCLNative 'git' @('submodule','update','--init','--recursive')
+    $script:ProducerIdentities.clvkActual=(& git rev-parse HEAD).Trim()
+    $script:ProducerIdentities.clspvActual=(& git -C (Join-Path $SourceRoot 'external/clspv') rev-parse HEAD).Trim()
+    Complete-ProducerPhase 0
+    Start-ProducerPhase 'PHASE_CLSPV_PATCHES'
 
     if (Test-Path -LiteralPath $ClspvPatchDir -PathType Container) {
         $patches = @(Get-ChildItem -LiteralPath $ClspvPatchDir -Filter "*.patch" -File | Sort-Object Name)
@@ -46,8 +61,7 @@ try {
             Write-Host "Applying clspv patch $($patch.Name)"
             Push-Location (Join-Path $SourceRoot "external\clspv")
             try {
-                & git apply --verbose $patch.FullName
-                if ($LASTEXITCODE -ne 0) { throw "Failed to apply clspv patch $($patch.Name)." }
+                Invoke-OpenCLNative 'git' @('apply','--verbose',$patch.FullName)
             } finally {
                 Pop-Location
             }
@@ -55,28 +69,32 @@ try {
         Write-Host "Applied $($patches.Count) clspv patch(es)."
     }
 
-    & python.exe external/clspv/utils/fetch_sources.py --shallow --deps llvm
-    if ($LASTEXITCODE -ne 0) { throw "Failed to fetch clvk LLVM sources." }
+    Complete-ProducerPhase 0
+    Start-ProducerPhase 'PHASE_FETCH_LLVM'
+    Invoke-OpenCLNative 'python.exe' @('external/clspv/utils/fetch_sources.py','--shallow','--deps','llvm')
+    $llvmRoot=Join-Path $SourceRoot 'external/clspv/third_party/llvm'
+    if(Test-Path (Join-Path $llvmRoot '.git')){$script:ProducerIdentities.llvmActual=(& git -C $llvmRoot rev-parse HEAD).Trim()}
+    Complete-ProducerPhase 0
 } finally {
     Pop-Location
 }
 
+Start-ProducerPhase 'PHASE_CMAKE_CONFIGURE'
 if (-not $env:HELIOS_NINJA -or -not (Test-Path -LiteralPath $env:HELIOS_NINJA -PathType Leaf)) {
     throw "The approved upstream Ninja executable was not selected before CMake configuration."
 }
-& cmake.exe -S $SourceRoot -B $BuildRoot -G Ninja `
-    "-DCMAKE_MAKE_PROGRAM:FILEPATH=$env:HELIOS_NINJA" `
-    -DCMAKE_BUILD_TYPE=Release `
-    -DCMAKE_C_COMPILER_LAUNCHER=sccache `
-    -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
-    -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
-    -DCLVK_CLSPV_ONLINE_COMPILER=ON `
-    -DCLVK_COMPILER_AVAILABLE=ON `
-    -DCLVK_VULKAN_IMPLEMENTATION=system `
-    -DCLVK_BUILD_TESTS=OFF `
-    -DCLVK_UNIT_TESTING=OFF `
-    -DCLVK_ENABLE_ASSERTIONS=OFF
-if ($LASTEXITCODE -ne 0) { throw "clvk CMake configure failed." }
+Invoke-OpenCLNative 'cmake.exe' @('-S',$SourceRoot,'-B',$BuildRoot,'-G','Ninja',
+    "-DCMAKE_MAKE_PROGRAM:FILEPATH=$env:HELIOS_NINJA",
+    '-DCMAKE_BUILD_TYPE=Release',
+    '-DCMAKE_C_COMPILER_LAUNCHER=sccache',
+    '-DCMAKE_CXX_COMPILER_LAUNCHER=sccache',
+    '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded',
+    '-DCLVK_CLSPV_ONLINE_COMPILER=ON',
+    '-DCLVK_COMPILER_AVAILABLE=ON',
+    '-DCLVK_VULKAN_IMPLEMENTATION=system',
+    '-DCLVK_BUILD_TESTS=OFF',
+    '-DCLVK_UNIT_TESTING=OFF',
+    '-DCLVK_ENABLE_ASSERTIONS=OFF')
 $cachePath = Join-Path $BuildRoot "CMakeCache.txt"
 $makeProgramLine = Get-Content -LiteralPath $cachePath | Where-Object { $_ -match '^CMAKE_MAKE_PROGRAM:FILEPATH=' } | Select-Object -First 1
 $cachedNinja = if ($makeProgramLine) { $makeProgramLine.Substring($makeProgramLine.IndexOf('=') + 1) } else { $null }
@@ -84,8 +102,11 @@ if (-not $cachedNinja -or [IO.Path]::GetFullPath($cachedNinja) -ine [IO.Path]::G
     throw "CMake cached a Ninja other than the approved executable: $cachedNinja"
 }
 
-& cmake.exe --build $BuildRoot --parallel $env:HELIOS_BUILD_JOBS
-if ($LASTEXITCODE -ne 0) { throw "clvk build failed." }
+Complete-ProducerPhase 0
+Start-ProducerPhase 'PHASE_BUILD'
+Invoke-OpenCLNative 'cmake.exe' @('--build',$BuildRoot,'--parallel',$env:HELIOS_BUILD_JOBS)
+Complete-ProducerPhase 0
+Start-ProducerPhase 'PHASE_STAGE'
 
 $vendorDll = Get-ChildItem -LiteralPath $BuildRoot -Filter "OpenCL.dll" -File -Recurse |
     Where-Object { $_.FullName -match "Release" } |
@@ -127,3 +148,12 @@ foreach ($entry in $licenses.GetEnumerator()) {
 $llvmLicense = Get-ChildItem -LiteralPath (Join-Path $SourceRoot "external\clspv") -Filter "LICENSE.TXT" -File -Recurse | Select-Object -First 1
 if ($llvmLicense) { Copy-Item -LiteralPath $llvmLicense.FullName -Destination (Join-Path $licenseRoot "LLVM-LICENSE.TXT") -Force }
 Write-Host "CLVK artifact staged at $OutputDir"
+
+Complete-ProducerPhase 0
+} catch {
+    if($script:ProducerPhase -and $script:ProducerPhase.status -eq 'RUNNING'){
+        $script:ProducerPhase.error=$_.Exception.Message
+        Complete-ProducerPhase 1
+    }
+    throw
+}
