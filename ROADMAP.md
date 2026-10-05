@@ -24,6 +24,25 @@ collection and infrastructure controls. No bootstrap pins or retry policy change
 Deployment, guest runtime and black-screen/device-loss attribution remain NOT_RUN
 or NOT_PROVEN as applicable.
 
+Final Python focal run 37338327003 on f1f83d14 PASS: native and isolated suites
+66/66 and 15/15, complete collection and real roundtrips. Ledger consulted afterward;
+candidate 22.22.311.0 reserved with fingerprint
+ed544458e2734a43ed982daca689153118e8a93b7666bdd5a17453a97558c929 and frozen
+commit 5f9f37eb2d0d938ec56db9d691457c957fc3acf8. Single product run 37338834595
+terminated naturally FAILURE. Python PASS; DXVK regressions 9/9 PASS; driver
+Release/Debug PASS with real private/host producer audit and preserved host hash.
+All nine artifacts and complete logs retained and verified in
+`.fullstack/artifacts/p06/python-frontier-20261005/REPORT.md` at the primary workspace.
+
+New component defects block package acceptance: compatibility first at 17:42:11 UTC
+and loaders at 17:42:59 UTC fail Assert-ComponentToolchain.ps1 with absent Count;
+Mesa x64/x86 refuse missing Ninja executables at D:/ucrt64/bin/ninja.exe and
+D:/mingw32/bin/ninja.exe despite package pins PASS; opencl rejects TrimEnd's
+two-character backslash argument. All failure collections and roundtrips PASS.
+Final package and schema NOT_RUN (dependency SKIPPED). No edits/retry to frozen
+.311 or next reservation; these defects require separate focal RED/GREEN before
+another candidate. Detailed historical .310 Python cause remains NOT_PROVEN.
+
 ## Canonical build policy — owner directive, 2026-10-04
 
 ```text
