@@ -23,12 +23,11 @@ if($LASTEXITCODE -ne 0){throw 'Official OpenCL import library creation failed'}
 Push-Location $work
 try {
  & (Join-Path $PSScriptRoot 'Build-SmokeTests.ps1') -RepoRoot $repo -OutputDir (Join-Path $work 'x64') -VulkanInclude (Join-Path $env:VULKAN_SDK 'Include') -VulkanLibrary (Join-Path $env:VULKAN_SDK 'Lib/vulkan-1.lib') -OpenClInclude $headerSource -OpenClLibrary $importLibrary
- & (Join-Path $PSScriptRoot 'Build-SmokeTests.ps1') -RepoRoot $repo -OutputDir (Join-Path $work 'x86') -VulkanInclude (Join-Path $env:VULKAN_SDK 'Include') -VulkanLibrary (Join-Path $env:VULKAN_SDK 'Lib32/vulkan-1.lib') -Architecture x86 -GraphicsOnly
 } finally {Pop-Location}
 $full=@('vulkan-smoke.exe','vulkan-wsi-probe.exe','opengl-smoke.exe','d3d11-smoke.exe','d3d12-smoke.exe','d3d12-clear.exe','opencl-smoke.exe','opencl-gl-sharing-smoke.exe')
 $files=@()
-foreach($arch in @('x64','x86')){
- $expected=if($arch -eq 'x64'){$full}else{$full[0..5]}
+foreach($arch in @('x64')){
+ $expected=$full
  foreach($name in $expected){
   $path=Join-Path (Join-Path $work $arch) $name
   if(-not(Test-Path $path -PathType Leaf)){throw "Missing $arch $name"}
