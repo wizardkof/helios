@@ -2389,7 +2389,7 @@ jobs:
 
         '
   package_audit_timing:
-    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only }}
+    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && !inputs.package_path_only }}
     runs-on: windows-2022
     timeout-minutes: 120
     strategy:
@@ -2750,6 +2750,55 @@ jobs:
     permissions:
       contents: read
       actions: read
+  package_path_control:
+    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && inputs.package_path_only }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        path: control
+        submodules: false
+    - uses: actions/checkout@v7
+      with:
+        path: frozen
+        ref: d03d79ebec6d857d141469d197e11c04097c4d75
+        submodules: false
+    - name: Initialize frozen PowerShell
+      shell: powershell
+      run: ./frozen/ci/windows/Initialize-CIPowerShell.ps1
+    - name: Run native original branch RED and normalized input GREEN
+      shell: pwsh
+      run: ./control/ci/windows/Test-PackageAuditPath.ps1 -FrozenRoot "$(Resolve-Path frozen)" -ReceiptDir "$env:RUNNER_TEMP/path-control"
+    - name: Seal path evidence
+      id: upload_seal
+      if: ${{ always() }}
+      shell: pwsh
+      run: 'python ./frozen/ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/path-control" --receipt "$env:RUNNER_TEMP/path-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Path evidence seal failed''}'
+    - uses: actions/upload-artifact@v7
+      id: upload
+      if: ${{ always() && steps.upload_seal.outcome == 'success' }}
+      with:
+        name: package-path-red-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/path-control
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_download
+      if: ${{ always() && steps.upload.outcome == 'success' }}
+      with:
+        name: package-path-red-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/path-control-download
+    - name: Verify path evidence roundtrip
+      id: upload_verify
+      if: ${{ always() && steps.upload_download.outcome == 'success' }}
+      shell: pwsh
+      run: 'python ./frozen/ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/path-control-download" --receipt "$env:RUNNER_TEMP/path-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Path evidence roundtrip failed''}'
 'on':
   workflow_dispatch:
     inputs:
@@ -2793,6 +2842,10 @@ jobs:
         type: boolean
         default: false
         description: Frozen .314 diagnostic Package audit timing only; no candidate
+      package_path_only:
+        type: boolean
+        default: false
+        description: Native frozen audit path branch RED only
   push:
     branches:
     - master

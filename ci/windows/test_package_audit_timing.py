@@ -17,7 +17,9 @@ class TimingControlTests(unittest.TestCase):
         import yaml
         w=yaml.safe_load((Path(__file__).parents[2]/'.github/workflows/windows-stack.yml').read_text())
         for name,job in w['jobs'].items():
-            if name=='package_audit_timing':
+            if name=='package_path_control':
+                self.assertIn('inputs.package_path_only',job['if'])
+            elif name=='package_audit_timing':
                 self.assertEqual(job['permissions']['actions'],'read')
                 self.assertEqual(job['timeout-minutes'],120)
             else:self.assertIn('!inputs.package_audit_timing_only',job['if'])
