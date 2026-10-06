@@ -26,11 +26,12 @@ core = work/'build/meson-private/coredata.dat'
 assert core.is_file()
 log=(output/'setup.log').read_text(encoding='utf-8')
 assert 'DirectX-Headers' in log and 'MESON_WRAP_LOCK_REDIRECT=' in log
-assert (repo/'icd/mesa/subprojects/DirectX-Headers/meson.build').is_file()
+directx = [p for p in (repo/'icd/mesa/subprojects').glob('DirectX-Headers*') if p.is_dir() and (p/'meson.build').is_file()]
+assert len(directx) == 1, directx
 locks=list(Path(os.environ['HELIOS_MESON_LOCK_ROOT']).rglob('.wraplock'))
 assert locks
 assert not list((repo/'icd/mesa').rglob('.wraplock'))
 shutil.copy2(core,output/'coredata.dat')
 for path in (work/'output').glob('*.json'):shutil.copy2(path,output/path.name)
-(output/'configuration.json').write_text(json.dumps({'status':'PASS','system':os.environ['MSYSTEM'],'coredataSha256':hashlib.sha256(core.read_bytes()).hexdigest(),'directXHeadersWrap':'PASS','externalLocks':[str(x) for x in locks],'compile':'NOT_RUN'},indent=2)+'\n')
+(output/'configuration.json').write_text(json.dumps({'status':'PASS','system':os.environ['MSYSTEM'],'coredataSha256':hashlib.sha256(core.read_bytes()).hexdigest(),'directXHeadersWrap':'PASS','directXHeadersDirectory':str(directx[0]),'externalLocks':[str(x) for x in locks],'compile':'NOT_RUN'},indent=2)+'\n')
 PY
