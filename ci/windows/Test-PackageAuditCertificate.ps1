@@ -67,12 +67,15 @@ $child=Join-Path $ReceiptDir 'certificate-child.diagnostic.ps1'
 ($prefix+"`n"+$body)|Set-Content $child -Encoding UTF8
 [ordered]@{classification='CERTIFICATE_SUBPHASE_ONLY';historicalCertificateBytes=$false;fixtureRecipe='EXACT_FROZEN_ASSEMBLE_EXPRESSION';creationExpression=$creation.Value;auditBlock=$block.Value;changes=$changes;frozenAuditSha256=(Get-FileHash "$FrozenRoot/ci/windows/Audit-CIPackage.ps1").Hash;frozenAssemblySha256=(Get-FileHash "$FrozenRoot/ci/windows/Assemble-Package.ps1").Hash;certificateSha256=(Get-FileHash $cer).Hash;thumbprint=$thumb;subject=$certificate.Subject}|ConvertTo-Json -Depth 6|Set-Content "$ReceiptDir/fixture-provenance.json"
 $rows=@()
-foreach($mode in @('CORE_DEFAULT','CORE_STA','DESKTOP_DEFAULT')){
+foreach($mode in @('CORE_SECURITY_PRELOAD','DESKTOP_SECURITY_PRELOAD')){
+ $caseChild=Join-Path $ReceiptDir "$mode-child.diagnostic.ps1"
+ $module="Event SECURITY_MODULE BEGIN`nImport-Module Microsoft.PowerShell.Security -ErrorAction Stop`nEvent SECURITY_MODULE END`nEvent CERT_DRIVE BEGIN`nGet-PSDrive Cert -ErrorAction Stop|Select-Object Name,Provider|ConvertTo-Json|Set-Content `"$ReceiptDir/$mode-cert-drive.json`"`nEvent CERT_DRIVE END`n"
+ ($prefix+"`n"+$module+$body)|Set-Content $caseChild -Encoding UTF8
  $events=Join-Path $ReceiptDir "$mode-events.jsonl"
- $exe=if($mode -eq 'DESKTOP_DEFAULT'){"$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"}else{(Get-Process -Id $PID).Path}
+ $exe=if($mode.StartsWith('DESKTOP')){"$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"}else{(Get-Process -Id $PID).Path}
  $arguments=@('-NoProfile')
  if($mode -eq 'CORE_STA'){$arguments+='-STA'}
- $arguments+=@('-File',"`"$child`"",'-Extract',"`"$extract`"",'-Events',"`"$events`"")
+ $arguments+=@('-File',"`"$caseChild`"",'-Extract',"`"$extract`"",'-Events',"`"$events`"")
  $w=[Diagnostics.Stopwatch]::StartNew();$p=$null;$status='FAIL';$exit=$null
  try {
   if(@(RootCertificates).Count -ne 0){throw 'Certificate not cleaned before case'}
