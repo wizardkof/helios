@@ -11,6 +11,7 @@ class TimingControlTests(unittest.TestCase):
             self.assertIn(name, transformed)
         self.assertIn('AuditEvent INF BEGIN\n$inf=',transformed)
         self.assertNotIn('kind=$(if(Get-Variable isDriver',transformed)
+        self.assertIn('[IO.Path]::GetFullPath($driver)',transformed)
         self.assertIn('verify /pa /v /c $cat',transformed)
         self.assertIn('verify /pa /v $file.FullName',transformed)
     def test_focal_job_cannot_run_product_or_lose_artifact_permission(self):

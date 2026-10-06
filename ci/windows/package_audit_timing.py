@@ -13,7 +13,7 @@ function AuditEvent([string]$phase,[string]$edge,[string]$path='', [string]$comm
  $now=$timingWatch.Elapsed.TotalMilliseconds
  if($edge -eq 'BEGIN'){$timingActive[$key]=$now}
  $duration=if($edge -eq 'END' -and $timingActive.ContainsKey($key)){$now-$timingActive[$key]}else{$null}
- $row=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedMs=$now;phase=$phase;edge=$edge;path=$path;architecture=$(if($path -match '\\x86\\' -or [IO.Path]::GetFileName($path) -in @('helios_umd32.dll','helios_umd12_32.dll')){'IMAGE_FILE_MACHINE_I386'}elseif($path){'IMAGE_FILE_MACHINE_AMD64'}else{$null});kind=$(if($path){if((Split-Path $path -Parent) -eq $driver){'DRIVER'}else{'PAYLOAD'}}else{$null});command=$command;durationMs=$duration;exit=$exit}
+ $row=[ordered]@{utc=[DateTime]::UtcNow.ToString('o');elapsedMs=$now;phase=$phase;edge=$edge;path=$path;architecture=$(if($path -match '\\x86\\' -or [IO.Path]::GetFileName($path) -in @('helios_umd32.dll','helios_umd12_32.dll')){'IMAGE_FILE_MACHINE_I386'}elseif($path){'IMAGE_FILE_MACHINE_AMD64'}else{$null});kind=$(if($path){if([IO.Path]::GetFullPath((Split-Path $path -Parent)) -eq [IO.Path]::GetFullPath($driver)){'DRIVER'}else{'PAYLOAD'}}else{$null});command=$command;durationMs=$duration;exit=$exit}
  $line=ConvertTo-Json -InputObject $row -Compress
  $stream=[IO.File]::Open($env:HELIOS_AUDIT_EVENTS,[IO.FileMode]::Append,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
  try{$bytes=[Text.Encoding]::UTF8.GetBytes($line+"`n");$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}

@@ -1,6 +1,9 @@
 param([Parameter(Mandatory)][string]$FrozenRoot,[Parameter(Mandatory)][string]$ControlRoot,[Parameter(Mandatory)][string]$OutputDir,[Parameter(Mandatory)][string]$ReceiptDir,[int]$BudgetMinutes=90)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+$callerOutputDir=$OutputDir
+# Native path RED proves this preserves the directory and reaches frozen CAT/version checks.
+$OutputDir=[IO.Path]::GetFullPath($OutputDir)
 New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
 $env:HELIOS_AUDIT_EVENTS=Join-Path $ReceiptDir 'audit-events.jsonl'
 $diag=Join-Path $ReceiptDir 'Audit-CIPackage.diagnostic.ps1'
@@ -28,10 +31,15 @@ try {
  if($exit -ne 0){throw "Audit failed: exit $exit"}
  $receipt=Get-Content "$OutputDir/offline-installation-signature-audit.json" -Raw|ConvertFrom-Json
  if($receipt.status -ne 'PASS'){throw 'Audit PASS receipt absent'}
+ $drivers=@($receipt.images|Where-Object {$_.path -match '^payload[\/]driver[\/]'})
+ $expectedNames=@('helios_kmd_render.sys','helios_umd.dll','helios_umd32.dll','helios_umd12.dll','helios_umd12_32.dll')|Sort-Object
+ $actualNames=@($drivers|ForEach-Object {[IO.Path]::GetFileName($_.path)})|Sort-Object
+ if($drivers.Count -ne 5 -or (($actualNames -join '|') -cne ($expectedNames -join '|'))){throw 'Exactly five driver PEs required'}
+ foreach($image in $drivers){if($image.signature -ne 'CATALOG_COVERED' -or $image.fileVersion -ne $lock.version -or $image.productVersion -ne $lock.version){throw "Strong driver CAT/version contract not reached: $($image.path)"}}
  $status='PASS'
 } finally {
  if($process -and -not $process.HasExited){& taskkill.exe /PID $process.Id /T /F|Out-File "$ReceiptDir/audit-cleanup-taskkill.txt"}
  if($owned -and (Test-Path $store)){Remove-Item $store -Force}
  $watch.Stop()
- [ordered]@{status=$status;durationMs=$watch.Elapsed.TotalMilliseconds;exit=$exit;budgetMinutes=$BudgetMinutes;certificateOwned=$owned;certificateCleanup='COMPLETE';classification='DIAGNOSTIC_PACKAGE_ONLY';controlRunId=$env:HELIOS_CONTROL_RUN_ID;controlSha=$env:HELIOS_CONTROL_SHA;frozenSha=$env:GITHUB_SHA}|ConvertTo-Json|Set-Content "$ReceiptDir/audit-duration.json"
+ [ordered]@{status=$status;durationMs=$watch.Elapsed.TotalMilliseconds;exit=$exit;budgetMinutes=$BudgetMinutes;callerOutputDir=$callerOutputDir;canonicalOutputDir=$OutputDir;driverCatCoverageRequired=5;certificateOwned=$owned;certificateCleanup='COMPLETE';classification='DIAGNOSTIC_PACKAGE_ONLY';controlRunId=$env:HELIOS_CONTROL_RUN_ID;controlSha=$env:HELIOS_CONTROL_SHA;frozenSha=$env:GITHUB_SHA}|ConvertTo-Json|Set-Content "$ReceiptDir/audit-duration.json"
 }
