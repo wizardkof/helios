@@ -26,6 +26,9 @@ class PackageContracts(unittest.TestCase):
         self.assertFalse(retry_manifest_failure('channel-rust-nightly.toml HTTP status code: 404'))
         self.assertFalse(retry_manifest_failure('rustc-nightly.tar.xz HTTP status code: 503'))
         self.assertFalse(retry_manifest_failure('toolchain identity mismatch'))
+        for code in (502, 503, 504):
+            self.assertTrue(retry_manifest_failure(f'channel-rust-nightly.toml http request returned an unsuccessful status code: {code}'))
+        self.assertTrue(retry_manifest_failure('channel-rust-nightly.toml HTTP status code: 504'))
         self.assertTrue(retry_manifest_failure("could not download file from 'http://127.0.0.1/dist/2026-07-14/channel-rust-nightly.toml': http request returned an unsuccessful status code: 503"))
         self.assertFalse(retry_manifest_failure('channel-rust-nightly.toml\ncomponent HTTP status code: 503'))
 

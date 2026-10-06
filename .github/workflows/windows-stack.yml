@@ -2238,6 +2238,9 @@ jobs:
     - name: Initialize exact Package PowerShell
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
     - name: Preserve historical RED and typed GREEN with actual INF
       shell: pwsh
       run: ./ci/windows/Test-PackageDriverDate.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-control"
@@ -2249,7 +2252,7 @@ jobs:
         python ./ci/windows/Test-PackageRustAcquisition.py --receipt-dir "$env:RUNNER_TEMP/package-control/rust"
         if ($LASTEXITCODE -ne 0) { throw 'Native Rust acquisition contract failed' }
     - name: Seal diagnostic bytes
-      id: seal
+      id: upload_seal
       if: ${{ always() }}
       shell: powershell
       run: |
@@ -2257,7 +2260,7 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw 'Diagnostic seal failed' }
     - uses: actions/upload-artifact@v7
       id: upload
-      if: ${{ always() && steps.seal.outcome == 'success' }}
+      if: ${{ always() && steps.upload_seal.outcome == 'success' }}
       with:
         name: helios-package-parser-control-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/package-control
@@ -2265,13 +2268,14 @@ jobs:
         if-no-files-found: error
         retention-days: 90
     - uses: actions/download-artifact@v8
-      id: download
+      id: upload_download
       if: ${{ always() && steps.upload.outcome == 'success' }}
       with:
         name: helios-package-parser-control-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/package-control-download
     - name: Verify native diagnostic roundtrip
-      if: ${{ always() && steps.download.outcome == 'success' }}
+      id: upload_verify
+      if: ${{ always() && steps.upload_download.outcome == 'success' }}
       shell: powershell
       run: |
         python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/package-control-download" --receipt "$env:RUNNER_TEMP/package-control-seal.json"
@@ -2334,7 +2338,7 @@ jobs:
       run: |
         ./ci/windows/Test-PackageAssemblyGate.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact "$env:RUNNER_TEMP/historical-driver" -InstallerArtifact "$env:RUNNER_TEMP/package-preflight/installer" -Configuration ${{ matrix.configuration }} -ReceiptDir "$env:RUNNER_TEMP/package-preflight"
     - name: Seal preflight evidence
-      id: seal
+      id: upload_seal
       if: ${{ always() }}
       shell: powershell
       run: |
@@ -2342,7 +2346,7 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw 'Preflight evidence seal failed' }
     - uses: actions/upload-artifact@v7
       id: upload
-      if: ${{ always() && steps.seal.outcome == 'success' }}
+      if: ${{ always() && steps.upload_seal.outcome == 'success' }}
       with:
         name: helios-package-preflight-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/package-preflight
@@ -2350,13 +2354,14 @@ jobs:
         if-no-files-found: error
         retention-days: 90
     - uses: actions/download-artifact@v8
-      id: download
+      id: upload_download
       if: ${{ always() && steps.upload.outcome == 'success' }}
       with:
         name: helios-package-preflight-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/preflight-download
     - name: Verify native preflight roundtrip
-      if: ${{ always() && steps.download.outcome == 'success' }}
+      id: upload_verify
+      if: ${{ always() && steps.upload_download.outcome == 'success' }}
       shell: powershell
       run: |
         python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/preflight-download" --receipt "$env:RUNNER_TEMP/preflight-seal.json"

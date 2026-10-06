@@ -26,7 +26,11 @@ def main():
     work.mkdir(exist_ok=True)
     cache = work/'official-cache'
     cache.mkdir(exist_ok=True)
-    state = {'mode': '', 'requests': [], 'manifestFailures': 0}
+    state = {'mode': '', 'requests': [], 'manifestFailures': 0, 'receipt': None}
+    request_lock = threading.Lock()
+    def require(condition, message):
+        if not condition:
+            raise ValueError(message)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -54,9 +58,11 @@ def main():
                         status = error.code
                 else:
                     body = target.read_bytes()
-            state['requests'].append({'path': path, 'status': status,
-                                      'userAgent': self.headers.get('User-Agent'),
-                                      'servedBytesSha256': hashlib.sha256(body).hexdigest() if status == 200 else None})
+            with request_lock:
+                state['requests'].append({'path': path, 'status': status,
+                                          'userAgent': self.headers.get('User-Agent'),
+                                          'servedBytesSha256': hashlib.sha256(body).hexdigest() if status == 200 else None})
+                (state['receipt']/'http-requests.json').write_text(json.dumps(state['requests'], indent=2)+'\n')
             self.send_response(status)
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
@@ -78,14 +84,15 @@ def main():
                                RUSTUP_AUTO_INSTALL='0', NO_PROXY='127.0.0.1,localhost')
             receipt = out/mode
             receipt.mkdir(exist_ok=True)
+            state['receipt'] = receipt
             if mode == 'raw-persistent':
                 native = subprocess.run([shutil.which('rustup'), 'toolchain', 'install', 'nightly-2026-07-14',
                                          '--profile', 'minimal', '--no-self-update'], env=environment,
                                         capture_output=True, text=True, timeout=300)
                 (receipt/'stdout.txt').write_text(native.stdout)
                 (receipt/'stderr.txt').write_text(native.stderr)
-                assert native.returncode != 0
-                assert state['manifestFailures'] == 1, 'Reassess observed native manifest retry behavior'
+                require(native.returncode != 0, 'Raw persistent HTTP503 must fail')
+                require(state['manifestFailures'] == 1, 'Reassess observed native manifest retry behavior')
                 result = {'status': 'EXPECTED_FAILURE', 'attempts': [{'exitCode': native.returncode}],
                           'meaning': 'RUSTUP_MAX_RETRIES does not retry this manifest HTTP503'}
             else:
@@ -96,19 +103,19 @@ def main():
                     failed = str(error)
                     result = json.loads((receipt/'rust-acquisition.json').read_text())
                 expected_success = mode in ('first-success', 'recover')
-                assert (failed is None) == expected_success, (mode, failed)
+                require((failed is None) == expected_success, str((mode, failed)))
                 expected_attempts = 2 if mode == 'recover' else 11 if mode == 'persistent' else 1
-                assert len(result['attempts']) == expected_attempts, (mode, result['attempts'])
+                require(len(result['attempts']) == expected_attempts, str((mode, result['attempts'])))
                 if expected_success:
-                    assert result['status'] == 'PASS' and result['identity']['rustc'] and result['identity']['cargo']
+                    require(result['status'] == 'PASS' and result['identity']['rustc'] and result['identity']['cargo'], 'Exact native Rust identity missing')
                 else:
-                    assert result['status'] == 'FAIL'
+                    require(result['status'] == 'FAIL', 'Expected failure status lost')
                 if mode == 'component-persistent':
                     cargo_calls = [r for r in state['requests'] if '/cargo-nightly-' in r['path']]
-                    assert len(cargo_calls) == 11, len(cargo_calls)
+                    require(len(cargo_calls) == 11, 'Component retry count differs from10 additional attempts: '+str(len(cargo_calls)))
             # Every requested distribution path belongs to the same dated pin; no backtrack/mirror.
-            assert all('/2026-07-14/' in r['path'] for r in state['requests'])
-            assert all('rustup/1.29.1' in (r['userAgent'] or '') for r in state['requests'])
+            require(all('/2026-07-14/' in r['path'] for r in state['requests']), 'Control attempted an alternative date')
+            require(all('rustup/1.29.1' in (r['userAgent'] or '') for r in state['requests']), 'Requests did not originate from pinned rustup')
             (receipt/'http-requests.json').write_text(json.dumps(state['requests'], indent=2)+'\n')
             results.append({'mode': mode, 'status': 'PASS', 'attemptCount': len(result['attempts']),
                             'requestCount': len(state['requests']), 'scope': 'CONTROL_ONLY_LOOPBACK_FAULTS_OFFICIAL_BYTES'})
