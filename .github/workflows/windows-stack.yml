@@ -1573,7 +1573,7 @@ jobs:
   python_evidence_preflight:
     name: Native Python test dependency and evidence contracts
     runs-on: windows-2022
-    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only && !inputs.frontier_controls_only
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only && !inputs.frontier_controls_only && !inputs.package_controls_only
       }}
     timeout-minutes: 30
     steps:
@@ -2224,6 +2224,48 @@ jobs:
       run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
 
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  package_controls:
+    name: Native Package parser control before production patch
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.package_controls_only }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+    - name: Initialize exact Package PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Preserve historical RED and typed GREEN with actual INF
+      shell: pwsh
+      run: ./ci/windows/Test-PackageDriverDate.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-control"
+    - name: Seal diagnostic bytes
+      id: seal
+      if: ${{ always() }}
+      shell: powershell
+      run: |
+        python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/package-control" --receipt "$env:RUNNER_TEMP/package-control-seal.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Diagnostic seal failed' }
+    - uses: actions/upload-artifact@v7
+      id: upload
+      if: ${{ always() && steps.seal.outcome == 'success' }}
+      with:
+        name: helios-package-parser-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/package-control
+        if-no-files-found: error
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: download
+      if: ${{ always() && steps.upload.outcome == 'success' }}
+      with:
+        name: helios-package-parser-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/package-control-download
+    - name: Verify native diagnostic roundtrip
+      if: ${{ always() && steps.download.outcome == 'success' }}
+      shell: powershell
+      run: |
+        python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/package-control-download" --receipt "$env:RUNNER_TEMP/package-control-seal.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Diagnostic roundtrip failed' }
 'on':
   workflow_dispatch:
     inputs:
@@ -2249,6 +2291,10 @@ jobs:
         default: false
       frontier_controls_only:
         description: Native .312 frontier controls without product; requires infrastructure_only and python_evidence_only
+        type: boolean
+        default: false
+      package_controls_only:
+        description: Focal Package controls without new candidate; requires infrastructure_only and python_evidence_only
         type: boolean
         default: false
       frontier_controls_green:

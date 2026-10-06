@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "historicalRunId": "37392622277",
+  "historicalHead": "8be68221360e2ae59f92b8598da9ed3d5eb0ccb9",
+  "artifact": "helios-driver-Debug",
+  "inf": {
+    "path": "helios_kmd_render.inf",
+    "size": 8609,
+    "sha256": "e4182ed44ed73dd2063fbf698b049a8ee8dc5e55832d9f37abfc0135fb8da887"
+  },
+  "historicalIdentity": {
+    "version": "22.22.313.0",
+    "sourceFingerprint": "6982a610df4ebd1d52998fe18ac35d81d43cfad97c0141c3198bdbef833904a1",
+    "sourceCommits": {
+      "dxvk": "efafecc24dd1b3c07fca194af4424e6d7ac16c94",
+      "helios": "a2628a357ff40daaf9699c0ca7b0ad11994f3fbf",
+      "mesa": "7d678f31c485b647eed81610491af61c0a0fac65",
+      "vkd3d": "9494617539385c6d2d9925984d55d3f9d3143d0d"
+    },
+    "headSha": "8be68221360e2ae59f92b8598da9ed3d5eb0ccb9",
+    "runId": "37392622277",
+    "runAttempt": "1",
+    "component": "driver",
+    "configuration": "Debug",
+    "architecture": "x64+x86"
+  }
+}
