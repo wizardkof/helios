@@ -67,6 +67,13 @@ if($Component -eq 'driver'){
     $checksToRun+=,@{name='clang-cl';args=@('--version');expected=('clang version '+$pins.llvmVersion);pattern=('(?m)^clang version '+[regex]::Escape($pins.llvmVersion)+'(?:\s|$)')}
     if($Component -eq 'driver'){$checksToRun+=,@{name='widl';args=@('-V');expected=$pins.qualifiedObservedTools.widlVersion;pattern=('(?m)^Wine IDL Compiler version '+[regex]::Escape($pins.qualifiedObservedTools.widlVersion)+'(?![0-9.])')};$checksToRun+=,@{name='cargo.exe';args=@('make','--version');expected=('cargo-make '+$pins.rust.cargoMakeVersion);pattern=('(?m)^cargo-make '+[regex]::Escape($pins.rust.cargoMakeVersion)+'$')}}
 }
+# Package pre/post checks own the same Rust identities as installer acquisition.
+if($Component -eq 'package'){
+    $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);pattern=('^rustup '+[regex]::Escape($pins.rust.rustupVersion)+'(?:\s|$)')}
+    $checksToRun+=,@{name='rustc';args=@('--version');expected=$pins.qualifiedObservedTools.rustc;pattern=('(?m)^'+[regex]::Escape($pins.qualifiedObservedTools.rustc)+'$')}
+    $checksToRun+=,@{name='cargo';args=@('--version');expected=$pins.qualifiedObservedTools.cargo;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.cargo)+'$')}
+    Add-ComponentValueCheck 'RUSTUP_MAX_RETRIES' '10' $env:RUSTUP_MAX_RETRIES ($env:RUSTUP_MAX_RETRIES -ceq '10')
+}
 foreach($check in $checksToRun){
     $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;VersionPattern=$check.pattern;Phase=$Phase}
     if($check.name -eq 'ninja.exe' -and $env:HELIOS_NINJA){$options.ExecutablePath=[string]$env:HELIOS_NINJA;$options.ExpectedResolvedPath=[string]$env:HELIOS_NINJA}

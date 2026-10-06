@@ -2230,7 +2230,7 @@ jobs:
     name: Native Package parser control before production patch
     if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.package_controls_only }}
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
     - uses: actions/checkout@v7
       with:
@@ -2261,6 +2261,7 @@ jobs:
       with:
         name: helios-package-parser-control-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ runner.temp }}/package-control
+        include-hidden-files: true
         if-no-files-found: error
         retention-days: 90
     - uses: actions/download-artifact@v8
@@ -2275,6 +2276,91 @@ jobs:
       run: |
         python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/package-control-download" --receipt "$env:RUNNER_TEMP/package-control-seal.json"
         if ($LASTEXITCODE -ne 0) { throw 'Diagnostic roundtrip failed' }
+  package_build_preflight:
+    name: Package installer and real .313 assembly gates (${{ matrix.configuration }})
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.package_controls_only && inputs.package_controls_green }}
+    runs-on: windows-2022
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    env:
+      RUSTUP_MAX_RETRIES: '10'
+      HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+    - name: Initialize exact Package PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Preserve real immutable .313 Driver input
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-driver-${{ matrix.configuration }}
+        path: ${{ runner.temp }}/historical-driver
+        run-id: 37392622277
+        github-token: ${{ github.token }}
+    - name: Exact Package WDK and SDK provisioning
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+    - name: Exact LLVM acquisition
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-preflight/tools"
+    - name: Select exact LLVM
+      shell: pwsh
+      run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-preflight/tools"
+    - name: Acquire exact Package Rust with finite budget
+      shell: pwsh
+      run: |
+        python ./ci/windows/acquire_package_rust.py --receipt-dir "$env:RUNNER_TEMP/package-preflight/rust"
+        if ($LASTEXITCODE -ne 0) { throw 'Exact Rust acquisition failed' }
+    - name: Enforce Package producer pins
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/package-preflight/tools"
+    - name: Build the actual configuration-specific installer skeleton
+      shell: pwsh
+      run: |
+        ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/package-preflight/installer" -Configuration ${{ matrix.configuration }}
+    - name: Execute production assembly driver gates with real original input
+      shell: pwsh
+      run: |
+        ./ci/windows/Test-PackageAssemblyGate.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact "$env:RUNNER_TEMP/historical-driver" -InstallerArtifact "$env:RUNNER_TEMP/package-preflight/installer" -Configuration ${{ matrix.configuration }} -ReceiptDir "$env:RUNNER_TEMP/package-preflight"
+    - name: Seal preflight evidence
+      id: seal
+      if: ${{ always() }}
+      shell: powershell
+      run: |
+        python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/package-preflight" --receipt "$env:RUNNER_TEMP/preflight-seal.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Preflight evidence seal failed' }
+    - uses: actions/upload-artifact@v7
+      id: upload
+      if: ${{ always() && steps.seal.outcome == 'success' }}
+      with:
+        name: helios-package-preflight-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/package-preflight
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: download
+      if: ${{ always() && steps.upload.outcome == 'success' }}
+      with:
+        name: helios-package-preflight-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/preflight-download
+    - name: Verify native preflight roundtrip
+      if: ${{ always() && steps.download.outcome == 'success' }}
+      shell: powershell
+      run: |
+        python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/preflight-download" --receipt "$env:RUNNER_TEMP/preflight-seal.json"
+        if ($LASTEXITCODE -ne 0) { throw 'Native preflight roundtrip failed' }
 'on':
   workflow_dispatch:
     inputs:
@@ -2300,6 +2386,10 @@ jobs:
         default: false
       frontier_controls_only:
         description: Native .312 frontier controls without product; requires infrastructure_only and python_evidence_only
+        type: boolean
+        default: false
+      package_controls_green:
+        description: Package installer and real historical driver assembly gate controls after RED preservation
         type: boolean
         default: false
       package_controls_only:

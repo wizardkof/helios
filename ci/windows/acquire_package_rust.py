@@ -13,8 +13,9 @@ PINS = Path(__file__).with_name('ci-toolchain-pins.json')
 
 def retry_manifest_failure(stderr):
     # Rustup 1.29.1's component retry does not cover manifest acquisition.
-    return bool(re.search(r'channel-rust-nightly\.toml(?:\.sha256)?', stderr)
-                and re.search(r'HTTP status code: (502|503|504)\b', stderr))
+    return any(re.search(r'channel-rust-nightly\.toml(?:\.sha256)?', line)
+               and re.search(r'(?:HTTP status code|http request returned an unsuccessful status code): (502|503|504)\b', line, re.IGNORECASE)
+               for line in stderr.splitlines())
 
 
 def acquire(receipt_dir, environment=None):
