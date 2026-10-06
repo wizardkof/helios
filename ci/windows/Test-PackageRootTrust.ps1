@@ -1,4 +1,4 @@
-param([string]$ControlRoot,[string]$ReceiptDir,[int]$BudgetSeconds=30)
+param([string]$ControlRoot,[string]$ReceiptDir,[int]$BudgetSeconds=30,[switch]$TraceStoreOnly)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 New-Item -ItemType Directory -Force $ReceiptDir|Out-Null
 $cer="$ControlRoot/ci/windows/fixtures/package-root-trust.cer"
@@ -15,10 +15,12 @@ function FindRoot {
 }
 $rows=@()
 try {
- foreach($mode in @('HISTORICAL','CONFIRM_FALSE','OWNED_ADD','PREEXISTING','FAILURE')){
+ $modes=if($TraceStoreOnly){@('OWNED_ADD')}else{@('HISTORICAL','CONFIRM_FALSE','OWNED_ADD','PREEXISTING','FAILURE')}
+ foreach($mode in $modes){
   if(@(FindRoot).Count -ne 0){throw 'Fixture Root cert preexists outside owned control; refuse mutation'}
   $child=$null;$exit=$null;$status='FAIL';$w=[Diagnostics.Stopwatch]::StartNew()
   try {
+   $env:HELIOS_ROOT_TRUST_EVENTS="$ReceiptDir/$mode-store-events.jsonl"
    $args=@('-NoProfile','-File',"`"$ControlRoot/ci/windows/Test-RootTrustWorker.ps1`"",'-CertificatePath',"`"$cer`"",'-Helper',"`"$ControlRoot/ci/windows/Temporary-RootTrust.ps1`"",'-Receipt',"`"$ReceiptDir/$mode-worker.json`"",'-Mode',$mode)
    $child=Start-Process (Get-Process -Id $PID).Path -ArgumentList $args -PassThru -RedirectStandardOutput "$ReceiptDir/$mode-stdout.txt" -RedirectStandardError "$ReceiptDir/$mode-stderr.txt"
    if($child.WaitForExit($BudgetSeconds*1000)){$child.Refresh();$exit=$child.ExitCode;$status=if($exit -eq 0){'RETURNED'}else{'FAIL_EXIT'}}
@@ -46,5 +48,5 @@ try {
    if($worker.status -notin @('PASS','PASS_EXPECTED_EXCEPTION')){throw 'GREEN receipt absent'}
   }
  }
- [ordered]@{status='PASS_RED_GREEN';uiCause='NOT_PROVEN';cases=$rows}|ConvertTo-Json -Depth 5|Set-Content "$ReceiptDir/root-trust-control.json"
+ [ordered]@{status=$(if($TraceStoreOnly){'PASS_TRACE_ONLY_NOT_FULL_GREEN'}else{'PASS_RED_GREEN'});uiCause='NOT_PROVEN';cases=$rows}|ConvertTo-Json -Depth 5|Set-Content "$ReceiptDir/root-trust-control.json"
 }finally{$c.Dispose()}

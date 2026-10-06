@@ -2822,9 +2822,9 @@ jobs:
     - name: Initialize frozen pinned PowerShell
       shell: powershell
       run: ./frozen/ci/windows/Initialize-CIPowerShell.ps1
-    - name: Short Import RED and isolated X509Store GREEN
+    - name: Locate unchanged X509Store operation with owned UI snapshot
       shell: pwsh
-      run: ./control/ci/windows/Test-PackageRootTrust.ps1 -ControlRoot "$(Resolve-Path control)" -ReceiptDir "$env:RUNNER_TEMP/certificate-control" -BudgetSeconds 30
+      run: ./control/ci/windows/Test-PackageRootTrust.ps1 -ControlRoot "$(Resolve-Path control)" -ReceiptDir "$env:RUNNER_TEMP/certificate-control" -BudgetSeconds 30 -TraceStoreOnly
     - name: Seal certificate evidence
       id: upload_seal
       if: ${{ always() }}
