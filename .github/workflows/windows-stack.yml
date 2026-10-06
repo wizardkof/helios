@@ -2389,7 +2389,7 @@ jobs:
 
         '
   package_audit_timing:
-    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && !inputs.package_path_only }}
+    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && !inputs.package_path_only && !inputs.package_certificate_only }}
     runs-on: windows-2022
     timeout-minutes: 120
     strategy:
@@ -2429,8 +2429,8 @@ jobs:
 
         New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/timing"|Out-Null
 
-        @(''DIAGNOSTIC_PACKAGE_ONLY'',''NOT_QUALIFIED_314_PACKAGE'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID", "CONTROL_SHA=$env:HELIOS_CONTROL_SHA", "FROZEN_SHA=$head")|Set-Content
-        "$env:RUNNER_TEMP/timing/CONTROL_IDENTITY.txt"
+        @(''DIAGNOSTIC_PACKAGE_ONLY'',''NOT_QUALIFIED_314_PACKAGE'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID", "CONTROL_SHA=$env:HELIOS_CONTROL_SHA",
+        "FROZEN_SHA=$head")|Set-Content "$env:RUNNER_TEMP/timing/CONTROL_IDENTITY.txt"
 
         '
     - name: Observe actual runner profile
@@ -2458,8 +2458,8 @@ jobs:
 
         $env:GITHUB_RUN_ATTEMPT=''1''
 
-        python ../control/ci/windows/Download-PackageAuditInputs.py --source "$PWD" --output "$env:RUNNER_TEMP/artifacts" --configuration ''${{ matrix.configuration
-        }}''
+        python ../control/ci/windows/Download-PackageAuditInputs.py --source "$PWD" --output "$env:RUNNER_TEMP/artifacts" --configuration ''${{
+        matrix.configuration }}''
 
         if($LASTEXITCODE -ne 0){throw ''Original inputs rejected''}
 
@@ -2546,7 +2546,8 @@ jobs:
 
         $w=[Diagnostics.Stopwatch]::StartNew()
 
-        ./ci/windows/Build-Installer.ps1 -RepoRoot "$PWD" -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ''${{ matrix.configuration }}''
+        ./ci/windows/Build-Installer.ps1 -RepoRoot "$PWD" -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ''${{ matrix.configuration
+        }}''
 
         [ordered]@{classification=''RECONSTRUCTED_DIAGNOSTIC_INSTALLER'';controlRun=$env:HELIOS_CONTROL_RUN_ID;controlSha=$env:HELIOS_CONTROL_SHA;source=$env:GITHUB_SHA;durationMs=$w.Elapsed.TotalMilliseconds;historicalExecution=$false}|ConvertTo-Json|Set-Content
         "$env:RUNNER_TEMP/timing/installer-provenance.json"
@@ -2555,8 +2556,8 @@ jobs:
 
         # explicitly a reconstructed diagnostic input, never proof of historical execution.
 
-        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root "$PWD" --component installer --configuration ''${{ matrix.configuration
-        }}'' --architecture x64
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root "$PWD" --component installer --configuration
+        ''${{ matrix.configuration }}'' --architecture x64
 
         if($LASTEXITCODE -ne 0){throw ''Diagnostic installer contract seal failed''}
 
@@ -2569,7 +2570,8 @@ jobs:
 
         $env:GITHUB_RUN_ATTEMPT=''1''
 
-        python ../control/ci/windows/Prepare-PackageAssemblyTiming.py --source "$PWD" --output "$env:RUNNER_TEMP/assembly-diagnostic" --receipt "$env:RUNNER_TEMP/timing/assembly-script-provenance.json"
+        python ../control/ci/windows/Prepare-PackageAssemblyTiming.py --source "$PWD" --output "$env:RUNNER_TEMP/assembly-diagnostic" --receipt
+        "$env:RUNNER_TEMP/timing/assembly-script-provenance.json"
 
         if($LASTEXITCODE -ne 0){throw ''Assembly copy correlation failed''}
 
@@ -2579,11 +2581,12 @@ jobs:
 
         $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
 
-        & "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" -RepoRoot "$PWD" -DriverArtifact "$env:RUNNER_TEMP/artifacts/driver" -MesaArtifact "$env:RUNNER_TEMP/artifacts/mesa"
-        -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl" -LoadersArtifact "$env:RUNNER_TEMP/artifacts/loaders"
-        -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact "$env:RUNNER_TEMP/helios-installer" -OutputDir "$env:RUNNER_TEMP/helios-package"
-        -Configuration ''${{ matrix.configuration }}'' -Version $lock.version -RepositoryCommit $env:GITHUB_SHA -MesaCommit $lock.sourceCommits.mesa -DxvkCommit $lock.sourceCommits.dxvk
-        -Vkd3dCommit $lock.sourceCommits.vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT
+        & "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" -RepoRoot "$PWD" -DriverArtifact "$env:RUNNER_TEMP/artifacts/driver" -MesaArtifact
+        "$env:RUNNER_TEMP/artifacts/mesa" -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl"
+        -LoadersArtifact "$env:RUNNER_TEMP/artifacts/loaders" -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact
+        "$env:RUNNER_TEMP/helios-installer" -OutputDir "$env:RUNNER_TEMP/helios-package" -Configuration ''${{ matrix.configuration }}'' -Version
+        $lock.version -RepositoryCommit $env:GITHUB_SHA -MesaCommit $lock.sourceCommits.mesa -DxvkCommit $lock.sourceCommits.dxvk -Vkd3dCommit
+        $lock.sourceCommits.vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT
         -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
 
         } finally {[ordered]@{durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content "$env:RUNNER_TEMP/timing/assembly-duration.json"}
@@ -2591,18 +2594,20 @@ jobs:
 
         $schema=Get-Content "$env:RUNNER_TEMP/helios-package/packaged-state-schema.json" -Raw|ConvertFrom-Json
 
-        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object status -ne ''PASS'').Count){throw ''Native schema 8/8 required''}
+        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object status -ne ''PASS'').Count){throw ''Native
+        schema 8/8 required''}
 
         '
     - name: Verify final extraction ZIP separately
       shell: pwsh
       run: "$env:GITHUB_SHA='d03d79ebec6d857d141469d197e11c04097c4d75'\n$env:GITHUB_RUN_ID='37417032761'\n$env:GITHUB_RUN_ATTEMPT='1'\n$w=[Diagnostics.Stopwatch]::StartNew();$status='FAIL'\n\
-        Write-Host 'VERIFY_PACKAGE_START'\ntry {\npython ./ci/windows/Verify-CIPackage.py --root \"$env:RUNNER_TEMP/helios-package\"\nif($LASTEXITCODE -ne 0){throw\
-        \ 'Extraction ZIP failed'}\n$receipt=Get-Content \"$env:RUNNER_TEMP/helios-package/extraction-roundtrip.json\" -Raw|ConvertFrom-Json\nif($receipt.status -ne\
-        \ 'PASS' -or $receipt.files -ne 69 -or $receipt.version -ne '22.22.314.0' -or $receipt.configuration -ne '${{ matrix.configuration }}' -or $receipt.sourceFingerprint\
-        \ -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69 exact identity failed'}\n$status='PASS' \n} finally\
-        \ {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content \"$env:RUNNER_TEMP/timing/verify-duration.json\";Write-Host\
-        \ \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"}\n"
+        Write-Host 'VERIFY_PACKAGE_START'\ntry {\npython ./ci/windows/Verify-CIPackage.py --root \"$env:RUNNER_TEMP/helios-package\"\nif($LASTEXITCODE\
+        \ -ne 0){throw 'Extraction ZIP failed'}\n$receipt=Get-Content \"$env:RUNNER_TEMP/helios-package/extraction-roundtrip.json\" -Raw|ConvertFrom-Json\n\
+        if($receipt.status -ne 'PASS' -or $receipt.files -ne 69 -or $receipt.version -ne '22.22.314.0' -or $receipt.configuration -ne '${{ matrix.configuration\
+        \ }}' -or $receipt.sourceFingerprint -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69\
+        \ exact identity failed'}\n$status='PASS' \n} finally {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content\
+        \ \"$env:RUNNER_TEMP/timing/verify-duration.json\";Write-Host \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"\
+        }\n"
     - name: Audit complete frozen contract with 90 minute internal watchdog
       shell: pwsh
       run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
@@ -2641,13 +2646,7 @@ jobs:
         '
     - name: Emit diagnostic qualification and final hash index
       shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        . ./ci/windows/CI-Qualification.ps1
+      run: '. ./ci/windows/CI-Qualification.ps1
 
         @(''PACKAGE_CONTROL=PASS'',''DIAGNOSTIC_PACKAGE_ONLY'',''QUALIFIED_314_PACKAGE=NO'',''PUBLICATION=NO'',''RUNTIME=NOT_RUN'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID",
         "CONTROL_SHA=$env:HELIOS_CONTROL_SHA")|Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
@@ -2656,11 +2655,15 @@ jobs:
 
         Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
 
+        $env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
+
+        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
+
+        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
+
         python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/helios-package" --receipt "$env:RUNNER_TEMP/timing/package-seal.json"
 
-        if($LASTEXITCODE -ne 0){throw ''Diagnostic seal failed''}
-
-        '
+        if($LASTEXITCODE -ne 0){throw ''Diagnostic seal failed''}'
       id: package_upload_seal
     - name: Upload diagnostic package
       uses: actions/upload-artifact@v7
@@ -2679,43 +2682,39 @@ jobs:
       id: package_upload_download
     - name: Verify complete diagnostic artifact roundtrip
       shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+      run: '$env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
 
-        $env:GITHUB_RUN_ID=''37417032761''
+        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
 
-        $env:GITHUB_RUN_ATTEMPT=''1''
+        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
 
         python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/diagnostic-download" --receipt "$env:RUNNER_TEMP/timing/package-seal.json"
 
         if($LASTEXITCODE -ne 0){throw ''Final diagnostic roundtrip failed''}
 
-        ''PASS''|Set-Content "$env:RUNNER_TEMP/timing/package-roundtrip.txt"
-
-        '
+        ''PASS''|Set-Content "$env:RUNNER_TEMP/timing/package-roundtrip.txt"'
       id: package_upload_verify
     - name: Collect timing and all frontier evidence
       shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+      run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence"|Out-Null
 
-        $env:GITHUB_RUN_ID=''37417032761''
+        foreach($path in @(''timing'',''helios-package-qualification'')){if(Test-Path "$env:RUNNER_TEMP/$path"){Copy-Item "$env:RUNNER_TEMP/$path"
+        "$env:RUNNER_TEMP/evidence/$path" -Recurse -Force}}
 
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence"|Out-Null
-
-        foreach($path in @(''timing'',''helios-package-qualification'')){if(Test-Path "$env:RUNNER_TEMP/$path"){Copy-Item "$env:RUNNER_TEMP/$path" "$env:RUNNER_TEMP/evidence/$path"
-        -Recurse -Force}}
-
-        if(Test-Path "$env:RUNNER_TEMP/helios-package"){New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence/package"|Out-Null;Get-ChildItem "$env:RUNNER_TEMP/helios-package"
-        -File|Where-Object {$_.Extension -in @(''.json'',''.txt'',''.inf'')}|Copy-Item -Destination "$env:RUNNER_TEMP/evidence/package"}
+        if(Test-Path "$env:RUNNER_TEMP/helios-package"){New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence/package"|Out-Null;Get-ChildItem
+        "$env:RUNNER_TEMP/helios-package" -File|Where-Object {$_.Extension -in @(''.json'',''.txt'',''.inf'')}|Copy-Item -Destination "$env:RUNNER_TEMP/evidence/package"}
 
         Get-ChildItem "$env:RUNNER_TEMP/artifacts" -Filter ''*.api-provenance.json'' -ErrorAction SilentlyContinue|Copy-Item -Destination "$env:RUNNER_TEMP/evidence"
 
+        $env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
+
+        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
+
+        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
+
         python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/evidence" --receipt "$env:RUNNER_TEMP/evidence-seal.json"
 
-        if($LASTEXITCODE -ne 0){throw ''Evidence seal failed''}
-
-        '
+        if($LASTEXITCODE -ne 0){throw ''Evidence seal failed''}'
       if: ${{ always() }}
       id: evidence_upload_seal
     - name: Preserve evidence always
@@ -2739,7 +2738,13 @@ jobs:
       id: evidence_upload_verify
       if: ${{ always() && steps.evidence_upload_download.outcome == 'success' }}
       shell: pwsh
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/evidence-download" --receipt "$env:RUNNER_TEMP/evidence-seal.json"
+      run: '$env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
+
+        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
+
+        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
+
+        python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/evidence-download" --receipt "$env:RUNNER_TEMP/evidence-seal.json"
 
         if($LASTEXITCODE -ne 0){throw ''Evidence roundtrip failed''}'
     env:
@@ -2747,11 +2752,12 @@ jobs:
       HELIOS_CONTROL_RUN_ID: ${{ github.run_id }}
       HELIOS_CONTROL_SHA: ${{ github.sha }}
       RUSTUP_MAX_RETRIES: '10'
+      HELIOS_CONTROL_RUN_ATTEMPT: ${{ github.run_attempt }}
     permissions:
       contents: read
       actions: read
   package_path_control:
-    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && inputs.package_path_only }}
+    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && inputs.package_path_only && !inputs.package_certificate_only }}
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -2799,6 +2805,56 @@ jobs:
       run: 'python ./frozen/ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/path-control-download" --receipt "$env:RUNNER_TEMP/path-seal.json"
 
         if($LASTEXITCODE -ne 0){throw ''Path evidence roundtrip failed''}'
+  package_certificate_control:
+    if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && inputs.package_certificate_only && !inputs.package_path_only }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        path: control
+        submodules: false
+    - uses: actions/checkout@v7
+      with:
+        path: frozen
+        ref: d03d79ebec6d857d141469d197e11c04097c4d75
+        submodules: false
+    - name: Initialize frozen pinned PowerShell
+      shell: powershell
+      run: ./frozen/ci/windows/Initialize-CIPowerShell.ps1
+    - name: Measure original certificate operations in bounded native controls
+      shell: pwsh
+      run: ./control/ci/windows/Test-PackageAuditCertificate.ps1 -FrozenRoot "$(Resolve-Path frozen)" -ReceiptDir "$env:RUNNER_TEMP/certificate-control"
+        -BudgetSeconds 180
+    - name: Seal certificate evidence
+      id: upload_seal
+      if: ${{ always() }}
+      shell: pwsh
+      run: 'python ./frozen/ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/certificate-control" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw "Certificate seal failed"}'
+    - uses: actions/upload-artifact@v7
+      id: upload
+      if: ${{ always() && steps.upload_seal.outcome == 'success' }}
+      with:
+        name: certificate-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/certificate-control
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 90
+    - uses: actions/download-artifact@v8
+      id: upload_download
+      if: ${{ always() && steps.upload.outcome == 'success' }}
+      with:
+        name: certificate-control-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/certificate-control-download
+    - name: Verify certificate evidence roundtrip
+      id: upload_verify
+      if: ${{ always() && steps.upload_download.outcome == 'success' }}
+      shell: pwsh
+      run: 'python ./frozen/ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/certificate-control-download" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw "Certificate roundtrip failed"}'
 'on':
   workflow_dispatch:
     inputs:
@@ -2842,6 +2898,10 @@ jobs:
         type: boolean
         default: false
         description: Frozen .314 diagnostic Package audit timing only; no candidate
+      package_certificate_only:
+        description: Focal native temporal certificate setup only; requires infrastructure_only and package_audit_timing_only
+        type: boolean
+        default: false
       package_path_only:
         type: boolean
         default: false

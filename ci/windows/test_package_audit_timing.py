@@ -18,12 +18,25 @@ class TimingControlTests(unittest.TestCase):
         import yaml
         w=yaml.safe_load((Path(__file__).parents[2]/'.github/workflows/windows-stack.yml').read_text())
         for name,job in w['jobs'].items():
-            if name=='package_path_control':
+            if name=='package_certificate_control':
+                self.assertIn('inputs.package_certificate_only',job['if'])
+            elif name=='package_path_control':
                 self.assertIn('inputs.package_path_only',job['if'])
             elif name=='package_audit_timing':
                 self.assertEqual(job['permissions']['actions'],'read')
                 self.assertEqual(job['timeout-minutes'],120)
             else:self.assertIn('!inputs.package_audit_timing_only',job['if'])
+    def test_all_timing_transport_uses_real_controller_identity(self):
+        import yaml
+        w=yaml.safe_load((Path(__file__).parents[2]/'.github/workflows/windows-stack.yml').read_text())
+        job=w['jobs']['package_audit_timing']
+        for step in job['steps']:
+            if step.get('id') in ('package_upload_seal','package_upload_verify','evidence_upload_seal','evidence_upload_verify'):
+                run=step['run']
+                for variable in ('SHA','RUN_ID','RUN_ATTEMPT'):
+                    self.assertIn(f'$env:GITHUB_{variable}=$env:HELIOS_CONTROL_{variable}',run)
+                self.assertNotIn("$env:GITHUB_RUN_ID='37417032761'",run)
+
     def test_unknown_source_fails_closed(self):
         import package_audit_timing as timing
         with self.assertRaises(ValueError): timing.instrument('Write-Host PASS')
