@@ -1,0 +1,63 @@
+{
+  "runId": 37417032761,
+  "attempt": 1,
+  "pythonGate": "PASS_78_OF_79_WITH_1_SKIP; CANDIDATE_15_OF_15",
+  "nativeRegressions": "PASS_9_OF_9",
+  "regressionRows": [
+    {
+      "name": "dxvk:cs_failure",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-finish",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-submit",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-success",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-lost-finish",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-lost-submit",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-previous",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-pending",
+      "result": "OK"
+    },
+    {
+      "name": "dxvk:queue-independent",
+      "result": "OK"
+    }
+  ],
+  "profiles": [
+    {
+      "profile": "release",
+      "complete": "PASS",
+      "fingerprintPrePost": "PASS",
+      "hostRuns": 3,
+      "wdkRuns": 4,
+      "allExitZero": true
+    },
+    {
+      "profile": "debug",
+      "complete": "PASS",
+      "fingerprintPrePost": "PASS",
+      "hostRuns": 3,
+      "wdkRuns": 4,
+      "allExitZero": true
+    }
+  ],
+  "originalJobLogSHA256": "f6943f90100a6e9f16c8c56cac1983bb5030d33b35c35c1dde63fcffd0ab49a7"
+}

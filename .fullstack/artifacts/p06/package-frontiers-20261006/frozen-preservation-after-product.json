@@ -1,0 +1,46 @@
+{
+  "status": "PASS",
+  "candidates": [
+    {
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/work/p06-product-producer-audit-20261005",
+      "headSha": "fb0790d756c53aceadc23fd36a596b7d07474056",
+      "version": "22.22.310.0",
+      "sourceFingerprint": "4d4eb6e2d6a4395aef206a2fe36be6125c8f14c15fc6b3f7b3e9f42d33c7cb46",
+      "trackedClean": true,
+      "verifiedAfterProduct": true
+    },
+    {
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/work/p06-product-python-frontier-20261005",
+      "headSha": "5f9f37eb2d0d938ec56db9d691457c957fc3acf8",
+      "version": "22.22.311.0",
+      "sourceFingerprint": "ed544458e2734a43ed982daca689153118e8a93b7666bdd5a17453a97558c929",
+      "trackedClean": true,
+      "verifiedAfterProduct": true
+    },
+    {
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/work/p06-product-component-controls-20261005",
+      "headSha": "654391bc9c63cc770013d1508b76909604e4c663",
+      "version": "22.22.312.0",
+      "sourceFingerprint": "f61fadb62dc75dde787755344ea4585d9ee84ce2bce50ae3db84b4dbd14ed543",
+      "trackedClean": true,
+      "verifiedAfterProduct": true
+    },
+    {
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/work/p06-product-component-frontiers-20261005",
+      "headSha": "8be68221360e2ae59f92b8598da9ed3d5eb0ccb9",
+      "version": "22.22.313.0",
+      "sourceFingerprint": "6982a610df4ebd1d52998fe18ac35d81d43cfad97c0141c3198bdbef833904a1",
+      "trackedClean": true,
+      "verifiedAfterProduct": true
+    },
+    {
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/work/p06-product-package-frontiers-20261006",
+      "headSha": "d03d79ebec6d857d141469d197e11c04097c4d75",
+      "version": "22.22.314.0",
+      "sourceFingerprint": "a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe",
+      "trackedClean": true,
+      "verifiedAfterProduct": true
+    }
+  ],
+  "historical313OriginalArchives": "PASS_16_OF_16_SHA256_UNCHANGED"
+}

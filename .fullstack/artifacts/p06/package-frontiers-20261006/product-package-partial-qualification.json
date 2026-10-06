@@ -1,0 +1,97 @@
+{
+  "runId": 37417032761,
+  "attempt": 1,
+  "packages": [
+    {
+      "configuration": "Release",
+      "jobResult": "CANCELLED_JOB_TIME_LIMIT_30_MINUTES",
+      "rustAcquisition": "PASS_FIRST_ATTEMPT_EXACT_PIN",
+      "rustIdentity": {
+        "toolchainList": "stable-x86_64-pc-windows-msvc (default)\nnightly-2026-07-14-x86_64-pc-windows-msvc (active)",
+        "rustc": "rustc 1.99.0-nightly (daf2e5e18 2026-07-13)",
+        "cargo": "cargo 1.99.0-nightly (59800466c 2026-07-07)"
+      },
+      "driverDate": "PASS_2026_10_06",
+      "assemblyAndTestSigning": "PASS_NATIVE_STEP",
+      "finalPackagedSchema": "PASS_NATIVE_8_OF_8",
+      "nativeVerifyCIPackage": "PASS_69_OF_69",
+      "nativeExtraction": {
+        "status": "PASS",
+        "setupSha256": "436389409a5ffd98b1eee14cc09c5590f567b8bb93213a5914da43137682c5a0",
+        "containerDigest": "9c482e6bfb2139a3fdeab88cc67fb489f0a69ca33b0c80f1a3ef7be0f2439bf8",
+        "files": 69,
+        "version": "22.22.314.0",
+        "configuration": "Release",
+        "sourceFingerprint": "a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe"
+      },
+      "nativeZIPAndSetupIdentities": [
+        {
+          "name": "HeliosSetup.exe",
+          "size": 38123134,
+          "sha256": "436389409a5ffd98b1eee14cc09c5590f567b8bb93213a5914da43137682c5a0"
+        },
+        {
+          "name": "helios-windows-x64-22.22.314.0-d03d79eb.zip",
+          "size": 37507314,
+          "sha256": "cee8b1d66ca9a2fa0a3c8b7fa2f164a32448026462269a72059fca0a45793bf5"
+        }
+      ],
+      "nativeProvenanceRows": 69,
+      "offlineAudit": "NOT_PROVEN_INTERRUPTED",
+      "finalToolchainPost": "NOT_PROVEN_NO_POST_RECEIPT",
+      "finalSourceFingerprintPost": "NOT_PROVEN_NO_POST_RECEIPT",
+      "qualificationReport": "NOT_PRODUCED",
+      "finalArtifactUploadAndRoundtrip": "NOT_RUN_SKIPPED",
+      "localIndependentExtraction": "NOT_RUN_NO_FINAL_BINARY_EXPORT",
+      "collection": "PASS",
+      "runtime": "NOT_RUN"
+    },
+    {
+      "configuration": "Debug",
+      "jobResult": "CANCELLED_JOB_TIME_LIMIT_30_MINUTES",
+      "rustAcquisition": "PASS_FIRST_ATTEMPT_EXACT_PIN",
+      "rustIdentity": {
+        "toolchainList": "stable-x86_64-pc-windows-msvc (default)\nnightly-2026-07-14-x86_64-pc-windows-msvc (active)",
+        "rustc": "rustc 1.99.0-nightly (daf2e5e18 2026-07-13)",
+        "cargo": "cargo 1.99.0-nightly (59800466c 2026-07-07)"
+      },
+      "driverDate": "PASS_2026_10_06",
+      "assemblyAndTestSigning": "PASS_NATIVE_STEP",
+      "finalPackagedSchema": "PASS_NATIVE_8_OF_8",
+      "nativeVerifyCIPackage": "PASS_69_OF_69",
+      "nativeExtraction": {
+        "status": "PASS",
+        "setupSha256": "162a25fd8e4c4c8195e2da132748ae8bdf2d4955640accd48c620cd163ffbfee",
+        "containerDigest": "15d8cbdbcf049396e0fe1da3818a4311d2cdeb83cc22223c77d21235f47af69d",
+        "files": 69,
+        "version": "22.22.314.0",
+        "configuration": "Debug",
+        "sourceFingerprint": "a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe"
+      },
+      "nativeZIPAndSetupIdentities": [
+        {
+          "name": "HeliosSetup.exe",
+          "size": 38534322,
+          "sha256": "162a25fd8e4c4c8195e2da132748ae8bdf2d4955640accd48c620cd163ffbfee"
+        },
+        {
+          "name": "helios-windows-x64-22.22.314.0-d03d79eb-debug.zip",
+          "size": 37846677,
+          "sha256": "c09993cd6d8e5d66c64b1edd62a3223c6bb57fe2fd97d2d959604667b7ea1bfa"
+        }
+      ],
+      "nativeProvenanceRows": 69,
+      "offlineAudit": "NOT_PROVEN_INTERRUPTED",
+      "finalToolchainPost": "NOT_PROVEN_NO_POST_RECEIPT",
+      "finalSourceFingerprintPost": "NOT_PROVEN_NO_POST_RECEIPT",
+      "qualificationReport": "NOT_PRODUCED",
+      "finalArtifactUploadAndRoundtrip": "NOT_RUN_SKIPPED",
+      "localIndependentExtraction": "NOT_RUN_NO_FINAL_BINARY_EXPORT",
+      "collection": "PASS",
+      "runtime": "NOT_RUN"
+    }
+  ],
+  "finalPackage": "PARTIAL_NO_QUALIFIED_EXPORT",
+  "durationInternalCause": "NOT_PROVEN",
+  "noCandidateRetry": true
+}

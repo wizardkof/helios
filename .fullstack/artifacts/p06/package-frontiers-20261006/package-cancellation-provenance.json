@@ -1,0 +1,69 @@
+{
+  "runId": 37417032761,
+  "attempt": 1,
+  "jobs": [
+    {
+      "jobId": 112210211309,
+      "cause": "AUTOMATIC_JOB_TIME_LIMIT_30_MINUTES",
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/wizardkof/helios/blob/d03d79ebec6d857d141469d197e11c04097c4d75/.github",
+          "start_line": 1,
+          "start_column": null,
+          "end_line": 1,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "The job has exceeded the maximum execution time of 30m0s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/wizardkof/helios/blob/d03d79ebec6d857d141469d197e11c04097c4d75/.github",
+          "start_line": 49,
+          "start_column": null,
+          "end_line": 49,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "The operation was canceled.",
+          "raw_details": ""
+        }
+      ]
+    },
+    {
+      "jobId": 112210211333,
+      "cause": "AUTOMATIC_JOB_TIME_LIMIT_30_MINUTES",
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/wizardkof/helios/blob/d03d79ebec6d857d141469d197e11c04097c4d75/.github",
+          "start_line": 1,
+          "start_column": null,
+          "end_line": 1,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "The job has exceeded the maximum execution time of 30m0s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/wizardkof/helios/blob/d03d79ebec6d857d141469d197e11c04097c4d75/.github",
+          "start_line": 49,
+          "start_column": null,
+          "end_line": 49,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "The operation was canceled.",
+          "raw_details": ""
+        }
+      ]
+    }
+  ],
+  "auditDurationInternalCause": "NOT_PROVEN",
+  "manualCancellationByThisSession": false,
+  "candidateRetry": false
+}

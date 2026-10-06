@@ -1,0 +1,2387 @@
+{
+  "observedAtUTC": "2026-10-06T10:22:59.809983+00:00",
+  "runId": 37417032761,
+  "attempt": 1,
+  "head": "d03d79ebec6d857d141469d197e11c04097c4d75",
+  "conclusion": "cancelled",
+  "jobs": [
+    {
+      "id": 112117803504,
+      "name": "Qualified Release then Debug (offline only)",
+      "status": "completed",
+      "conclusion": "success",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T05:08:15Z",
+          "completed_at": "2026-10-06T05:08:17Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T05:08:17Z",
+          "completed_at": "2026-10-06T05:08:23Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T05:08:23Z",
+          "completed_at": "2026-10-06T05:08:28Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T05:08:28Z",
+          "completed_at": "2026-10-06T05:08:29Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T05:08:29Z",
+          "completed_at": "2026-10-06T05:08:29Z"
+        },
+        {
+          "name": "Initialize Mesa fork",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T05:08:29Z",
+          "completed_at": "2026-10-06T05:10:00Z"
+        },
+        {
+          "name": "Run msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T05:10:00Z",
+          "completed_at": "2026-10-06T05:11:42Z"
+        },
+        {
+          "name": "Restore exact archived MSYS2 package pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T05:11:42Z",
+          "completed_at": "2026-10-06T05:12:01Z"
+        },
+        {
+          "name": "Verify pinned MSYS2 packages for infrastructure preflight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-10-06T05:12:01Z",
+          "completed_at": "2026-10-06T05:12:01Z"
+        },
+        {
+          "name": "Qualify exact native Python test dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-06T05:12:01Z",
+          "completed_at": "2026-10-06T05:12:41Z"
+        },
+        {
+          "name": "Expected refusal and evidence collection control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T05:12:41Z",
+          "completed_at": "2026-10-06T05:12:42Z"
+        },
+        {
+          "name": "Admit and seal transport_upload transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T05:12:42Z",
+          "completed_at": "2026-10-06T05:12:43Z"
+        },
+        {
+          "name": "Upload Windows evidence control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T05:12:43Z",
+          "completed_at": "2026-10-06T05:12:44Z"
+        },
+        {
+          "name": "Download real transport_upload artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T05:12:44Z",
+          "completed_at": "2026-10-06T05:12:45Z"
+        },
+        {
+          "name": "Verify real transport_upload roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T05:12:45Z",
+          "completed_at": "2026-10-06T05:12:46Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T05:12:46Z",
+          "completed_at": "2026-10-06T05:16:38Z"
+        },
+        {
+          "name": "Initialize release source-lock submodules",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T05:16:38Z",
+          "completed_at": "2026-10-06T05:17:36Z"
+        },
+        {
+          "name": "Check registry snapshot preservation (PowerShell 7)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T05:17:36Z",
+          "completed_at": "2026-10-06T05:17:37Z"
+        },
+        {
+          "name": "Check registry snapshot preservation (Windows PowerShell)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T05:17:37Z",
+          "completed_at": "2026-10-06T05:17:39Z"
+        },
+        {
+          "name": "Install Meson",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T05:17:39Z",
+          "completed_at": "2026-10-06T05:17:43Z"
+        },
+        {
+          "name": "Observe Ninja after Python package setup",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T05:17:43Z",
+          "completed_at": "2026-10-06T05:17:44Z"
+        },
+        {
+          "name": "Install upstream Ninja 1.13.2 by release identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T05:17:44Z",
+          "completed_at": "2026-10-06T05:17:45Z"
+        },
+        {
+          "name": "Observe Ninja after official acquisition",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-06T05:17:45Z",
+          "completed_at": "2026-10-06T05:17:46Z"
+        },
+        {
+          "name": "Build pinned Wine 11.12 WIDL from official source",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-06T05:17:46Z",
+          "completed_at": "2026-10-06T05:19:20Z"
+        },
+        {
+          "name": "Capture Mesa MSYS2 package and Ninja consumer preflight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 25,
+          "started_at": "2026-10-06T05:19:20Z",
+          "completed_at": "2026-10-06T05:19:20Z"
+        },
+        {
+          "name": "Observe pinned WIDL candidates",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26,
+          "started_at": "2026-10-06T05:19:20Z",
+          "completed_at": "2026-10-06T05:19:20Z"
+        },
+        {
+          "name": "Install official LLVM 22.1.8 release",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-10-06T05:19:20Z",
+          "completed_at": "2026-10-06T05:20:28Z"
+        },
+        {
+          "name": "Select pinned LLVM compiler",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-10-06T05:20:28Z",
+          "completed_at": "2026-10-06T05:20:29Z"
+        },
+        {
+          "name": "Restore Vulkan SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-10-06T05:20:29Z",
+          "completed_at": "2026-10-06T05:20:29Z"
+        },
+        {
+          "name": "Install and validate Vulkan SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-10-06T05:20:29Z",
+          "completed_at": "2026-10-06T05:20:54Z"
+        },
+        {
+          "name": "Install Rust nightly",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-10-06T05:20:54Z",
+          "completed_at": "2026-10-06T05:21:20Z"
+        },
+        {
+          "name": "Install Rust build helpers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 32,
+          "started_at": "2026-10-06T05:21:20Z",
+          "completed_at": "2026-10-06T05:27:06Z"
+        },
+        {
+          "name": "Initialize isolated host and private WDK producers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-10-06T05:27:06Z",
+          "completed_at": "2026-10-06T05:28:17Z"
+        },
+        {
+          "name": "Preserve selected tool directories across Visual Studio imports",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 34,
+          "started_at": "2026-10-06T05:28:17Z",
+          "completed_at": "2026-10-06T05:28:17Z"
+        },
+        {
+          "name": "Validate selected native tools after VS environment initialization",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35,
+          "started_at": "2026-10-06T05:28:17Z",
+          "completed_at": "2026-10-06T05:28:18Z"
+        },
+        {
+          "name": "Observe Ninja after all driver bootstrap path changes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 36,
+          "started_at": "2026-10-06T05:28:18Z",
+          "completed_at": "2026-10-06T05:28:19Z"
+        },
+        {
+          "name": "Enforce exact native toolchain pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 37,
+          "started_at": "2026-10-06T05:28:19Z",
+          "completed_at": "2026-10-06T05:28:44Z"
+        },
+        {
+          "name": "Test toolchain failure receipt persistence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 38,
+          "started_at": "2026-10-06T05:28:44Z",
+          "completed_at": "2026-10-06T05:28:44Z"
+        },
+        {
+          "name": "Test native toolchain receipt controls",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 39,
+          "started_at": "2026-10-06T05:28:44Z",
+          "completed_at": "2026-10-06T05:28:44Z"
+        },
+        {
+          "name": "Test child, Meson and CMake Ninja selection",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 40,
+          "started_at": "2026-10-06T05:28:44Z",
+          "completed_at": "2026-10-06T05:28:44Z"
+        },
+        {
+          "name": "Enforce current producer pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 41,
+          "started_at": "2026-10-06T05:28:44Z",
+          "completed_at": "2026-10-06T05:29:07Z"
+        },
+        {
+          "name": "Candidate regressions before Release",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 42,
+          "started_at": "2026-10-06T05:29:07Z",
+          "completed_at": "2026-10-06T05:33:36Z"
+        },
+        {
+          "name": "Build and qualify Release",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 43,
+          "started_at": "2026-10-06T05:33:36Z",
+          "completed_at": "2026-10-06T06:07:51Z"
+        },
+        {
+          "name": "Admit and seal s21 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 44,
+          "started_at": "2026-10-06T06:07:51Z",
+          "completed_at": "2026-10-06T06:07:55Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 45,
+          "started_at": "2026-10-06T06:07:55Z",
+          "completed_at": "2026-10-06T06:08:00Z"
+        },
+        {
+          "name": "Download real s21 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 46,
+          "started_at": "2026-10-06T06:08:00Z",
+          "completed_at": "2026-10-06T06:08:03Z"
+        },
+        {
+          "name": "Verify real s21 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 47,
+          "started_at": "2026-10-06T06:08:03Z",
+          "completed_at": "2026-10-06T06:08:07Z"
+        },
+        {
+          "name": "Build and qualify Debug only after Release PASS",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 48,
+          "started_at": "2026-10-06T06:08:07Z",
+          "completed_at": "2026-10-06T06:27:26Z"
+        },
+        {
+          "name": "Admit and seal s23 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 49,
+          "started_at": "2026-10-06T06:27:26Z",
+          "completed_at": "2026-10-06T06:27:37Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 50,
+          "started_at": "2026-10-06T06:27:37Z",
+          "completed_at": "2026-10-06T06:27:49Z"
+        },
+        {
+          "name": "Download real s23 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 51,
+          "started_at": "2026-10-06T06:27:49Z",
+          "completed_at": "2026-10-06T06:27:54Z"
+        },
+        {
+          "name": "Verify real s23 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 52,
+          "started_at": "2026-10-06T06:27:54Z",
+          "completed_at": "2026-10-06T06:28:06Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 53,
+          "started_at": "2026-10-06T06:28:06Z",
+          "completed_at": "2026-10-06T06:29:12Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 54,
+          "started_at": "2026-10-06T06:29:12Z",
+          "completed_at": "2026-10-06T06:29:50Z"
+        },
+        {
+          "name": "Preserve qualification and failure evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 55,
+          "started_at": "2026-10-06T06:29:50Z",
+          "completed_at": "2026-10-06T06:30:34Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 56,
+          "started_at": "2026-10-06T06:30:34Z",
+          "completed_at": "2026-10-06T06:30:48Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 57,
+          "started_at": "2026-10-06T06:30:48Z",
+          "completed_at": "2026-10-06T06:31:26Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 58,
+          "started_at": "2026-10-06T06:31:26Z",
+          "completed_at": "2026-10-06T06:31:27Z"
+        },
+        {
+          "name": "Post Restore Vulkan SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 114,
+          "started_at": "2026-10-06T06:31:27Z",
+          "completed_at": "2026-10-06T06:32:26Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 115,
+          "started_at": "2026-10-06T06:32:26Z",
+          "completed_at": "2026-10-06T06:32:26Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 116,
+          "started_at": "2026-10-06T06:32:26Z",
+          "completed_at": "2026-10-06T06:32:31Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 117,
+          "started_at": "2026-10-06T06:32:31Z",
+          "completed_at": "2026-10-06T06:32:32Z"
+        }
+      ]
+    },
+    {
+      "id": 112117804436,
+      "name": "OpenCL native Job Object timeout harness",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804506,
+      "name": "Package installer and real .313 assembly gates (${{ matrix.configuration }})",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804545,
+      "name": "Mesa ${{ matrix.arch }} real wrap import-order reproduction",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804600,
+      "name": "Loaders header RED and actual smoke compile GREEN",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804608,
+      "name": "Integrated host and private WDK producer audit control",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804610,
+      "name": "Real ${{ matrix.component }} toolchain checker control",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804625,
+      "name": "Mesa ${{ matrix.arch }} production-policy Ninja control",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804635,
+      "name": "Native Package parser control before production patch",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117804637,
+      "name": "MSYS2 MINGW32 archived pins and native Ninja control",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117836893,
+      "name": "Native priority and Vulkan SDK input controls",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112117839513,
+      "name": "Native Python test dependency and evidence contracts",
+      "status": "completed",
+      "conclusion": "skipped",
+      "firstFailedStep": null,
+      "steps": []
+    },
+    {
+      "id": 112140416682,
+      "name": "Mesa Venus Vulkan and Zink OpenGL (WoW64 x86)",
+      "status": "completed",
+      "conclusion": "success",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T06:32:43Z",
+          "completed_at": "2026-10-06T06:32:45Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T06:32:45Z",
+          "completed_at": "2026-10-06T06:32:51Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T06:32:51Z",
+          "completed_at": "2026-10-06T06:33:12Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T06:33:12Z",
+          "completed_at": "2026-10-06T06:33:13Z"
+        },
+        {
+          "name": "Initialize Mesa fork",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T06:33:13Z",
+          "completed_at": "2026-10-06T06:34:58Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T06:34:58Z",
+          "completed_at": "2026-10-06T06:34:58Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T06:34:58Z",
+          "completed_at": "2026-10-06T06:38:44Z"
+        },
+        {
+          "name": "Run msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T06:38:44Z",
+          "completed_at": "2026-10-06T06:39:54Z"
+        },
+        {
+          "name": "Install exact archived MSYS2 package pins for product",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T06:39:54Z",
+          "completed_at": "2026-10-06T06:40:08Z"
+        },
+        {
+          "name": "Verify archived MSYS2 package pins for preflight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-06T06:40:08Z",
+          "completed_at": "2026-10-06T06:40:08Z"
+        },
+        {
+          "name": "Verify Mesa MSYS2 package pins for product job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T06:40:08Z",
+          "completed_at": "2026-10-06T06:40:14Z"
+        },
+        {
+          "name": "Pre-build fingerprint (Verify-CandidateSource.ps1)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T06:40:14Z",
+          "completed_at": "2026-10-06T06:40:19Z"
+        },
+        {
+          "name": "Observe resources before Mesa producer",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T06:40:19Z",
+          "completed_at": "2026-10-06T06:40:20Z"
+        },
+        {
+          "name": "Build WoW64 Mesa runtime",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T06:40:20Z",
+          "completed_at": "2026-10-06T06:45:30Z"
+        },
+        {
+          "name": "Post-build fingerprint and hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T06:45:30Z",
+          "completed_at": "2026-10-06T06:45:35Z"
+        },
+        {
+          "name": "Admit and seal s10 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T06:45:35Z",
+          "completed_at": "2026-10-06T06:45:36Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T06:45:36Z",
+          "completed_at": "2026-10-06T06:45:38Z"
+        },
+        {
+          "name": "Download real s10 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T06:45:38Z",
+          "completed_at": "2026-10-06T06:45:40Z"
+        },
+        {
+          "name": "Verify real s10 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T06:45:40Z",
+          "completed_at": "2026-10-06T06:45:41Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T06:45:41Z",
+          "completed_at": "2026-10-06T06:45:43Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T06:45:43Z",
+          "completed_at": "2026-10-06T06:45:45Z"
+        },
+        {
+          "name": "Preserve component qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T06:45:45Z",
+          "completed_at": "2026-10-06T06:45:48Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-06T06:45:48Z",
+          "completed_at": "2026-10-06T06:45:52Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-06T06:45:52Z",
+          "completed_at": "2026-10-06T06:45:54Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-06T06:45:54Z",
+          "completed_at": "2026-10-06T06:45:54Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 49,
+          "started_at": "2026-10-06T06:45:54Z",
+          "completed_at": "2026-10-06T06:45:54Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 50,
+          "started_at": "2026-10-06T06:45:54Z",
+          "completed_at": "2026-10-06T06:45:57Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 51,
+          "started_at": "2026-10-06T06:45:57Z",
+          "completed_at": "2026-10-06T06:45:57Z"
+        }
+      ]
+    },
+    {
+      "id": 112140416701,
+      "name": "Application compatibility shims",
+      "status": "completed",
+      "conclusion": "success",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T06:32:43Z",
+          "completed_at": "2026-10-06T06:32:45Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T06:32:45Z",
+          "completed_at": "2026-10-06T06:32:50Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T06:32:50Z",
+          "completed_at": "2026-10-06T06:32:55Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T06:32:55Z",
+          "completed_at": "2026-10-06T06:32:57Z"
+        },
+        {
+          "name": "Initialize source lock",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T06:32:57Z",
+          "completed_at": "2026-10-06T06:34:57Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T06:34:57Z",
+          "completed_at": "2026-10-06T06:34:57Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T06:34:57Z",
+          "completed_at": "2026-10-06T06:38:35Z"
+        },
+        {
+          "name": "Pre-build fingerprint (Verify-CandidateSource.ps1)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T06:38:35Z",
+          "completed_at": "2026-10-06T06:38:41Z"
+        },
+        {
+          "name": "Enforce current producer pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T06:38:41Z",
+          "completed_at": "2026-10-06T06:39:02Z"
+        },
+        {
+          "name": "Build and validate compatibility shims",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-06T06:39:02Z",
+          "completed_at": "2026-10-06T06:39:11Z"
+        },
+        {
+          "name": "Post-build producer toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T06:39:11Z",
+          "completed_at": "2026-10-06T06:39:29Z"
+        },
+        {
+          "name": "Post-build fingerprint and hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T06:39:29Z",
+          "completed_at": "2026-10-06T06:39:32Z"
+        },
+        {
+          "name": "Admit and seal s10 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T06:39:32Z",
+          "completed_at": "2026-10-06T06:39:32Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T06:39:32Z",
+          "completed_at": "2026-10-06T06:39:33Z"
+        },
+        {
+          "name": "Download real s10 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T06:39:33Z",
+          "completed_at": "2026-10-06T06:39:34Z"
+        },
+        {
+          "name": "Verify real s10 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T06:39:34Z",
+          "completed_at": "2026-10-06T06:39:35Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T06:39:35Z",
+          "completed_at": "2026-10-06T06:39:36Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T06:39:36Z",
+          "completed_at": "2026-10-06T06:39:37Z"
+        },
+        {
+          "name": "Preserve component qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T06:39:37Z",
+          "completed_at": "2026-10-06T06:39:40Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T06:39:40Z",
+          "completed_at": "2026-10-06T06:39:41Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T06:39:41Z",
+          "completed_at": "2026-10-06T06:39:42Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T06:39:42Z",
+          "completed_at": "2026-10-06T06:39:43Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 43,
+          "started_at": "2026-10-06T06:39:43Z",
+          "completed_at": "2026-10-06T06:39:43Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 44,
+          "started_at": "2026-10-06T06:39:43Z",
+          "completed_at": "2026-10-06T06:39:47Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 45,
+          "started_at": "2026-10-06T06:39:47Z",
+          "completed_at": "2026-10-06T06:39:47Z"
+        }
+      ]
+    },
+    {
+      "id": 112140416768,
+      "name": "Mesa Venus Vulkan and Zink OpenGL (x64)",
+      "status": "completed",
+      "conclusion": "success",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T06:32:44Z",
+          "completed_at": "2026-10-06T06:32:46Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T06:32:46Z",
+          "completed_at": "2026-10-06T06:32:52Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T06:32:52Z",
+          "completed_at": "2026-10-06T06:32:58Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T06:32:58Z",
+          "completed_at": "2026-10-06T06:32:59Z"
+        },
+        {
+          "name": "Initialize Mesa fork",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T06:32:59Z",
+          "completed_at": "2026-10-06T06:35:13Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T06:35:13Z",
+          "completed_at": "2026-10-06T06:35:13Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T06:35:13Z",
+          "completed_at": "2026-10-06T06:38:43Z"
+        },
+        {
+          "name": "Run msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T06:38:43Z",
+          "completed_at": "2026-10-06T06:40:12Z"
+        },
+        {
+          "name": "Install exact archived MSYS2 package pins for product",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T06:40:12Z",
+          "completed_at": "2026-10-06T06:40:30Z"
+        },
+        {
+          "name": "Verify archived MSYS2 package pins for preflight",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-06T06:40:30Z",
+          "completed_at": "2026-10-06T06:40:30Z"
+        },
+        {
+          "name": "Verify Mesa MSYS2 package pins for product job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T06:40:30Z",
+          "completed_at": "2026-10-06T06:40:37Z"
+        },
+        {
+          "name": "Pre-build fingerprint (Verify-CandidateSource.ps1)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T06:40:37Z",
+          "completed_at": "2026-10-06T06:40:44Z"
+        },
+        {
+          "name": "Observe resources before Mesa producer",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T06:40:44Z",
+          "completed_at": "2026-10-06T06:40:44Z"
+        },
+        {
+          "name": "Build Mesa runtime",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T06:40:44Z",
+          "completed_at": "2026-10-06T06:48:49Z"
+        },
+        {
+          "name": "Post-build fingerprint and hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T06:48:49Z",
+          "completed_at": "2026-10-06T06:48:57Z"
+        },
+        {
+          "name": "Admit and seal s10 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T06:48:57Z",
+          "completed_at": "2026-10-06T06:48:58Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T06:48:58Z",
+          "completed_at": "2026-10-06T06:49:01Z"
+        },
+        {
+          "name": "Download real s10 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T06:49:01Z",
+          "completed_at": "2026-10-06T06:49:03Z"
+        },
+        {
+          "name": "Verify real s10 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T06:49:03Z",
+          "completed_at": "2026-10-06T06:49:04Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T06:49:04Z",
+          "completed_at": "2026-10-06T06:49:08Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T06:49:08Z",
+          "completed_at": "2026-10-06T06:49:11Z"
+        },
+        {
+          "name": "Preserve component qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T06:49:11Z",
+          "completed_at": "2026-10-06T06:49:15Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-06T06:49:15Z",
+          "completed_at": "2026-10-06T06:49:18Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-06T06:49:18Z",
+          "completed_at": "2026-10-06T06:49:21Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-06T06:49:21Z",
+          "completed_at": "2026-10-06T06:49:22Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 49,
+          "started_at": "2026-10-06T06:49:22Z",
+          "completed_at": "2026-10-06T06:49:22Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 50,
+          "started_at": "2026-10-06T06:49:22Z",
+          "completed_at": "2026-10-06T06:49:27Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 51,
+          "started_at": "2026-10-06T06:49:27Z",
+          "completed_at": "2026-10-06T06:49:27Z"
+        }
+      ]
+    },
+    {
+      "id": 112140416832,
+      "name": "CLVK with embedded clspv",
+      "status": "completed",
+      "conclusion": "success",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T06:32:43Z",
+          "completed_at": "2026-10-06T06:32:45Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T06:32:45Z",
+          "completed_at": "2026-10-06T06:32:51Z"
+        },
+        {
+          "name": "Set internal OpenCL preservation deadline",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T06:32:51Z",
+          "completed_at": "2026-10-06T06:32:55Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T06:32:55Z",
+          "completed_at": "2026-10-06T06:32:57Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T06:32:57Z",
+          "completed_at": "2026-10-06T06:32:58Z"
+        },
+        {
+          "name": "Initialize source lock",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T06:32:58Z",
+          "completed_at": "2026-10-06T06:35:29Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T06:35:29Z",
+          "completed_at": "2026-10-06T06:35:29Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T06:35:29Z",
+          "completed_at": "2026-10-06T06:38:49Z"
+        },
+        {
+          "name": "Install upstream Ninja 1.13.2 by release identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T06:38:49Z",
+          "completed_at": "2026-10-06T06:38:50Z"
+        },
+        {
+          "name": "Observe Ninja after official acquisition",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-06T06:38:50Z",
+          "completed_at": "2026-10-06T06:38:52Z"
+        },
+        {
+          "name": "Set up MSVC for Ninja",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T06:38:52Z",
+          "completed_at": "2026-10-06T06:38:54Z"
+        },
+        {
+          "name": "Install pinned sccache binary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T06:38:54Z",
+          "completed_at": "2026-10-06T06:38:55Z"
+        },
+        {
+          "name": "Restore Vulkan SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T06:38:55Z",
+          "completed_at": "2026-10-06T06:39:16Z"
+        },
+        {
+          "name": "Install and validate Vulkan SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T06:39:16Z",
+          "completed_at": "2026-10-06T06:39:17Z"
+        },
+        {
+          "name": "Install qualified CMake",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T06:39:17Z",
+          "completed_at": "2026-10-06T06:39:31Z"
+        },
+        {
+          "name": "Observe Ninja after OpenCL bootstrap",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T06:39:31Z",
+          "completed_at": "2026-10-06T06:39:33Z"
+        },
+        {
+          "name": "Pre-build fingerprint (Verify-CandidateSource.ps1)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T06:39:33Z",
+          "completed_at": "2026-10-06T06:39:40Z"
+        },
+        {
+          "name": "Enforce current producer pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T06:39:40Z",
+          "completed_at": "2026-10-06T06:40:04Z"
+        },
+        {
+          "name": "Test child, Meson and CMake Ninja selection",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 19,
+          "started_at": "2026-10-06T06:40:04Z",
+          "completed_at": "2026-10-06T06:40:04Z"
+        },
+        {
+          "name": "Build CLVK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T06:40:04Z",
+          "completed_at": "2026-10-06T09:50:02Z"
+        },
+        {
+          "name": "Post-build producer toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T09:50:02Z",
+          "completed_at": "2026-10-06T09:50:26Z"
+        },
+        {
+          "name": "Post-build fingerprint and hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T09:50:26Z",
+          "completed_at": "2026-10-06T09:50:31Z"
+        },
+        {
+          "name": "Admit and seal s16 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-06T09:50:31Z",
+          "completed_at": "2026-10-06T09:50:33Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-06T09:50:33Z",
+          "completed_at": "2026-10-06T09:50:39Z"
+        },
+        {
+          "name": "Download real s16 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-06T09:50:39Z",
+          "completed_at": "2026-10-06T09:50:41Z"
+        },
+        {
+          "name": "Verify real s16 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26,
+          "started_at": "2026-10-06T09:50:41Z",
+          "completed_at": "2026-10-06T09:50:43Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-10-06T09:50:43Z",
+          "completed_at": "2026-10-06T09:50:47Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-10-06T09:50:47Z",
+          "completed_at": "2026-10-06T09:50:51Z"
+        },
+        {
+          "name": "Preserve component qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-10-06T09:50:51Z",
+          "completed_at": "2026-10-06T09:50:55Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-10-06T09:50:55Z",
+          "completed_at": "2026-10-06T09:50:58Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-10-06T09:50:58Z",
+          "completed_at": "2026-10-06T09:51:01Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 32,
+          "started_at": "2026-10-06T09:51:01Z",
+          "completed_at": "2026-10-06T09:51:02Z"
+        },
+        {
+          "name": "Post Restore Vulkan SDK",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 62,
+          "started_at": "2026-10-06T09:51:02Z",
+          "completed_at": "2026-10-06T09:51:02Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 63,
+          "started_at": "2026-10-06T09:51:02Z",
+          "completed_at": "2026-10-06T09:51:02Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 64,
+          "started_at": "2026-10-06T09:51:02Z",
+          "completed_at": "2026-10-06T09:51:07Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 65,
+          "started_at": "2026-10-06T09:51:07Z",
+          "completed_at": "2026-10-06T09:51:07Z"
+        }
+      ]
+    },
+    {
+      "id": 112140416946,
+      "name": "Khronos loaders and smoke probes",
+      "status": "completed",
+      "conclusion": "success",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T06:32:43Z",
+          "completed_at": "2026-10-06T06:32:45Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T06:32:45Z",
+          "completed_at": "2026-10-06T06:32:51Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T06:32:51Z",
+          "completed_at": "2026-10-06T06:32:56Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T06:32:56Z",
+          "completed_at": "2026-10-06T06:32:57Z"
+        },
+        {
+          "name": "Initialize source lock",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T06:32:57Z",
+          "completed_at": "2026-10-06T06:35:29Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T06:35:29Z",
+          "completed_at": "2026-10-06T06:35:29Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T06:35:29Z",
+          "completed_at": "2026-10-06T06:39:37Z"
+        },
+        {
+          "name": "Install qualified CMake",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T06:39:37Z",
+          "completed_at": "2026-10-06T06:39:47Z"
+        },
+        {
+          "name": "Pre-build fingerprint (Verify-CandidateSource.ps1)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T06:39:47Z",
+          "completed_at": "2026-10-06T06:39:54Z"
+        },
+        {
+          "name": "Enforce current producer pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-06T06:39:54Z",
+          "completed_at": "2026-10-06T06:40:18Z"
+        },
+        {
+          "name": "Build official loaders and probes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T06:40:18Z",
+          "completed_at": "2026-10-06T06:41:49Z"
+        },
+        {
+          "name": "Post-build producer toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T06:41:49Z",
+          "completed_at": "2026-10-06T06:42:11Z"
+        },
+        {
+          "name": "Post-build fingerprint and hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T06:42:11Z",
+          "completed_at": "2026-10-06T06:42:15Z"
+        },
+        {
+          "name": "Admit and seal s11 transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T06:42:15Z",
+          "completed_at": "2026-10-06T06:42:15Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T06:42:15Z",
+          "completed_at": "2026-10-06T06:42:17Z"
+        },
+        {
+          "name": "Download real s11 artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T06:42:17Z",
+          "completed_at": "2026-10-06T06:42:19Z"
+        },
+        {
+          "name": "Verify real s11 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T06:42:19Z",
+          "completed_at": "2026-10-06T06:42:20Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T06:42:20Z",
+          "completed_at": "2026-10-06T06:42:22Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T06:42:22Z",
+          "completed_at": "2026-10-06T06:42:23Z"
+        },
+        {
+          "name": "Preserve component qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T06:42:23Z",
+          "completed_at": "2026-10-06T06:42:26Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T06:42:26Z",
+          "completed_at": "2026-10-06T06:42:28Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T06:42:28Z",
+          "completed_at": "2026-10-06T06:42:30Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-06T06:42:30Z",
+          "completed_at": "2026-10-06T06:42:30Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 45,
+          "started_at": "2026-10-06T06:42:30Z",
+          "completed_at": "2026-10-06T06:42:30Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 46,
+          "started_at": "2026-10-06T06:42:30Z",
+          "completed_at": "2026-10-06T06:42:36Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 47,
+          "started_at": "2026-10-06T06:42:36Z",
+          "completed_at": "2026-10-06T06:42:36Z"
+        }
+      ]
+    },
+    {
+      "id": 112210211309,
+      "name": "Sign and assemble installable bundle (Release)",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T09:51:15Z",
+          "completed_at": "2026-10-06T09:51:16Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T09:51:16Z",
+          "completed_at": "2026-10-06T09:51:22Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T09:51:22Z",
+          "completed_at": "2026-10-06T09:51:27Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T09:51:27Z",
+          "completed_at": "2026-10-06T09:51:28Z"
+        },
+        {
+          "name": "Initialize candidate source-lock submodules",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T09:51:28Z",
+          "completed_at": "2026-10-06T09:53:46Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T09:53:46Z",
+          "completed_at": "2026-10-06T09:53:49Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T09:53:49Z",
+          "completed_at": "2026-10-06T09:53:52Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T09:53:52Z",
+          "completed_at": "2026-10-06T09:53:54Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T09:53:54Z",
+          "completed_at": "2026-10-06T09:53:57Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-06T09:53:57Z",
+          "completed_at": "2026-10-06T09:53:58Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T09:53:58Z",
+          "completed_at": "2026-10-06T09:54:00Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T09:54:00Z",
+          "completed_at": "2026-10-06T09:54:00Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T09:54:00Z",
+          "completed_at": "2026-10-06T09:56:36Z"
+        },
+        {
+          "name": "Pre-package source fingerprint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T09:56:36Z",
+          "completed_at": "2026-10-06T09:56:42Z"
+        },
+        {
+          "name": "Install official LLVM 22.1.8 release",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T09:56:42Z",
+          "completed_at": "2026-10-06T09:57:51Z"
+        },
+        {
+          "name": "Select pinned LLVM compiler",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T09:57:51Z",
+          "completed_at": "2026-10-06T09:57:52Z"
+        },
+        {
+          "name": "Install Rust nightly with finite Package acquisition budget",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T09:57:52Z",
+          "completed_at": "2026-10-06T09:58:04Z"
+        },
+        {
+          "name": "Enforce installer producer pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T09:58:04Z",
+          "completed_at": "2026-10-06T09:58:31Z"
+        },
+        {
+          "name": "Build the self-contained installer skeleton",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T09:58:31Z",
+          "completed_at": "2026-10-06T09:59:02Z"
+        },
+        {
+          "name": "Seal installer producer identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T09:59:02Z",
+          "completed_at": "2026-10-06T09:59:02Z"
+        },
+        {
+          "name": "Read package metadata",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T09:59:02Z",
+          "completed_at": "2026-10-06T09:59:02Z"
+        },
+        {
+          "name": "Assemble and test-sign bundle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T09:59:02Z",
+          "completed_at": "2026-10-06T10:01:03Z"
+        },
+        {
+          "name": "Independent final package extraction and native audit",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "number": 23,
+          "started_at": "2026-10-06T10:01:03Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Admit and seal s21 transport",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 24,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 25,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Download real s21 artifact",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 26,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Verify real s21 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 27,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:30Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-10-06T10:21:30Z",
+          "completed_at": "2026-10-06T10:21:32Z"
+        },
+        {
+          "name": "Preserve package qualification and failure evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-10-06T10:21:32Z",
+          "completed_at": "2026-10-06T10:21:35Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-10-06T10:21:35Z",
+          "completed_at": "2026-10-06T10:21:37Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 32,
+          "started_at": "2026-10-06T10:21:37Z",
+          "completed_at": "2026-10-06T10:21:39Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-10-06T10:21:39Z",
+          "completed_at": "2026-10-06T10:21:39Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 65,
+          "started_at": "2026-10-06T10:21:39Z",
+          "completed_at": "2026-10-06T10:21:39Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 66,
+          "started_at": "2026-10-06T10:21:39Z",
+          "completed_at": "2026-10-06T10:21:45Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 67,
+          "started_at": "2026-10-06T10:21:45Z",
+          "completed_at": "2026-10-06T10:21:45Z"
+        }
+      ]
+    },
+    {
+      "id": 112210211333,
+      "name": "Sign and assemble installable bundle (Debug)",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "firstFailedStep": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-06T09:51:15Z",
+          "completed_at": "2026-10-06T09:51:16Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-06T09:51:16Z",
+          "completed_at": "2026-10-06T09:51:23Z"
+        },
+        {
+          "name": "Observe frozen CI executor profile",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-06T09:51:23Z",
+          "completed_at": "2026-10-06T09:51:28Z"
+        },
+        {
+          "name": "Initialize pinned PowerShell independently",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-06T09:51:28Z",
+          "completed_at": "2026-10-06T09:51:29Z"
+        },
+        {
+          "name": "Initialize candidate source-lock submodules",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-06T09:51:29Z",
+          "completed_at": "2026-10-06T09:53:47Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-06T09:53:47Z",
+          "completed_at": "2026-10-06T09:53:52Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-06T09:53:52Z",
+          "completed_at": "2026-10-06T09:53:54Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-06T09:53:54Z",
+          "completed_at": "2026-10-06T09:53:56Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-06T09:53:56Z",
+          "completed_at": "2026-10-06T09:53:59Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-06T09:53:59Z",
+          "completed_at": "2026-10-06T09:54:00Z"
+        },
+        {
+          "name": "Run actions/download-artifact@v8",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-06T09:54:00Z",
+          "completed_at": "2026-10-06T09:54:01Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-06T09:54:01Z",
+          "completed_at": "2026-10-06T09:54:01Z"
+        },
+        {
+          "name": "Ensure Windows Driver Kit is installed",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-06T09:54:01Z",
+          "completed_at": "2026-10-06T09:57:37Z"
+        },
+        {
+          "name": "Pre-package source fingerprint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-06T09:57:37Z",
+          "completed_at": "2026-10-06T09:57:44Z"
+        },
+        {
+          "name": "Install official LLVM 22.1.8 release",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-06T09:57:44Z",
+          "completed_at": "2026-10-06T09:58:53Z"
+        },
+        {
+          "name": "Select pinned LLVM compiler",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-06T09:58:53Z",
+          "completed_at": "2026-10-06T09:58:54Z"
+        },
+        {
+          "name": "Install Rust nightly with finite Package acquisition budget",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-06T09:58:54Z",
+          "completed_at": "2026-10-06T09:59:07Z"
+        },
+        {
+          "name": "Enforce installer producer pins",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-10-06T09:59:07Z",
+          "completed_at": "2026-10-06T09:59:36Z"
+        },
+        {
+          "name": "Build the self-contained installer skeleton",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-10-06T09:59:36Z",
+          "completed_at": "2026-10-06T10:00:06Z"
+        },
+        {
+          "name": "Seal installer producer identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-10-06T10:00:06Z",
+          "completed_at": "2026-10-06T10:00:07Z"
+        },
+        {
+          "name": "Read package metadata",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-06T10:00:07Z",
+          "completed_at": "2026-10-06T10:00:07Z"
+        },
+        {
+          "name": "Assemble and test-sign bundle",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-06T10:00:07Z",
+          "completed_at": "2026-10-06T10:02:27Z"
+        },
+        {
+          "name": "Independent final package extraction and native audit",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "number": 23,
+          "started_at": "2026-10-06T10:02:27Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Admit and seal s21 transport",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 24,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@v7",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 25,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Download real s21 artifact",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 26,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Verify real s21 roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 27,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:28Z"
+        },
+        {
+          "name": "Collect explicit failure and qualification evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-10-06T10:21:28Z",
+          "completed_at": "2026-10-06T10:21:30Z"
+        },
+        {
+          "name": "Admit and seal upload_evidence transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-10-06T10:21:30Z",
+          "completed_at": "2026-10-06T10:21:32Z"
+        },
+        {
+          "name": "Preserve package qualification and failure evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-10-06T10:21:32Z",
+          "completed_at": "2026-10-06T10:21:34Z"
+        },
+        {
+          "name": "Download real upload_evidence artifact",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-10-06T10:21:34Z",
+          "completed_at": "2026-10-06T10:21:36Z"
+        },
+        {
+          "name": "Verify real upload_evidence roundtrip set size hashes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 32,
+          "started_at": "2026-10-06T10:21:36Z",
+          "completed_at": "2026-10-06T10:21:38Z"
+        },
+        {
+          "name": "Report separate evidence outcomes",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 33,
+          "started_at": "2026-10-06T10:21:38Z",
+          "completed_at": "2026-10-06T10:21:38Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 65,
+          "started_at": "2026-10-06T10:21:38Z",
+          "completed_at": "2026-10-06T10:21:38Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 66,
+          "started_at": "2026-10-06T10:21:38Z",
+          "completed_at": "2026-10-06T10:21:44Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 67,
+          "started_at": "2026-10-06T10:21:44Z",
+          "completed_at": "2026-10-06T10:21:44Z"
+        }
+      ]
+    }
+  ],
+  "noRetry": true,
+  "classificationBasis": "Terminal GitHub API; finer build/receipt statuses require independent artifact verification"
+}

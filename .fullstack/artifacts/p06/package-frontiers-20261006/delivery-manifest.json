@@ -1,0 +1,449 @@
+{
+  "status": "PASS",
+  "scope": "16 immutable historical .313 originals, 8 new control originals, 16 .314 product originals; final Package binaries were not exported",
+  "originalArchives": 40,
+  "archives": [
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-package-receipts-Debug-37392622277-1.zip",
+      "artifactId": 11390555484,
+      "size": 5057110,
+      "sha256": "fd4e9a113d006010ac15e92deb5055e7d2230b454a2ffc278f1023e6f7eb7400",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-opencl-qualification-37392622277-1.zip",
+      "artifactId": 11389683221,
+      "size": 33977693,
+      "sha256": "dfa11fb4963b69e3385a4ef5fc80d30fa1eca9fa89606cb811511b1f7cdfe526",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-package-receipts-Release-37392622277-1.zip",
+      "artifactId": 11389554909,
+      "size": 4973043,
+      "sha256": "5001bc52049c5287c4c76b43f82d992e85a07b0ba6e70a7d73a8cfd93dedfe5f",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-opencl.zip",
+      "artifactId": 11389349227,
+      "size": 28769683,
+      "sha256": "176c79669174b56eb4f73e9f26ab2e6ccb6f4244001ec27ccd5b9398c07baef6",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-mesa-x86.zip",
+      "artifactId": 11385781000,
+      "size": 10919791,
+      "sha256": "4e7edaff0a993c52122234d8e59e493572942fa54399a53e49152dc7f2265999",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-mesa_x86-qualification-37392622277-1.zip",
+      "artifactId": 11385631136,
+      "size": 45766500,
+      "sha256": "6fefb3bc36aaeab406d5f09d29c69119df8dbda97f6fad5dd452cb4d0fe3b19c",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-mesa-qualification-37392622277-1.zip",
+      "artifactId": 11385382324,
+      "size": 46423654,
+      "sha256": "e3843cc169b65924fed751671a99bf8a81e865173a2fd6cea891ee6cb938e65d",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-loaders-qualification-37392622277-1.zip",
+      "artifactId": 11385371404,
+      "size": 6780991,
+      "sha256": "49166a3a3c71649b57c9aebd38d7cd8f9d511684439a887c9a7d7864c9f8dbbe",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-compatibility-qualification-37392622277-1.zip",
+      "artifactId": 11385216857,
+      "size": 5080765,
+      "sha256": "ec3be0ad0cbc73d5d269b8d6f5707bc52a3394eaf735d1fb9085241a41f70089",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-loaders.zip",
+      "artifactId": 11385107418,
+      "size": 1727134,
+      "sha256": "01898b564e6318d488be77764c0f54a5016150fc93ee27444cbc7356d79d07ce",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-compatibility.zip",
+      "artifactId": 11385067065,
+      "size": 62889,
+      "sha256": "08e93e019a63b6aac8cf0aab14dcb9e3814db9e83c80fb9e33be3c714fa755c1",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-mesa.zip",
+      "artifactId": 11384963582,
+      "size": 11486230,
+      "sha256": "a4c602fe425d85c27342eeada99eb133b5958419e1ac55b4ed5ccaa23618ed9c",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-driver-qualification-37392622277-1.zip",
+      "artifactId": 11384514849,
+      "size": 308253545,
+      "sha256": "74bdc37db8d7467969ab1dfd1eb16db5df03547095badd806b2d6900be7b699e",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-driver-Debug.zip",
+      "artifactId": 11384313547,
+      "size": 98062007,
+      "sha256": "1b8a03fd739d199419d0125f96621febba8939948d5aa2670ba53f0fd0e7ea8a",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-driver-Release.zip",
+      "artifactId": 11383742091,
+      "size": 37689924,
+      "sha256": "637410dd5eda4a0820ce878a47d0bc5fd55fc4b608a0b80f30b5a74e49a390c0",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/helios-evidence-control-37392622277-1.zip",
+      "artifactId": 11381154475,
+      "size": 7104,
+      "sha256": "03cb3d3dcb265b3fc2df794b293afae2738ac116972487d715d6b28632fedd3e",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37415126735",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415126735/helios-package-parser-control-37415126735-1.zip",
+      "artifactId": 11390847774,
+      "size": 1875,
+      "sha256": "5efcafce32042b7343f3d4ce6da1d2b2d2ba7b0cf881ea9d4d26d61eea1a61c6",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37415414514",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415414514/helios-package-parser-control-37415414514-1.zip",
+      "artifactId": 11390243982,
+      "size": 11970,
+      "sha256": "c268b0001d731b9e428bbe942a38be6d8294a0158b94a7489376f684d82f1b12",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37415594584",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415594584/helios-package-parser-control-37415594584-1.zip",
+      "artifactId": 11391025638,
+      "size": 26626,
+      "sha256": "84ad293640d1616e1b87fa2c735181cb8577bb07e42eb32bcfb8194aa42f456e",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37415594584",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415594584/helios-package-preflight-Debug-37415594584-1.zip",
+      "artifactId": 11391003708,
+      "size": 12443016,
+      "sha256": "d06648fab7e2cb2f5e7bfbb700ef70276547d657eced2848e4de19a99fa24a49",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37415594584",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415594584/helios-package-preflight-Release-37415594584-1.zip",
+      "artifactId": 11390784882,
+      "size": 10389773,
+      "sha256": "e07b1523e629232f88bfd7b70182fbdf2a1821422563bc4770ee6031488a7e11",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37416159314",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37416159314/helios-package-preflight-Debug-37416159314-1.zip",
+      "artifactId": 11391945335,
+      "size": 12443248,
+      "sha256": "d4e2cc5b89c53c4d6a1de943e6079138fc2836484352478816326e935ddb5c0f",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37416159314",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37416159314/helios-package-parser-control-37416159314-1.zip",
+      "artifactId": 11391320424,
+      "size": 26623,
+      "sha256": "977404df71e0dc9c3e53921632bc011257407359716b7f5cb2b2f8698241e483",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37416159314",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37416159314/helios-package-preflight-Release-37416159314-1.zip",
+      "artifactId": 11390299966,
+      "size": 10392600,
+      "sha256": "fffe6e0585211b74cb3f63f28730bb6cfcaf0e756c791759c75fcc492a94e1ca",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-package-receipts-Debug-37417032761-1.zip",
+      "artifactId": 11405275847,
+      "size": 5077704,
+      "sha256": "98f5b0ceeb665d48c058668c4def26a2e682104b78e0579d3171484338e73e16",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-package-receipts-Release-37417032761-1.zip",
+      "artifactId": 11405060966,
+      "size": 5079414,
+      "sha256": "7c1dcd5233c3144ca55d460de9b395757846e8e39cbcd9eaa64692d08c039d6c",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-opencl-qualification-37417032761-1.zip",
+      "artifactId": 11402854084,
+      "size": 33980474,
+      "sha256": "24b96f8ed7ae8f228f8340789ce06ebb40fc8405670b3373b349cc3beb9e523b",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-opencl.zip",
+      "artifactId": 11402804083,
+      "size": 28769682,
+      "sha256": "9c83c464a46ecdc1838b871a5903d1d26e5505721400b5b1835efe0eb37707e6",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-compatibility-qualification-37417032761-1.zip",
+      "artifactId": 11395295044,
+      "size": 5068888,
+      "sha256": "7acd19c1ca6beca2a4cecd6564d2e611f5cfa9357751732cd6d26dfcef86914c",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-compatibility.zip",
+      "artifactId": 11395090909,
+      "size": 62890,
+      "sha256": "9558b63089a36742aadbd2c55fbbf87e3029edc58076e2666298f96448ea1c28",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-mesa-qualification-37417032761-1.zip",
+      "artifactId": 11394952835,
+      "size": 46423454,
+      "sha256": "a65cf3c71b79c71215cf7deaef62f7e2aec3118b3a78dff8d2c8efaf79849498",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-mesa.zip",
+      "artifactId": 11394823054,
+      "size": 11486235,
+      "sha256": "7e3b8402f0bca6618f85a98e5ea13cc7a8815d91f2dd1fd41f31765c8a947eb3",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-mesa_x86-qualification-37417032761-1.zip",
+      "artifactId": 11394767541,
+      "size": 45741741,
+      "sha256": "e28e9fcda56459016de8d3ac11c7572f2637858d12fd1448298934c770ab2811",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-driver-qualification-37417032761-1.zip",
+      "artifactId": 11394760004,
+      "size": 308120338,
+      "sha256": "d86e016963cd3825229d32074a76c973ea8d0b0db998a24af280da665e2d6a3a",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-mesa-x86.zip",
+      "artifactId": 11394732672,
+      "size": 10919787,
+      "sha256": "08faab8d7db6601432bd440de35142cebb90eef7149f7b72bdaf911d0e1944ab",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-loaders-qualification-37417032761-1.zip",
+      "artifactId": 11394536928,
+      "size": 6776276,
+      "sha256": "c7a9ade6778fd3e37e5be64fca028a25a4eba02aaf14584bd5815affb34badb4",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-loaders.zip",
+      "artifactId": 11394302075,
+      "size": 1727131,
+      "sha256": "6fdcf651641ea222dc4721d71607bc3d5cbc4c499a59d7febd11bc6bf46e2505",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-driver-Release.zip",
+      "artifactId": 11393556083,
+      "size": 37691514,
+      "sha256": "4f3106549370556f99fef12f0adeee348f3037f8f9ebf295039d74a45487f436",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-driver-Debug.zip",
+      "artifactId": 11393459422,
+      "size": 97933557,
+      "sha256": "428ee14db53cb73858b3239d535cf101fdd6ded3f9378333153ea9a59ca153af",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/helios-evidence-control-37417032761-1.zip",
+      "artifactId": 11392002115,
+      "size": 7104,
+      "sha256": "0983f0f1e57bddab3558c3fa4825de674ac5153287c1e94ab5adb1159901225c",
+      "apiDigestMatches": true,
+      "crcPass": true,
+      "extractedBytesMatch": true
+    }
+  ],
+  "runFileIndices": [
+    {
+      "run": "37392622277",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/component-frontiers-20261005/run-37392622277/files.json",
+      "size": 3685429,
+      "sha256": "df4cae5d952aa099e6b3af6f2c34f5a2e6cb3a5838cbb52e08afbfee70cad242"
+    },
+    {
+      "run": "37415126735",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415126735/files.json",
+      "size": 1832,
+      "sha256": "5cf328c6e8f83189737cc7ced2cee1b9948aecc4ba96aa4875ef4ccd1a99dfff"
+    },
+    {
+      "run": "37415414514",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415414514/files.json",
+      "size": 8865,
+      "sha256": "38c7e88647cdab286eceb51a36b92b7e70327738156b92acbf1cb9f5d07825cd"
+    },
+    {
+      "run": "37415594584",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37415594584/files.json",
+      "size": 32585,
+      "sha256": "cf6004c481d1b91d2c7a5b84cde7148da64860f9e09010db929cce77c7d8d3d4"
+    },
+    {
+      "run": "37416159314",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37416159314/files.json",
+      "size": 32585,
+      "sha256": "768b0a494386bc21c30251fa60663c21f634a235955932944752680950f7e62b"
+    },
+    {
+      "run": "37417032761",
+      "path": "/home/reliuz/Projetos/Helios/.fullstack/artifacts/p06/package-frontiers-20261006/run-37417032761/files.json",
+      "size": 3702354,
+      "sha256": "21cb9cb47350afb51ca0a4860a44c906b348cdffe6bef61f2a11b771cf51c3be"
+    }
+  ],
+  "finalPackage": "PARTIAL_NO_QUALIFIED_EXPORT",
+  "noRetry": true,
+  "runtime": "NOT_RUN",
+  "publication": "NO"
+}

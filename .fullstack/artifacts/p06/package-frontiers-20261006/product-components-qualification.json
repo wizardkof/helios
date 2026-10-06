@@ -1,0 +1,85 @@
+{
+  "runId": 37417032761,
+  "attempt": 1,
+  "components": [
+    {
+      "component": "compatibility",
+      "primary": "PASS",
+      "collection": "PASS",
+      "fingerprintPrePost": "PASS"
+    },
+    {
+      "component": "loaders",
+      "primary": "PASS",
+      "collection": "PASS",
+      "fingerprintPrePost": "PASS"
+    },
+    {
+      "component": "mesa",
+      "primary": "PASS",
+      "collection": "PASS",
+      "fingerprintPrePost": "PASS"
+    },
+    {
+      "component": "mesa_x86",
+      "primary": "PASS",
+      "collection": "PASS",
+      "fingerprintPrePost": "PASS"
+    },
+    {
+      "component": "opencl",
+      "primary": "PASS",
+      "collection": "PASS",
+      "fingerprintPrePost": "PASS",
+      "phases": [
+        {
+          "phase": "PHASE_BUILD",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 11112.838002
+        },
+        {
+          "phase": "PHASE_CLONE_CLVK",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 19.174724
+        },
+        {
+          "phase": "PHASE_CLSPV_PATCHES",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 0.080412
+        },
+        {
+          "phase": "PHASE_CMAKE_CONFIGURE",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 50.912841
+        },
+        {
+          "phase": "PHASE_FETCH_LLVM",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 210.503785
+        },
+        {
+          "phase": "PHASE_STAGE",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 0.602951
+        },
+        {
+          "phase": "PHASE_SUBMODULES",
+          "status": "PASS",
+          "exit": 0,
+          "durationSeconds": 1.212832
+        }
+      ],
+      "producerBudget": "PASS",
+      "activeProcessesAfterCleanup": 0,
+      "exactUpstreamPins": "PASS"
+    }
+  ],
+  "opencl": "PASS",
+  "allFive": "PASS_5_OF_5"
+}

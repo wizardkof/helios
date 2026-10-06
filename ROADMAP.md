@@ -3540,6 +3540,45 @@ complete subsystem contract.
   proves nothing below WARNING; a real host-side bisect needs a relaunch with
   `VIRGL_LOG_LEVEL=debug`.
 
-## P06 Package frontier controls — 2026-10-06
+## P06 Package frontier controls and frozen .314 — 2026-10-06
 
-Frozen .313 preserves COMPONENTS5/5PASS and distinct PackageReleaseHTTP503 / DebugINFdate refusal. NativePowerShell7.6.6 control proves Object[] selects ParseExact single-format overload; explicitString[] and strictnegative8/8PASS with original DebugINF hash. Package-only finite acquisition preserves nightly2026-07-14: RUSTUP_MAX_RETRIES10 covers componentdownloads, bounded identical-command manifest502/503/504 retries cover independentlyproven manifestgap. Exhausted/nontransient errors failclosed; no mirror/version/job fallback. Exactrustup/rustc/cargo pre/postchecks retained. Finalnativecontrol37416159314 at ee223ef91d46c449890c02c9d35aa4dc2d1e81ce: allthreejobsPASS (realRust6cases; separateRelease/Debuginstallerprofiles andrealimmutable313driverassemblygate); portable79tests75PASS4nativeSKIP, candidate15/15PASS andindependentreviewPASS. Fullsigning/extraction/schema/ZIP mustqualify in anewsingleproductCI afterfreshremotemonotonicreservation. NoVM/localproductbuild/deploy/reboot/runtime/Releasepublication. See .fullstack/artifacts/p06/package-frontiers-20261006/REPORT.md for exact bounds andpreserved evidence.
+Frozen .313 retains COMPONENTS=PASS_5_OF_5 and its distinct Package failures:
+Release pinned Rust manifest HTTP 503; Debug strict INF date refusal with the
+original inner exception unavailable. Native PowerShell 7.6.6 controls prove
+Object[] binds the single-format ParseExact overload. Explicit String[] passes
+with the literal and the hash-matched real .313 INF; the strict date/version
+matrix passes 8/8. Production preserves the original exception in a diagnostic
+receipt and continues using invariant ParseExact.
+
+Package acquisition keeps nightly-2026-07-14. Native rustup 1.29.1 controls show
+RUSTUP_MAX_RETRIES=10 covers component downloads, while a finite same-command
+wrapper retries only manifest HTTP 502/503/504. Persistent and nontransient
+failures propagate; no mirror, version or workflow fallback. Final control
+37416159314 at ee223ef91d46c449890c02c9d35aa4dc2d1e81ce passed all three jobs,
+real Rust 6/6 and distinct Release/Debug installer and production driver gates.
+Portable tests: 75/79 PASS, four Windows-only SKIP; candidate-version 15/15.
+Independent Package review and follow-up PASS before reservation.
+
+After the remote monotonic ledger check, 22.22.314.0 was frozen at
+d03d79ebec6d857d141469d197e11c04097c4d75, fingerprint
+a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe.
+One product dispatch 37417032761, attempt 1, infrastructure_only=false:
+Python native 78/79 PASS with one SKIP, candidate-version 15/15, DXVK 9/9,
+producer audits and both drivers PASS, components PASS_5_OF_5. OpenCL has
+7/7 phase receipts PASS and zero active processes after cleanup.
+
+Both Packages acquired the exact pin on attempt 1, built their distinct
+installers and passed DriverVer, full assembly/test signing, native packaged
+schema 8/8 and independent Verify-CIPackage extraction/ZIP 69/69. Both jobs
+then exceeded their unchanged 30-minute limit during the final audit step;
+GitHub annotations prove automatic timeout. Audit completion, toolchain/source
+post-gates and QUALIFICATION_REPORT remain NOT_PROVEN/NOT_PRODUCED. Final
+Package artifact uploads and roundtrips were SKIPPED. FINAL_PACKAGE remains
+PARTIAL_NO_QUALIFIED_EXPORT; audit duration internal cause NOT_PROVEN.
+No candidate edit or retry. Frozen .310-.314 tracked heads and metadata remain
+clean, remote post-run source lock PASS. Forty original archives in this task
+(16 historical .313, eight controls, 16 .314) and all eight .314 job logs are
+preserved; 16 native published-artifact roundtrips PASS. Local ordered verifier
+FAIL_ORDER_ONLY stays separate from exact file-set/size/hash PASS.
+No local product build, WinBoat, deploy, reboot, runtime or Release publication.
+See .fullstack/artifacts/p06/package-frontiers-20261006/REPORT.md and STATUS.txt.

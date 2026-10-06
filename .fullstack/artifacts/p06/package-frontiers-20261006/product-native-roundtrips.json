@@ -1,0 +1,89 @@
+{
+  "runId": 37417032761,
+  "status": "PASS_16_OF_16",
+  "roundtrips": [
+    {
+      "job": "Qualified Release then Debug (offline only)",
+      "step": "Verify real transport_upload roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Qualified Release then Debug (offline only)",
+      "step": "Verify real s21 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Qualified Release then Debug (offline only)",
+      "step": "Verify real s23 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Qualified Release then Debug (offline only)",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Mesa Venus Vulkan and Zink OpenGL (WoW64 x86)",
+      "step": "Verify real s10 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Mesa Venus Vulkan and Zink OpenGL (WoW64 x86)",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Application compatibility shims",
+      "step": "Verify real s10 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Application compatibility shims",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Mesa Venus Vulkan and Zink OpenGL (x64)",
+      "step": "Verify real s10 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Mesa Venus Vulkan and Zink OpenGL (x64)",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "CLVK with embedded clspv",
+      "step": "Verify real s16 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "CLVK with embedded clspv",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Khronos loaders and smoke probes",
+      "step": "Verify real s11 roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Khronos loaders and smoke probes",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Sign and assemble installable bundle (Release)",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    },
+    {
+      "job": "Sign and assemble installable bundle (Debug)",
+      "step": "Verify real upload_evidence roundtrip set size hashes",
+      "conclusion": "success"
+    }
+  ],
+  "qualifiedSourceFilesUnchanged": "PASS",
+  "jobLogs": "PASS_8_OF_8",
+  "finalPackageArtifactRoundtrips": "NOT_RUN_BOTH_SKIPPED"
+}
