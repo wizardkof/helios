@@ -2822,10 +2822,9 @@ jobs:
     - name: Initialize frozen pinned PowerShell
       shell: powershell
       run: ./frozen/ci/windows/Initialize-CIPowerShell.ps1
-    - name: Measure original certificate operations in bounded native controls
+    - name: Short Import RED and isolated X509Store GREEN
       shell: pwsh
-      run: ./control/ci/windows/Test-PackageAuditCertificate.ps1 -FrozenRoot "$(Resolve-Path frozen)" -ReceiptDir "$env:RUNNER_TEMP/certificate-control"
-        -BudgetSeconds 180
+      run: ./control/ci/windows/Test-PackageRootTrust.ps1 -ControlRoot "$(Resolve-Path control)" -ReceiptDir "$env:RUNNER_TEMP/certificate-control" -BudgetSeconds 30
     - name: Seal certificate evidence
       id: upload_seal
       if: ${{ always() }}

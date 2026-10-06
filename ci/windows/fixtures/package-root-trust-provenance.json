@@ -1,0 +1,34 @@
+{
+  "classification": "CERTIFICATE_SUBPHASE_ONLY",
+  "historicalCertificateBytes": false,
+  "fixtureRecipe": "EXACT_FROZEN_ASSEMBLE_EXPRESSION",
+  "creationExpression": "$certificate = New-SelfSignedCertificate `\r\n    -Type CodeSigningCert `\r\n    -Subject $subject `\r\n    -CertStoreLocation \"Cert:\\CurrentUser\\My\" `\r\n    -KeyAlgorithm RSA `\r\n    -KeyLength 3072 `\r\n    -HashAlgorithm SHA256 `\r\n    -KeyExportPolicy NonExportable `\r\n    -NotAfter ([DateTime]::UtcNow.AddYears(2))",
+  "auditBlock": "$certFile=Get-ChildItem \"$extract\\certificate\" -File -Filter '*.cer'\r\nif(@($certFile).Count -ne 1){throw 'Unique package certificate required'}\r\n$cert=[Security.Cryptography.X509Certificates.X509Certificate2]::new($certFile.FullName)\r\n$store=\"Cert:\\CurrentUser\\Root\\$($cert.Thumbprint)\";$owned=-not(Test-Path $store)\r\ntry {\r\nif($owned){Import-Certificate -FilePath $certFile.FullName -CertStoreLocation Cert:\\CurrentUser\\Root|Out-Null}",
+  "changes": [
+    {
+      "new": "Event ENUMERATE BEGIN\n$certFile=Get-ChildItem",
+      "old": "$certFile=Get-ChildItem"
+    },
+    {
+      "new": "Event ENUMERATE END\nif(@($certFile).Count",
+      "old": "if(@($certFile).Count"
+    },
+    {
+      "new": "Event CONSTRUCTOR BEGIN\n$cert=[Security.Cryptography.X509Certificates.X509Certificate2]::new($certFile.FullName)\nEvent CONSTRUCTOR END",
+      "old": "$cert=[Security.Cryptography.X509Certificates.X509Certificate2]::new($certFile.FullName)"
+    },
+    {
+      "new": "Event STORE_LOOKUP BEGIN\n$store=\"Cert:\\CurrentUser\\Root\\$($cert.Thumbprint)\";$owned=-not(Test-Path $store)\nEvent STORE_LOOKUP END",
+      "old": "$store=\"Cert:\\CurrentUser\\Root\\$($cert.Thumbprint)\";$owned=-not(Test-Path $store)"
+    },
+    {
+      "new": "Event IMPORT BEGIN\nif($owned){Import-Certificate -FilePath $certFile.FullName -CertStoreLocation Cert:\\CurrentUser\\Root|Out-Null}\nEvent IMPORT END",
+      "old": "if($owned){Import-Certificate -FilePath $certFile.FullName -CertStoreLocation Cert:\\CurrentUser\\Root|Out-Null}"
+    }
+  ],
+  "frozenAuditSha256": "21F6ABFC123B98B2680C86FECB38EA66635B7AB1DF3DFF281CE9D3807F3D495B",
+  "frozenAssemblySha256": "8E2B146339C38F3EDEB2D31E2A001C8D93DE7413BABBFA100526E8D0C90CEB9F",
+  "certificateSha256": "D5330F4FCFE79D76B0861397DDF0BDAD1E733811A33049902A1859F1E18C2B2F",
+  "thumbprint": "8CC77C579380297C948D88913ED5A6AEEBD2908A",
+  "subject": "CN=WinBoat Helios vGPU GitHub CI Test Signing d03d79eb"
+}
