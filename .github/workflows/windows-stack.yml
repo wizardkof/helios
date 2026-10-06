@@ -113,7 +113,8 @@ jobs:
     - name: Verify real transport_upload roundtrip set size hashes
       id: transport_upload_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/transport_upload.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -214,9 +215,9 @@ jobs:
     - name: Preserve selected tool directories across Visual Studio imports
       if: ${{ success() || inputs.infrastructure_only }}
       shell: pwsh
-      run: '$paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent $env:HELIOS_WIDL
-        }), (Join-Path (Join-Path ''C:/VulkanSDK'' $env:VULKAN_SDK_VERSION) ''Bin'')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
-        Select-Object -Unique
+      run: '$paths = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Parent $env:HELIOS_NINJA }), $(if ($env:HELIOS_WIDL) { Split-Path -Parent
+        $env:HELIOS_WIDL }), (Join-Path (Join-Path ''C:/VulkanSDK'' $env:VULKAN_SDK_VERSION) ''Bin'')) | Where-Object { $_ -and (Test-Path -LiteralPath
+        $_ -PathType Container) } | Select-Object -Unique
 
         foreach ($path in $paths) { $path >> $env:GITHUB_PATH }
 
@@ -266,8 +267,8 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
     - name: Build and qualify Release
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"release\" -Operation {\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot\
-        \ $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-driver-Release\" -Configuration Release -BuildRoot C:/hb/driver\n}\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"release\" -Operation {\n  ./ci/windows/Build-QualifiedDriver.ps1\
+        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-driver-Release\" -Configuration Release -BuildRoot C:/hb/driver\n}\n"
       id: s20
       if: ${{ !inputs.infrastructure_only }}
     - name: Admit and seal s21 transport
@@ -305,8 +306,8 @@ jobs:
     - name: Build and qualify Debug only after Release PASS
       shell: pwsh
       run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"C:/hb/qualification\" -Producer \"debug\" -Operation {\n  if ((Get-Content C:/hb/driver/qualification-Release/complete.txt\
-        \ -Raw).Trim() -ne 'PASS') { throw 'Release qualification incomplete' }\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir\
-        \ \"$env:RUNNER_TEMP/helios-driver-Debug\" -Configuration Debug -BuildRoot C:/hb/driver\n}\n"
+        \ -Raw).Trim() -ne 'PASS') { throw 'Release qualification incomplete' }\n  ./ci/windows/Build-QualifiedDriver.ps1 -RepoRoot $env:GITHUB_WORKSPACE\
+        \ -OutputDir \"$env:RUNNER_TEMP/helios-driver-Debug\" -Configuration Debug -BuildRoot C:/hb/driver\n}\n"
       id: s22
       if: ${{ !inputs.infrastructure_only }}
     - name: Admit and seal s23 transport
@@ -376,7 +377,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -449,7 +451,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -538,8 +541,8 @@ jobs:
 
         Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
 
-        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa" --source-root $env:GITHUB_WORKSPACE --component mesa --configuration Release
-        --architecture x64
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa" --source-root $env:GITHUB_WORKSPACE --component mesa --configuration
+        Release --architecture x64
 
         if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
 
@@ -614,7 +617,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -709,8 +713,8 @@ jobs:
 
         Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/component-qualification" post
 
-        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa-x86" --source-root $env:GITHUB_WORKSPACE --component mesa-x86 --configuration
-        Release --architecture x86
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-mesa-x86" --source-root $env:GITHUB_WORKSPACE --component mesa-x86
+        --configuration Release --architecture x86
 
         if($LASTEXITCODE -ne 0){throw ''Component identity sealing failed''}
 
@@ -785,7 +789,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -993,7 +998,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -1059,8 +1065,8 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
       run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/component-qualification\" -Producer \"component-build\" -Operation {\n  ./ci/windows/Build-KhronosLoaders.ps1\
-        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-loaders\" -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT\
-        \ -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
+        \ -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-loaders\" -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit\
+        \ $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
       id: s08
     - name: Post-build producer toolchain
       if: ${{ !inputs.infrastructure_only }}
@@ -1150,7 +1156,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -1302,7 +1309,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -1314,8 +1322,9 @@ jobs:
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
   package:
-    if: ${{ !inputs.package_audit_timing_only && (always() && !inputs.infrastructure_only && needs.driver.result == 'success' && needs.mesa.result == 'success' &&
-      needs.mesa_x86.result == 'success' && needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success') }}
+    if: ${{ !inputs.package_audit_timing_only && (always() && !inputs.infrastructure_only && needs.driver.result == 'success' && needs.mesa.result == 'success'
+      && needs.mesa_x86.result == 'success' && needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success')
+      }}
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     env:
       HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
@@ -1432,15 +1441,15 @@ jobs:
     - name: Build the self-contained installer skeleton
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"installer-${{ matrix.configuration }}\" -Operation\
-        \ {\n  ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-installer\" -Configuration ${{ matrix.configuration\
-        \ }}\n}\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"installer-${{ matrix.configuration\
+        \ }}\" -Operation {\n  ./ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir \"$env:RUNNER_TEMP/helios-installer\" -Configuration\
+        \ ${{ matrix.configuration }}\n}\n"
       id: s16
     - name: Seal installer producer identity
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: 'python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root $env:GITHUB_WORKSPACE --component installer --configuration
-        ''${{ matrix.configuration }}'' --architecture x64
+      run: 'python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root $env:GITHUB_WORKSPACE --component installer
+        --configuration ''${{ matrix.configuration }}'' --architecture x64
 
         if($LASTEXITCODE -ne 0){throw ''Installer identity sealing failed''}
 
@@ -1450,7 +1459,8 @@ jobs:
       if: ${{ !inputs.infrastructure_only }}
       id: metadata
       shell: pwsh
-      run: '$version = (Get-Content kmd_render/driver-version.env | Where-Object { $_ -match ''^HELIOS_KMD_VERSION='' }) -replace ''^HELIOS_KMD_VERSION='', ''''
+      run: '$version = (Get-Content kmd_render/driver-version.env | Where-Object { $_ -match ''^HELIOS_KMD_VERSION='' }) -replace ''^HELIOS_KMD_VERSION='',
+        ''''
 
         "version=$version" >> $env:GITHUB_OUTPUT
 
@@ -1464,14 +1474,14 @@ jobs:
     - name: Assemble and test-sign bundle
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
-      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"package-${{ matrix.configuration }}\" -Operation\
-        \ {\n  ./ci/windows/Assemble-Package.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact \"$env:RUNNER_TEMP/artifacts/driver\" -MesaArtifact \"$env:RUNNER_TEMP/artifacts/mesa\"\
-        \ -MesaX86Artifact \"$env:RUNNER_TEMP/artifacts/mesa-x86\" -OpenClArtifact \"$env:RUNNER_TEMP/artifacts/opencl\" -LoadersArtifact \"$env:RUNNER_TEMP/artifacts/loaders\"\
-        \ -CompatibilityArtifact \"$env:RUNNER_TEMP/artifacts/compatibility\" -InstallerArtifact \"$env:RUNNER_TEMP/helios-installer\" -OutputDir \"$env:RUNNER_TEMP/helios-package\"\
-        \ -Configuration '${{ matrix.configuration }}' -Version '${{ steps.metadata.outputs.version }}' -RepositoryCommit $env:GITHUB_SHA -MesaCommit '${{ steps.metadata.outputs.mesa\
-        \ }}' -DxvkCommit '${{ steps.metadata.outputs.dxvk }}' -Vkd3dCommit '${{ steps.metadata.outputs.vkd3d }}' -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit\
-        \ $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n\
-        }\n"
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/helios-package-qualification\" -Producer \"package-${{ matrix.configuration\
+        \ }}\" -Operation {\n  ./ci/windows/Assemble-Package.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact \"$env:RUNNER_TEMP/artifacts/driver\" -MesaArtifact\
+        \ \"$env:RUNNER_TEMP/artifacts/mesa\" -MesaX86Artifact \"$env:RUNNER_TEMP/artifacts/mesa-x86\" -OpenClArtifact \"$env:RUNNER_TEMP/artifacts/opencl\"\
+        \ -LoadersArtifact \"$env:RUNNER_TEMP/artifacts/loaders\" -CompatibilityArtifact \"$env:RUNNER_TEMP/artifacts/compatibility\" -InstallerArtifact\
+        \ \"$env:RUNNER_TEMP/helios-installer\" -OutputDir \"$env:RUNNER_TEMP/helios-package\" -Configuration '${{ matrix.configuration }}' -Version '${{\
+        \ steps.metadata.outputs.version }}' -RepositoryCommit $env:GITHUB_SHA -MesaCommit '${{ steps.metadata.outputs.mesa }}' -DxvkCommit '${{ steps.metadata.outputs.dxvk\
+        \ }}' -Vkd3dCommit '${{ steps.metadata.outputs.vkd3d }}' -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit\
+        \ $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n"
       id: s19
     - name: Independent final package extraction and native audit
       if: ${{ !inputs.infrastructure_only }}
@@ -1490,7 +1500,8 @@ jobs:
 
         Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" post
 
-        @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
+        @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content
+        "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
 
         Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
 
@@ -1563,7 +1574,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -1625,7 +1637,8 @@ jobs:
     - name: Verify real transport_upload roundtrip set size hashes
       id: transport_upload_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp }}/artifact-roundtrip/transport_upload.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/transport_upload" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/transport_upload.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -1666,7 +1679,8 @@ jobs:
     - name: Verify real upload_evidence roundtrip set size hashes
       id: upload_evidence_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp }}/artifact-roundtrip/upload_evidence.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/upload_evidence" --receipt "${{ runner.temp
+        }}/artifact-roundtrip/upload_evidence.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
@@ -1708,21 +1722,22 @@ jobs:
       run: ./ci/windows/Initialize-CIIsolation.ps1
     - name: Run actual adapted WDK and host diagnostic tasks
       shell: pwsh
-      run: "$auditRoot = Join-Path $env:RUNNER_TEMP 'producer-audit-control'\nNew-Item -ItemType Directory -Path $auditRoot | Out-Null\nPush-Location (Join-Path $env:GITHUB_WORKSPACE\
-        \ 'kmd_render')\ntry {\n  $redAudit = Join-Path $auditRoot 'producer-audit-red.executions.jsonl'\n  $redTranscript = Join-Path $auditRoot 'producer-audit-red.console.log'\n\
-        \  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release\
-        \ -Task 'producer-audit-diagnostic' -AuditFile $redAudit -ControlOriginalRustRunner 2>&1 | Tee-Object -FilePath $redTranscript\n  if ($LASTEXITCODE -ne 0)\
-        \ { throw 'Original CargoMake @rust RED control task failed' }\n  $selectedLine = Select-String -Path $redTranscript -Pattern 'HOST_SELECTED_EXECUTABLE=(.+)'\
-        \ | Select-Object -Last 1\n  $taskPathLine = Select-String -Path $redTranscript -Pattern 'HOST_TASK_PATH=(.+)' | Select-Object -Last 1\n  if (!$selectedLine)\
-        \ { throw 'Could not observe actual CargoMake @rust executable path' }\n  if (!$taskPathLine) { throw 'Could not observe CargoMake task PATH' }\n  $selectedExecutable\
-        \ = $selectedLine.Matches[0].Groups[1].Value.Trim()\n  $taskPath = $taskPathLine.Matches[0].Groups[1].Value.Trim()\n  [ordered]@{selectedExecutable=$selectedExecutable;expectedHostExecutable=$env:HELIOS_HOST_RUST_SCRIPT;effectiveTaskPath=$taskPath;dispatcherDirectory=(Join-Path\
-        \ $env:HELIOS_ISOLATION_ROOT 'host-dispatch')}|ConvertTo-Json -Compress|Set-Content (Join-Path $auditRoot 'producer-audit-red-resolution.json') -Encoding\
-        \ UTF8\n  if ($selectedExecutable -cne $env:HELIOS_HOST_RUST_SCRIPT) { throw \"Observed unexpected CargoMake @rust executable: $selectedExecutable\" }\n \
-        \ & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task\
-        \ 'producer-audit-diagnostic' -AuditFile (Join-Path $auditRoot 'producer-audit-diagnostic.executions.jsonl')\n  if ($LASTEXITCODE -ne 0) { throw 'Integrated\
-        \ producer diagnostic task failed' }\n  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditExit.ps1') -AuditDirectory $auditRoot -KmdRoot (Join-Path\
-        \ $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')\n} finally {\
-        \ Pop-Location }\n"
+      run: "$auditRoot = Join-Path $env:RUNNER_TEMP 'producer-audit-control'\nNew-Item -ItemType Directory -Path $auditRoot | Out-Null\nPush-Location (Join-Path\
+        \ $env:GITHUB_WORKSPACE 'kmd_render')\ntry {\n  $redAudit = Join-Path $auditRoot 'producer-audit-red.executions.jsonl'\n  $redTranscript = Join-Path\
+        \ $auditRoot 'producer-audit-red.console.log'\n  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path\
+        \ $env:GITHUB_WORKSPACE 'kmd_render') -Profile release -Task 'producer-audit-diagnostic' -AuditFile $redAudit -ControlOriginalRustRunner 2>&1 |\
+        \ Tee-Object -FilePath $redTranscript\n  if ($LASTEXITCODE -ne 0) { throw 'Original CargoMake @rust RED control task failed' }\n  $selectedLine\
+        \ = Select-String -Path $redTranscript -Pattern 'HOST_SELECTED_EXECUTABLE=(.+)' | Select-Object -Last 1\n  $taskPathLine = Select-String -Path $redTranscript\
+        \ -Pattern 'HOST_TASK_PATH=(.+)' | Select-Object -Last 1\n  if (!$selectedLine) { throw 'Could not observe actual CargoMake @rust executable path'\
+        \ }\n  if (!$taskPathLine) { throw 'Could not observe CargoMake task PATH' }\n  $selectedExecutable = $selectedLine.Matches[0].Groups[1].Value.Trim()\n\
+        \  $taskPath = $taskPathLine.Matches[0].Groups[1].Value.Trim()\n  [ordered]@{selectedExecutable=$selectedExecutable;expectedHostExecutable=$env:HELIOS_HOST_RUST_SCRIPT;effectiveTaskPath=$taskPath;dispatcherDirectory=(Join-Path\
+        \ $env:HELIOS_ISOLATION_ROOT 'host-dispatch')}|ConvertTo-Json -Compress|Set-Content (Join-Path $auditRoot 'producer-audit-red-resolution.json')\
+        \ -Encoding UTF8\n  if ($selectedExecutable -cne $env:HELIOS_HOST_RUST_SCRIPT) { throw \"Observed unexpected CargoMake @rust executable: $selectedExecutable\"\
+        \ }\n  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Invoke-IsolatedCargoMake.ps1') -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -Profile\
+        \ release -Task 'producer-audit-diagnostic' -AuditFile (Join-Path $auditRoot 'producer-audit-diagnostic.executions.jsonl')\n  if ($LASTEXITCODE\
+        \ -ne 0) { throw 'Integrated producer diagnostic task failed' }\n  & (Join-Path $env:GITHUB_WORKSPACE 'ci/windows/Test-ProducerAuditExit.ps1') -AuditDirectory\
+        \ $auditRoot -KmdRoot (Join-Path $env:GITHUB_WORKSPACE 'kmd_render') -RedAuditFile $redAudit -RedResolutionFile (Join-Path $auditRoot 'producer-audit-red-resolution.json')\n\
+        } finally { Pop-Location }\n"
     - name: Admit and seal producer audit control evidence
       id: producer_audit_upload_seal
       if: always()
@@ -1753,8 +1768,8 @@ jobs:
       id: producer_audit_upload_verify
       if: ${{ always() && steps.producer_audit_upload_download.outcome == 'success' }}
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload" --receipt "${{ runner.temp
-        }}/artifact-roundtrip/producer_audit_upload.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/producer_audit_upload" --receipt "${{
+        runner.temp }}/artifact-roundtrip/producer_audit_upload.json"
 
         if ($LASTEXITCODE -ne 0) { throw ''EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL'' }
 
@@ -1824,8 +1839,8 @@ jobs:
         - arch: x64
           system: UCRT64
           packages: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
-            mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
-            mingw-w64-ucrt-x86_64-tools bison flex
+            mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers
+            mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools bison flex
         - arch: x86
           system: MINGW32
           packages: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
@@ -1961,14 +1976,15 @@ jobs:
     - name: Run real component checker
       shell: pwsh
       id: checker
-      run: "$component='${{ matrix.component }}'\nif($PSVersionTable.PSVersion.ToString() -ne '7.6.6' -or $PSVersionTable.PSEdition -ne 'Core' -or -not [Environment]::Is64BitProcess){throw\
-        \ 'Expected PowerShell 7.6.6/Core x64'}\nif($component -eq 'package') {\n    $env:HELIOS_LLVM_BIN='';$env:HELIOS_WIDL='';$env:HELIOS_NINJA=''\n    ./ci/windows/Assert-ComponentToolchain.ps1\
-        \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-zero\"\n    $zero=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-zero/pre-producer-tools.json\"\
-        \ -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne 0){throw 'Package zero priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path\
-        \ $env:RUNNER_TEMP 'package-one-priority'\n    New-Item -ItemType Directory -Force $env:HELIOS_LLVM_BIN|Out-Null\n    ./ci/windows/Assert-ComponentToolchain.ps1\
-        \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-one\"\n    $one=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-one/pre-producer-tools.json\"\
-        \ -Raw|ConvertFrom-Json\n    if($one.context.priorityCount -ne 1){throw 'Package one priority fixture not isolated'}\n} else {\n    ./ci/windows/Assert-ComponentToolchain.ps1\
-        \ -Component $component -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/checker\"\n}\nWrite-Host ($component.ToUpperInvariant()+'_TOOLCHAIN_CONTROL=PASS')"
+      run: "$component='${{ matrix.component }}'\nif($PSVersionTable.PSVersion.ToString() -ne '7.6.6' -or $PSVersionTable.PSEdition -ne 'Core' -or -not\
+        \ [Environment]::Is64BitProcess){throw 'Expected PowerShell 7.6.6/Core x64'}\nif($component -eq 'package') {\n    $env:HELIOS_LLVM_BIN='';$env:HELIOS_WIDL='';$env:HELIOS_NINJA=''\n\
+        \    ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-zero\"\n    $zero=Get-Content\
+        \ \"$env:RUNNER_TEMP/component-qualification/package-zero/pre-producer-tools.json\" -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne\
+        \ 0){throw 'Package zero priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path $env:RUNNER_TEMP 'package-one-priority'\n    New-Item\
+        \ -ItemType Directory -Force $env:HELIOS_LLVM_BIN|Out-Null\n    ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-one\"\
+        \n    $one=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-one/pre-producer-tools.json\" -Raw|ConvertFrom-Json\n    if($one.context.priorityCount\
+        \ -ne 1){throw 'Package one priority fixture not isolated'}\n} else {\n    ./ci/windows/Assert-ComponentToolchain.ps1 -Component $component -ReceiptDir\
+        \ \"$env:RUNNER_TEMP/component-qualification/checker\"\n}\nWrite-Host ($component.ToUpperInvariant()+'_TOOLCHAIN_CONTROL=PASS')"
     - name: Preserve receipts and execution context
       id: preserve_control
       if: always()
@@ -1977,11 +1993,11 @@ jobs:
         CONTROL_STEPS: ${{ toJSON(steps) }}
         CONTROL_RESULT: ${{ job.status }}
       run: "$out=Join-Path $env:RUNNER_TEMP 'component-control'\nNew-Item -ItemType Directory -Force $out|Out-Null\nforeach($name in @('component-qualification','runner-qualification','ninja-qualification')){\n\
-        \ $root=Join-Path $env:RUNNER_TEMP $name\n if(Test-Path $root){foreach($file in @(Get-ChildItem $root -Recurse -File|Where-Object {$_.Extension -in '.json','.log'})){\n\
-        \  $relative=$file.FullName.Substring($root.Length).TrimStart('')\n  $destination=Join-Path (Join-Path $out $name) $relative\n  New-Item -ItemType Directory\
-        \ -Force (Split-Path $destination -Parent)|Out-Null\n  Copy-Item -LiteralPath $file.FullName -Destination $destination\n }}\n}\n@{headSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;component='${{\
-        \ matrix.component }}';jobResult=$env:CONTROL_RESULT;steps=($env:CONTROL_STEPS|ConvertFrom-Json);sourceStatus=(& git status --porcelain=v1 --untracked-files=no)}|ConvertTo-Json\
-        \ -Depth 20|Set-Content (Join-Path $out 'control-context.json') -Encoding utf8"
+        \ $root=Join-Path $env:RUNNER_TEMP $name\n if(Test-Path $root){foreach($file in @(Get-ChildItem $root -Recurse -File|Where-Object {$_.Extension\
+        \ -in '.json','.log'})){\n  $relative=$file.FullName.Substring($root.Length).TrimStart('')\n  $destination=Join-Path (Join-Path $out $name) $relative\n\
+        \  New-Item -ItemType Directory -Force (Split-Path $destination -Parent)|Out-Null\n  Copy-Item -LiteralPath $file.FullName -Destination $destination\n\
+        \ }}\n}\n@{headSha=$env:GITHUB_SHA;runId=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT;component='${{ matrix.component }}';jobResult=$env:CONTROL_RESULT;steps=($env:CONTROL_STEPS|ConvertFrom-Json);sourceStatus=(&\
+        \ git status --porcelain=v1 --untracked-files=no)}|ConvertTo-Json -Depth 20|Set-Content (Join-Path $out 'control-context.json') -Encoding utf8"
     - name: Seal focal receipts
       id: upload_control_seal
       if: ${{ always() }}
@@ -2088,8 +2104,8 @@ jobs:
         - arch: x64
           system: UCRT64
           packages: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
-            mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader
-            mingw-w64-ucrt-x86_64-tools bison flex
+            mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers
+            mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools bison flex
         - arch: x86
           system: MINGW32
           packages: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging
@@ -2141,7 +2157,8 @@ jobs:
 
         if [[ ''${{ inputs.frontier_controls_green }}'' == true ]]; then args+=(--production); fi
 
-        python ./ci/windows/test_meson_serialization.py "$(cygpath -m "$GITHUB_WORKSPACE")" "$(cygpath -m "$RUNNER_TEMP/component-control/serialization")" "${args[@]}"'
+        python ./ci/windows/test_meson_serialization.py "$(cygpath -m "$GITHUB_WORKSPACE")" "$(cygpath -m "$RUNNER_TEMP/component-control/serialization")"
+        "${args[@]}"'
     - name: Real Mesa setup through DirectX-Headers and CoreData only
       if: ${{ inputs.frontier_controls_green }}
       shell: msys2 {0}
@@ -2345,14 +2362,14 @@ jobs:
       run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/package-preflight/tools"
     - name: Build the actual configuration-specific installer skeleton
       shell: pwsh
-      run: './ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/package-preflight/installer" -Configuration ${{ matrix.configuration
-        }}
+      run: './ci/windows/Build-Installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:RUNNER_TEMP/package-preflight/installer" -Configuration ${{
+        matrix.configuration }}
 
         '
     - name: Execute production assembly driver gates with real original input
       shell: pwsh
-      run: './ci/windows/Test-PackageAssemblyGate.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact "$env:RUNNER_TEMP/historical-driver" -InstallerArtifact "$env:RUNNER_TEMP/package-preflight/installer"
-        -Configuration ${{ matrix.configuration }} -ReceiptDir "$env:RUNNER_TEMP/package-preflight"
+      run: './ci/windows/Test-PackageAssemblyGate.ps1 -RepoRoot $env:GITHUB_WORKSPACE -DriverArtifact "$env:RUNNER_TEMP/historical-driver" -InstallerArtifact
+        "$env:RUNNER_TEMP/package-preflight/installer" -Configuration ${{ matrix.configuration }} -ReceiptDir "$env:RUNNER_TEMP/package-preflight"
 
         '
     - name: Seal preflight evidence
@@ -2429,8 +2446,8 @@ jobs:
 
         New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/timing"|Out-Null
 
-        @(''DIAGNOSTIC_PACKAGE_ONLY'',''NOT_QUALIFIED_314_PACKAGE'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID", "CONTROL_SHA=$env:HELIOS_CONTROL_SHA",
-        "FROZEN_SHA=$head")|Set-Content "$env:RUNNER_TEMP/timing/CONTROL_IDENTITY.txt"
+        @(''DIAGNOSTIC_PACKAGE_ONLY'',''NOT_QUALIFIED_314_PACKAGE'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID", "CONTROL_SHA=$env:HELIOS_CONTROL_SHA", "FROZEN_SHA=$head")|Set-Content
+        "$env:RUNNER_TEMP/timing/CONTROL_IDENTITY.txt"
 
         '
     - name: Observe actual runner profile
@@ -2458,8 +2475,8 @@ jobs:
 
         $env:GITHUB_RUN_ATTEMPT=''1''
 
-        python ../control/ci/windows/Download-PackageAuditInputs.py --source "$PWD" --output "$env:RUNNER_TEMP/artifacts" --configuration ''${{
-        matrix.configuration }}''
+        python ../control/ci/windows/Download-PackageAuditInputs.py --source "$PWD" --output "$env:RUNNER_TEMP/artifacts" --configuration ''${{ matrix.configuration
+        }}''
 
         if($LASTEXITCODE -ne 0){throw ''Original inputs rejected''}
 
@@ -2546,8 +2563,7 @@ jobs:
 
         $w=[Diagnostics.Stopwatch]::StartNew()
 
-        ./ci/windows/Build-Installer.ps1 -RepoRoot "$PWD" -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ''${{ matrix.configuration
-        }}''
+        ./ci/windows/Build-Installer.ps1 -RepoRoot "$PWD" -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ''${{ matrix.configuration }}''
 
         [ordered]@{classification=''RECONSTRUCTED_DIAGNOSTIC_INSTALLER'';controlRun=$env:HELIOS_CONTROL_RUN_ID;controlSha=$env:HELIOS_CONTROL_SHA;source=$env:GITHUB_SHA;durationMs=$w.Elapsed.TotalMilliseconds;historicalExecution=$false}|ConvertTo-Json|Set-Content
         "$env:RUNNER_TEMP/timing/installer-provenance.json"
@@ -2570,8 +2586,7 @@ jobs:
 
         $env:GITHUB_RUN_ATTEMPT=''1''
 
-        python ../control/ci/windows/Prepare-PackageAssemblyTiming.py --source "$PWD" --output "$env:RUNNER_TEMP/assembly-diagnostic" --receipt
-        "$env:RUNNER_TEMP/timing/assembly-script-provenance.json"
+        python ../control/ci/windows/Prepare-PackageAssemblyTiming.py --source "$PWD" --output "$env:RUNNER_TEMP/assembly-diagnostic" --receipt "$env:RUNNER_TEMP/timing/assembly-script-provenance.json"
 
         if($LASTEXITCODE -ne 0){throw ''Assembly copy correlation failed''}
 
@@ -2582,32 +2597,30 @@ jobs:
         $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
 
         & "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" -RepoRoot "$PWD" -DriverArtifact "$env:RUNNER_TEMP/artifacts/driver" -MesaArtifact
-        "$env:RUNNER_TEMP/artifacts/mesa" -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl"
-        -LoadersArtifact "$env:RUNNER_TEMP/artifacts/loaders" -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact
-        "$env:RUNNER_TEMP/helios-installer" -OutputDir "$env:RUNNER_TEMP/helios-package" -Configuration ''${{ matrix.configuration }}'' -Version
-        $lock.version -RepositoryCommit $env:GITHUB_SHA -MesaCommit $lock.sourceCommits.mesa -DxvkCommit $lock.sourceCommits.dxvk -Vkd3dCommit
-        $lock.sourceCommits.vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT
-        -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
+        "$env:RUNNER_TEMP/artifacts/mesa" -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl" -LoadersArtifact
+        "$env:RUNNER_TEMP/artifacts/loaders" -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact "$env:RUNNER_TEMP/helios-installer"
+        -OutputDir "$env:RUNNER_TEMP/helios-package" -Configuration ''${{ matrix.configuration }}'' -Version $lock.version -RepositoryCommit $env:GITHUB_SHA
+        -MesaCommit $lock.sourceCommits.mesa -DxvkCommit $lock.sourceCommits.dxvk -Vkd3dCommit $lock.sourceCommits.vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit
+        $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
 
         } finally {[ordered]@{durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content "$env:RUNNER_TEMP/timing/assembly-duration.json"}
 
 
         $schema=Get-Content "$env:RUNNER_TEMP/helios-package/packaged-state-schema.json" -Raw|ConvertFrom-Json
 
-        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object status -ne ''PASS'').Count){throw ''Native
-        schema 8/8 required''}
+        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object status -ne ''PASS'').Count){throw ''Native schema
+        8/8 required''}
 
         '
     - name: Verify final extraction ZIP separately
       shell: pwsh
       run: "$env:GITHUB_SHA='d03d79ebec6d857d141469d197e11c04097c4d75'\n$env:GITHUB_RUN_ID='37417032761'\n$env:GITHUB_RUN_ATTEMPT='1'\n$w=[Diagnostics.Stopwatch]::StartNew();$status='FAIL'\n\
-        Write-Host 'VERIFY_PACKAGE_START'\ntry {\npython ./ci/windows/Verify-CIPackage.py --root \"$env:RUNNER_TEMP/helios-package\"\nif($LASTEXITCODE\
-        \ -ne 0){throw 'Extraction ZIP failed'}\n$receipt=Get-Content \"$env:RUNNER_TEMP/helios-package/extraction-roundtrip.json\" -Raw|ConvertFrom-Json\n\
+        Write-Host 'VERIFY_PACKAGE_START'\ntry {\npython ./ci/windows/Verify-CIPackage.py --root \"$env:RUNNER_TEMP/helios-package\"\nif($LASTEXITCODE -ne\
+        \ 0){throw 'Extraction ZIP failed'}\n$receipt=Get-Content \"$env:RUNNER_TEMP/helios-package/extraction-roundtrip.json\" -Raw|ConvertFrom-Json\n\
         if($receipt.status -ne 'PASS' -or $receipt.files -ne 69 -or $receipt.version -ne '22.22.314.0' -or $receipt.configuration -ne '${{ matrix.configuration\
-        \ }}' -or $receipt.sourceFingerprint -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69\
-        \ exact identity failed'}\n$status='PASS' \n} finally {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content\
-        \ \"$env:RUNNER_TEMP/timing/verify-duration.json\";Write-Host \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"\
-        }\n"
+        \ }}' -or $receipt.sourceFingerprint -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69 exact\
+        \ identity failed'}\n$status='PASS' \n} finally {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content \"\
+        $env:RUNNER_TEMP/timing/verify-duration.json\";Write-Host \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"}\n"
     - name: Audit complete frozen contract with 90 minute internal watchdog
       shell: pwsh
       run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
@@ -2698,11 +2711,11 @@ jobs:
       shell: pwsh
       run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence"|Out-Null
 
-        foreach($path in @(''timing'',''helios-package-qualification'')){if(Test-Path "$env:RUNNER_TEMP/$path"){Copy-Item "$env:RUNNER_TEMP/$path"
-        "$env:RUNNER_TEMP/evidence/$path" -Recurse -Force}}
+        foreach($path in @(''timing'',''helios-package-qualification'')){if(Test-Path "$env:RUNNER_TEMP/$path"){Copy-Item "$env:RUNNER_TEMP/$path" "$env:RUNNER_TEMP/evidence/$path"
+        -Recurse -Force}}
 
-        if(Test-Path "$env:RUNNER_TEMP/helios-package"){New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence/package"|Out-Null;Get-ChildItem
-        "$env:RUNNER_TEMP/helios-package" -File|Where-Object {$_.Extension -in @(''.json'',''.txt'',''.inf'')}|Copy-Item -Destination "$env:RUNNER_TEMP/evidence/package"}
+        if(Test-Path "$env:RUNNER_TEMP/helios-package"){New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/evidence/package"|Out-Null;Get-ChildItem "$env:RUNNER_TEMP/helios-package"
+        -File|Where-Object {$_.Extension -in @(''.json'',''.txt'',''.inf'')}|Copy-Item -Destination "$env:RUNNER_TEMP/evidence/package"}
 
         Get-ChildItem "$env:RUNNER_TEMP/artifacts" -Filter ''*.api-provenance.json'' -ErrorAction SilentlyContinue|Copy-Item -Destination "$env:RUNNER_TEMP/evidence"
 
@@ -2808,7 +2821,10 @@ jobs:
   package_certificate_control:
     if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && inputs.package_certificate_only && !inputs.package_path_only }}
     runs-on: windows-2022
-    timeout-minutes: 20
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frozen
     steps:
     - uses: actions/checkout@v7
       with:
@@ -2819,17 +2835,226 @@ jobs:
         path: frozen
         ref: d03d79ebec6d857d141469d197e11c04097c4d75
         submodules: false
+    - name: Select immutable source authority
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        $head=(git rev-parse HEAD).Trim()
+
+        if($head -ne $env:GITHUB_SHA){throw ''Frozen HEAD mismatch''}
+
+        git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+
+        if($LASTEXITCODE -ne 0){throw ''Frozen submodule checkout failed''}
+
+        New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/timing"|Out-Null
+
+        @(''DIAGNOSTIC_PACKAGE_ONLY'',''NOT_QUALIFIED_314_PACKAGE'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID", "CONTROL_SHA=$env:HELIOS_CONTROL_SHA", "FROZEN_SHA=$head")|Set-Content
+        "$env:RUNNER_TEMP/timing/CONTROL_IDENTITY.txt"
+
+        '
+    - name: Observe actual runner profile
+      shell: powershell
+      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
     - name: Initialize frozen pinned PowerShell
       shell: powershell
-      run: ./frozen/ci/windows/Initialize-CIPowerShell.ps1
-    - name: Locate unchanged X509Store operation with owned UI snapshot
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        ./ci/windows/Initialize-CIPowerShell.ps1
+
+        '
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Verify original API archive SHA256 candidate configuration and component pins
       shell: pwsh
-      run: ./control/ci/windows/Test-PackageRootTrust.ps1 -ControlRoot "$(Resolve-Path control)" -ReceiptDir "$env:RUNNER_TEMP/certificate-control" -BudgetSeconds 30 -TraceStoreOnly
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        python ../control/ci/windows/Download-PackageAuditInputs.py --source "$PWD" --output "$env:RUNNER_TEMP/artifacts" --configuration ''Release''
+
+        if($LASTEXITCODE -ne 0){throw ''Original inputs rejected''}
+
+        '
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Frozen pre-source fingerprint
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        . ./ci/windows/CI-Qualification.ps1
+
+        Write-CIFingerprint "$PWD" "$env:RUNNER_TEMP/helios-package-qualification" pre
+
+        '
+    - name: Provision frozen WDK SDK
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        ./ci/windows/Install-WindowsDriverKit.ps1
+
+        '
+    - name: Acquire frozen LLVM
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification/tools"
+
+        '
+    - name: Select frozen LLVM
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification/tools"
+
+        '
+    - name: Frozen finite Rust acquisition
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        python ./ci/windows/acquire_package_rust.py --receipt-dir "$env:RUNNER_TEMP/helios-package-qualification/rust"
+
+        if($LASTEXITCODE -ne 0){throw ''Rust acquisition failed''}
+
+        '
+    - name: Frozen Package producer pins
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
+
+        '
+    - name: Build diagnostic installer with frozen script
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        $w=[Diagnostics.Stopwatch]::StartNew()
+
+        ./ci/windows/Build-Installer.ps1 -RepoRoot "$PWD" -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ''Release''
+
+        [ordered]@{classification=''RECONSTRUCTED_DIAGNOSTIC_INSTALLER'';controlRun=$env:HELIOS_CONTROL_RUN_ID;controlSha=$env:HELIOS_CONTROL_SHA;source=$env:GITHUB_SHA;durationMs=$w.Elapsed.TotalMilliseconds;historicalExecution=$false}|ConvertTo-Json|Set-Content
+        "$env:RUNNER_TEMP/timing/installer-provenance.json"
+
+        # Frozen assembly requires the original candidate identity. This contract seal is
+
+        # explicitly a reconstructed diagnostic input, never proof of historical execution.
+
+        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root "$PWD" --component installer --configuration
+        ''Release'' --architecture x64
+
+        if($LASTEXITCODE -ne 0){throw ''Diagnostic installer contract seal failed''}
+
+        '
+    - name: Frozen assembly with separately timed schema
+      shell: pwsh
+      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
+
+        $env:GITHUB_RUN_ID=''37417032761''
+
+        $env:GITHUB_RUN_ATTEMPT=''1''
+
+        python ../control/ci/windows/Prepare-PackageAssemblyTiming.py --source "$PWD" --output "$env:RUNNER_TEMP/assembly-diagnostic" --receipt "$env:RUNNER_TEMP/timing/assembly-script-provenance.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Assembly copy correlation failed''}
+
+        python ../control/ci/windows/Prepare-PeerAssembly.py "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" "$env:RUNNER_TEMP/timing/peer-assembly-observation.json"
+
+        if($LASTEXITCODE -ne 0){throw "Signing observations failed"}
+
+        $w=[Diagnostics.Stopwatch]::StartNew()
+
+        try {
+
+        $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
+
+        & "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" -RepoRoot "$PWD" -DriverArtifact "$env:RUNNER_TEMP/artifacts/driver" -MesaArtifact
+        "$env:RUNNER_TEMP/artifacts/mesa" -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl" -LoadersArtifact
+        "$env:RUNNER_TEMP/artifacts/loaders" -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact "$env:RUNNER_TEMP/helios-installer"
+        -OutputDir "$env:RUNNER_TEMP/helios-package" -Configuration ''Release'' -Version $lock.version -RepositoryCommit $env:GITHUB_SHA -MesaCommit $lock.sourceCommits.mesa
+        -DxvkCommit $lock.sourceCommits.dxvk -Vkd3dCommit $lock.sourceCommits.vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT
+        -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
+
+        } finally {[ordered]@{durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content "$env:RUNNER_TEMP/timing/assembly-duration.json"}
+
+
+        $schema=Get-Content "$env:RUNNER_TEMP/helios-package/packaged-state-schema.json" -Raw|ConvertFrom-Json
+
+        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object status -ne ''PASS'').Count){throw ''Native schema
+        8/8 required''}
+
+        '
+    - name: Verify final extraction ZIP separately
+      shell: pwsh
+      run: "$env:GITHUB_SHA='d03d79ebec6d857d141469d197e11c04097c4d75'\n$env:GITHUB_RUN_ID='37417032761'\n$env:GITHUB_RUN_ATTEMPT='1'\n$w=[Diagnostics.Stopwatch]::StartNew();$status='FAIL'\n\
+        Write-Host 'VERIFY_PACKAGE_START'\ntry {\npython ./ci/windows/Verify-CIPackage.py --root \"$env:RUNNER_TEMP/helios-package\"\nif($LASTEXITCODE -ne\
+        \ 0){throw 'Extraction ZIP failed'}\n$receipt=Get-Content \"$env:RUNNER_TEMP/helios-package/extraction-roundtrip.json\" -Raw|ConvertFrom-Json\n\
+        if($receipt.status -ne 'PASS' -or $receipt.files -ne 69 -or $receipt.version -ne '22.22.314.0' -or $receipt.configuration -ne 'Release' -or $receipt.sourceFingerprint\
+        \ -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69 exact identity failed'}\n$status='PASS'\
+        \ \n} finally {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content \"$env:RUNNER_TEMP/timing/verify-duration.json\"\
+        ;Write-Host \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"}\n"
+    - name: Paired fixture SignTool RED and TrustedPeople causal control
+      shell: pwsh
+      run: ../control/ci/windows/Test-PackagePeerTrust.ps1 -PackageOutput "$env:RUNNER_TEMP/helios-package" -ControlRoot "$(Resolve-Path ../control)" -ReceiptDir
+        "$env:RUNNER_TEMP/certificate-control"
+    - name: Preserve assembly prerequisites even on focal failure
+      if: ${{ always() }}
+      shell: pwsh
+      run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/certificate-control"|Out-Null
+
+        if(Test-Path "$env:RUNNER_TEMP/timing"){Copy-Item "$env:RUNNER_TEMP/timing" "$env:RUNNER_TEMP/certificate-control/assembly-evidence" -Recurse -Force}
+
+        [ordered]@{classification="NEW_DIAGNOSTIC_PAIRED_CONTROL";controlSha=$env:HELIOS_CONTROL_SHA;controlRun=$env:HELIOS_CONTROL_RUN_ID;controlAttempt=$env:HELIOS_CONTROL_RUN_ATTEMPT;frozenSha="d03d79ebec6d857d141469d197e11c04097c4d75";frozenProductRun="37417032761";historicalD533Replaced=$false}|ConvertTo-Json|Set-Content
+        "$env:RUNNER_TEMP/certificate-control/control-identity.json"'
     - name: Seal certificate evidence
       id: upload_seal
       if: ${{ always() }}
       shell: pwsh
-      run: 'python ./frozen/ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/certificate-control" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
+      run: '$env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
+
+        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
+
+        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
+
+        python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/certificate-control" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
 
         if($LASTEXITCODE -ne 0){throw "Certificate seal failed"}'
     - uses: actions/upload-artifact@v7
@@ -2851,9 +3076,24 @@ jobs:
       id: upload_verify
       if: ${{ always() && steps.upload_download.outcome == 'success' }}
       shell: pwsh
-      run: 'python ./frozen/ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/certificate-control-download" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
+      run: '$env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
+
+        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
+
+        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
+
+        python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/certificate-control-download" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
 
         if($LASTEXITCODE -ne 0){throw "Certificate roundtrip failed"}'
+    env:
+      HELIOS_CI_CONFIGURATION: Release
+      HELIOS_CONTROL_RUN_ID: ${{ github.run_id }}
+      HELIOS_CONTROL_SHA: ${{ github.sha }}
+      RUSTUP_MAX_RETRIES: '10'
+      HELIOS_CONTROL_RUN_ATTEMPT: ${{ github.run_attempt }}
+    permissions:
+      contents: read
+      actions: read
 'on':
   workflow_dispatch:
     inputs:
