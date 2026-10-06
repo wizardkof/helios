@@ -35,7 +35,7 @@ Single product run37356930190 attempt1 concluded FAILURE. Python, native
 regressions9/9, real producer audit, Release, Debug and Compatibility PASS;
 Release/Debug/Compatibility artifact identities and native roundtrips PASS.
 Loaders passed its repaired checker then failed compiling the smoke probe:
-probe_common.h is absent from the frozen source tree (fatal C1083).
+the short probe_common.h include cannot resolve tools/fullstack/probe_common.h (fatal C1083). The nested header exists and matches its Git blob; the top-level path is absent.
 Both Mesa architectures passed strict native Ninja identity/execution at the
 correct MSYS2 root, then failed coredata serialization with WindowsPath/pickle
 exceptions. OpenCL passed its pre-build gates but exceeded the three-hour job
@@ -46,8 +46,23 @@ Package SKIPPED/NOT_RUN_DEPENDENCY_FAILURE; native packaged schema NOT_RUN.
 Nine product archives plus ten RED/GREEN archives are preserved and verified.
 Collection/transport PASS remains separate from failed builds. No candidate
 edit, retry, manual cancellation, next reservation, deployment or publication.
-Frozen .310/.311 remain untouched. New frontiers are source completeness for
+Frozen .310/.311 remain untouched. New frontiers are header include resolution for
 Loaders, Mesa WindowsPath serialization and OpenCL job completion/duration.
+
+## P06 frozen .312 frontier controls — 2026-10-05
+
+Final native preflight37391739888 at7a181d1 PASS: exact historical C1083;
+corrected complete eight x64 smoke probes; both pinned MSYS2 real diff_files
+wrap RED/import-order-only GREEN/production controls; real Mesa configuration
+through DirectX-Headers and CoreData; external locks; four OpenCL process-tree
+budget controls and seven atomic phase transitions. Four original archives and
+four native roundtrips PASS. Portable72PASS/4WindowsSKIP (76 total), candidate
+version15PASS; independent review PASS. Product x86 probe build NOT_RUN pending
+new candidate. OpenCL product commands/pins/jobs/cache remain unchanged; job360
+and internal330-minute absolute cutoff create evidence-preservation margin,
+not a demonstrated duration fix. Old .312 OpenCL duration cause NOT_PROVEN.
+Reservation and single new product execution are next, only after these gates.
+Evidence: .fullstack/artifacts/p06/component-frontiers-20261005/REPORT.md.
 
 ## P06 native Python first frontier — 2026-10-05
 

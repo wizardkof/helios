@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "runId": 37391739888,
+  "attempt": 1,
+  "headSha": "7a181d15e5120e8bf2a695dffe92f254784b3e5d",
+  "jobs": 4,
+  "archives": 4,
+  "roundtrips": 4,
+  "loaders": {
+    "historicalHeaderRed": "PASS_C1083",
+    "headerAuthorityBlob": "8c49b6772f6c59828f543a7d55d5c4d1b0c2e836",
+    "green": "PASS",
+    "fullSmokeProbes": 8,
+    "architecture": "x64",
+    "deviceCreate": "PASS",
+    "clearReadback": "PASS"
+  },
+  "mesa": {
+    "rootCause": "MESON_ISOLATED_IMPORT_ORDER_PATHLIB_CLASS_IDENTITY",
+    "x64": "PASS",
+    "x86": "PASS",
+    "historicalType": "pathlib.WindowsPath",
+    "correctedType": "mesonbuild._pathlib._Path",
+    "diffFilesWrap": "PASS",
+    "coredata": "PASS",
+    "setupCompileReconfigureRecompile": "PASS",
+    "directXHeadersWrapBoth": "PASS",
+    "externalLocksOutsideEntireCheckout": "PASS"
+  },
+  "opencl": {
+    "syntheticTests": 4,
+    "status": "PASS",
+    "nonzeroExit": 37,
+    "timeoutExit": 124,
+    "timeoutActiveProcessesBeforeCleanup": 3,
+    "activeProcessesAfterCleanup": 0,
+    "atomicPhases": 7,
+    "phaseFailureExit": 37
+  },
+  "portable": {
+    "total": 76,
+    "passed": 72,
+    "nativeWindowsSkipped": 4,
+    "candidateVersionPassed": 15
+  },
+  "independentReview": "PASS"
+}

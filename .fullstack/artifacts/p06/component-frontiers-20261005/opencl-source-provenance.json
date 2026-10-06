@@ -1,0 +1,13 @@
+{
+  "clvkExpected": "56c626132782bf083a80a6c17f5ca763be0ff8fb",
+  "clspvExpected": "0f162d74eda0267f9d571a1fd640c6b89f22d7a7",
+  "llvmExpected": "140fc5aa2a0a754db87c68b2e3861c70dd94360b",
+  "llvmSubdirectory": "external/clspv/third_party/llvm",
+  "fetchArguments": [
+    "--shallow",
+    "--deps",
+    "llvm"
+  ],
+  "evidence": "Official pinned clvk submodule metadata and google/clspv deps.json; no pin change",
+  "depsJsonSha256": "1a69fe8db77647a73742966906025c519c228bdef8cd9d946d0460906f299143"
+}

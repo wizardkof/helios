@@ -99,3 +99,24 @@ is pinned for OpenCL/loaders; the recovery receipt is retained in this report. C
 may also lack the required exact pins; that is a STOP, never authority to relax them.
 
 See the [report](../.fullstack/artifacts/p06/ci-canonical-20261004/REPORT.md).
+
+
+## OpenCL producer deadline and phase preservation
+
+OpenCL retains its exact product commands, source/tool pins, patches, sccache
+policy and HELIOS_BUILD_JOBS. The Windows hosted job allows360 minutes; the
+producer allows at most330 and uses an absolute cutoff initialized before
+bootstrap, leaving collection/upload/roundtrip margin. Increasing the hard
+limit is operational preservation, not evidence that more time fixes duration.
+
+Invoke-OpenCLBudget gates its child until Windows Job Object ownership, saves
+stdout/stderr and atomic producer-budget.json, preserves nonzero exits, and
+returns TIMEOUT/failure124 after terminating the full process tree. Accounting
+must reach zero active processes. Build-OpenCL requires ReceiptDir and records
+seven atomic phase transitions with UTC times, native exit, public source
+identities and last command. Existing always() collection and artifact transport
+remain authoritative, including after producer failure.
+
+Final native control37391739888 qualifies zero/nonzero/timeout/descendant cleanup
+and phase receipts without a CLVK build. The frozen .312 duration cause remains
+NOT_PROVEN. See the component-frontiers implementation report.

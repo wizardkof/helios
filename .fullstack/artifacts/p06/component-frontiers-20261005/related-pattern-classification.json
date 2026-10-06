@@ -1,0 +1,11 @@
+{
+  "scope": "ci/windows, .github/workflows/windows-stack.yml, tools affected header consumers",
+  "shortHeaderConsumers": {
+    "tools/fullstack/caps_probe.cpp": "SAME_DIRECTORY_HEADER",
+    "tools/d3d11_devicecreate_probe.cpp": "CMAKE_TARGET_SUPPLIES_TOOLS_FULLSTACK_INCLUDE; NOT_A_BUILD_SMOKE_CONSUMER"
+  },
+  "ninjaCountSdkPythonCodeDelta": "NONE",
+  "sourcePins": "UNCHANGED",
+  "openclProductOptions": "UNCHANGED",
+  "buildSmokeNativeControlArchitecture": "X64_FULL_EIGHT; PRODUCT_X86_GRAPHICS_NOT_RUN_PENDING_NEW_CANDIDATE"
+}

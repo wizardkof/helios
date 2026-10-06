@@ -1,0 +1,16 @@
+{
+  "reviewedHead": "7a181d15e5120e8bf2a695dffe92f254784b3e5d",
+  "base": "5e9f1d686ff58f60a1747aa4595d393b65c0b336",
+  "reviewer": "/root/review_frontiers",
+  "codeReview": "PASS",
+  "critical": [],
+  "important": [],
+  "resolved": [
+    "negative-control native exit reset after assertions",
+    "terminal Job Object initialization receipt"
+  ],
+  "nativePreflight": "PASS",
+  "scope": "x64 complete eight smoke probes; both Mesa architectures; synthetic Job Object/phase controls; product x86 remains NOT_RUN",
+  "nativePreflightRunId": 37391739888,
+  "reservationReadiness": "PASS"
+}
