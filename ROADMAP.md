@@ -3539,3 +3539,7 @@ complete subsystem contract.
   are INFO-level = SILENT on the release build — absence of host log lines
   proves nothing below WARNING; a real host-side bisect needs a relaunch with
   `VIRGL_LOG_LEVEL=debug`.
+
+## P06 Package frontier controls — 2026-10-06
+
+Frozen .313 preserves COMPONENTS5/5PASS and distinct PackageReleaseHTTP503 / DebugINFdate refusal. NativePowerShell7.6.6 control proves Object[] selects ParseExact single-format overload; explicitString[] and strictnegative8/8PASS with original DebugINF hash. Package-only finite acquisition preserves nightly2026-07-14: RUSTUP_MAX_RETRIES10 covers componentdownloads, bounded identical-command manifest502/503/504 retries cover independentlyproven manifestgap. Exhausted/nontransient errors failclosed; no mirror/version/job fallback. Exactrustup/rustc/cargo pre/postchecks retained. Finalnativecontrol37416159314 at ee223ef91d46c449890c02c9d35aa4dc2d1e81ce: allthreejobsPASS (realRust6cases; separateRelease/Debuginstallerprofiles andrealimmutable313driverassemblygate); portable79tests75PASS4nativeSKIP, candidate15/15PASS andindependentreviewPASS. Fullsigning/extraction/schema/ZIP mustqualify in anewsingleproductCI afterfreshremotemonotonicreservation. NoVM/localproductbuild/deploy/reboot/runtime/Releasepublication. See .fullstack/artifacts/p06/package-frontiers-20261006/REPORT.md for exact bounds andpreserved evidence.
