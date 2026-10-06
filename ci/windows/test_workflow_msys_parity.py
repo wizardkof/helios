@@ -62,7 +62,7 @@ class WorkflowMsysParityTests(unittest.TestCase):
 
     def test_x86_infrastructure_proof_job_isolated_from_product(self):
         job = self.jobs['msys2_x86_preflight']
-        self.assertEqual(job.get('if'), '${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}')
+        self.assertEqual(job.get('if'), '${{ !inputs.package_audit_timing_only && (always() && inputs.infrastructure_only && !inputs.python_evidence_only) }}')
         setup = next(s for s in job['steps'] if s.get('id') == 'setup_msys2')
         self.assertEqual(setup['with']['msystem'], 'MINGW32')
         provision = next(s for s in job['steps'] if s.get('id') == 'msys2_archive')
@@ -79,7 +79,7 @@ class WorkflowMsysParityTests(unittest.TestCase):
 
     def test_x86_infrastructure_proof_job_isolated_from_product(self):
         job = self.jobs['msys2_x86_preflight']
-        self.assertEqual(job.get('if'), '${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}')
+        self.assertEqual(job.get('if'), '${{ !inputs.package_audit_timing_only && (always() && inputs.infrastructure_only && !inputs.python_evidence_only) }}')
         setup = next(s for s in job['steps'] if s.get('id') == 'setup_msys2')
         self.assertEqual(setup['with']['msystem'], 'MINGW32')
         provision = next(s for s in job['steps'] if s.get('id') == 'msys2_archive')
