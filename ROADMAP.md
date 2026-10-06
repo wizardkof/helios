@@ -61,7 +61,29 @@ version15PASS; independent review PASS. Product x86 probe build NOT_RUN pending
 new candidate. OpenCL product commands/pins/jobs/cache remain unchanged; job360
 and internal330-minute absolute cutoff create evidence-preservation margin,
 not a demonstrated duration fix. Old .312 OpenCL duration cause NOT_PROVEN.
-Reservation and single new product execution are next, only after these gates.
+After those gates, the remote ledger reserved22.22.313.0. Frozen HEAD
+8be68221360e2ae59f92b8598da9ed3d5eb0ccb9, fingerprint
+6982a610df4ebd1d52998fe18ac35d81d43cfad97c0141c3198bdbef833904a1;
+three producer pins unchanged. Single product run37392622277 attempt1 FAILURE.
+Python75PASS/1SKIP of76 and candidate15/15 PASS, DXVK9/9 PASS, producer audits,
+Release/Debug and all five components PASS with native roundtrips. Loaders actual
+product8x64/6x86 smoke probes PASS; both full Mesa builds PASS. OpenCL all7 phases
+PASS, actual CLVK/clspv/LLVM pins PASS, cleanup active processes0. Observed LLVM
+fetch385.166s and build8409.071s; historical .312 duration cause NOT_PROVEN.
+Both Package jobs automatically ran and failed. First new error Release:
+rustup pinned nightly-2026-07-14 manifest HTTP503, before installer build.
+Debug installer and native input identities PASS, assembly then refuses
+INF DriverVer date10/06/2026 atAssemble-Package.ps1:190; internal root cause
+NOT_PROVEN (inner exception hidden). Final signing, native packaged schema,
+independent final extraction and qualified ZIP NOT_RUN/NOT_PRODUCED.
+Both failure collections and roundtrips PASS. Sixteen original product archives,
+eight job logs and all16 real native artifact roundtrips preserved/verified.
+Requested baseline19 +new controls11 +product16 =46 originals; exact file maps
+and hashes PASS. Local strict ordered verifier FAIL_ORDER_ONLY retained separately.
+Frozen .310/.311/.312/.313 tracked heads clean, post-run remote source lock PASS.
+No candidate edit/retry/next reservation, local product build, WinBoat, deploy,
+reboot, runtime or release publication. Six historical/device-loss causes remain
+NOT_PROVEN. Exact outcomes and first failure receipts are in the report.
 Evidence: .fullstack/artifacts/p06/component-frontiers-20261005/REPORT.md.
 
 ## P06 native Python first frontier — 2026-10-05
