@@ -67,18 +67,23 @@ $child=Join-Path $ReceiptDir 'certificate-child.diagnostic.ps1'
 ($prefix+"`n"+$body)|Set-Content $child -Encoding UTF8
 [ordered]@{classification='CERTIFICATE_SUBPHASE_ONLY';historicalCertificateBytes=$false;fixtureRecipe='EXACT_FROZEN_ASSEMBLE_EXPRESSION';creationExpression=$creation.Value;auditBlock=$block.Value;changes=$changes;frozenAuditSha256=(Get-FileHash "$FrozenRoot/ci/windows/Audit-CIPackage.ps1").Hash;frozenAssemblySha256=(Get-FileHash "$FrozenRoot/ci/windows/Assemble-Package.ps1").Hash;certificateSha256=(Get-FileHash $cer).Hash;thumbprint=$thumb;subject=$certificate.Subject}|ConvertTo-Json -Depth 6|Set-Content "$ReceiptDir/fixture-provenance.json"
 $rows=@()
-foreach($mode in @('CORE_SECURITY_PRELOAD','DESKTOP_SECURITY_PRELOAD')){
+foreach($mode in @('CORE_COMMAND_DISCOVERY','DESKTOP_NATIVE_MODULEPATH')){
  $caseChild=Join-Path $ReceiptDir "$mode-child.diagnostic.ps1"
  $module="Event SECURITY_MODULE BEGIN`nImport-Module Microsoft.PowerShell.Security -ErrorAction Stop`nEvent SECURITY_MODULE END`nEvent CERT_DRIVE BEGIN`nGet-PSDrive Cert -ErrorAction Stop|Select-Object Name,Provider|ConvertTo-Json|Set-Content `"$ReceiptDir/$mode-cert-drive.json`"`nEvent CERT_DRIVE END`n"
+ if($mode -eq 'CORE_COMMAND_DISCOVERY'){
+  $module+="Event COMMAND_DISCOVERY BEGIN`nGet-Command Import-Certificate -ErrorAction Stop|Select-Object Name,Source,ModuleName,CommandType,Definition|ConvertTo-Json -Depth 3|Set-Content `"$ReceiptDir/$mode-command.json`"`nEvent COMMAND_DISCOVERY END`n"
+ }
  ($prefix+"`n"+$module+$body)|Set-Content $caseChild -Encoding UTF8
  $events=Join-Path $ReceiptDir "$mode-events.jsonl"
  $exe=if($mode.StartsWith('DESKTOP')){"$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"}else{(Get-Process -Id $PID).Path}
  $arguments=@('-NoProfile')
  if($mode -eq 'CORE_STA'){$arguments+='-STA'}
  $arguments+=@('-File',"`"$caseChild`"",'-Extract',"`"$extract`"",'-Events',"`"$events`"")
- $w=[Diagnostics.Stopwatch]::StartNew();$p=$null;$status='FAIL';$exit=$null
+ $w=[Diagnostics.Stopwatch]::StartNew();$p=$null;$status='FAIL';$exit=$null;$originalModulePath=$env:PSModulePath
  try {
   if(@(RootCertificates).Count -ne 0){throw 'Certificate not cleaned before case'}
+  if($mode.StartsWith('DESKTOP')){$env:PSModulePath="$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules;$env:ProgramFiles\WindowsPowerShell\Modules"}
+  [ordered]@{inheritedModulePath=$originalModulePath;childModulePath=$env:PSModulePath;executable=$exe}|ConvertTo-Json|Set-Content "$ReceiptDir/$mode-environment.json"
   $p=Start-Process $exe -ArgumentList $arguments -PassThru -RedirectStandardOutput "$ReceiptDir/$mode-stdout.txt" -RedirectStandardError "$ReceiptDir/$mode-stderr.txt"
   if($p.WaitForExit($BudgetSeconds*1000)){$p.Refresh();$exit=$p.ExitCode;$status=if($exit -eq 0 -and (@(RootCertificates).Count -ne 0)){'PASS_ROOT_IMPORTED'}else{'FAIL_EXIT_OR_ROOT_ABSENT'}}
   else {
@@ -87,6 +92,7 @@ foreach($mode in @('CORE_SECURITY_PRELOAD','DESKTOP_SECURITY_PRELOAD')){
    & taskkill.exe /PID $p.Id /T /F|Out-File "$ReceiptDir/$mode-taskkill.txt"
   }
  } finally {
+  $env:PSModulePath=$originalModulePath
   if($p -and -not $p.HasExited){& taskkill.exe /PID $p.Id /T /F|Out-File "$ReceiptDir/$mode-final-taskkill.txt"}
   RemoveOwnedRoot
   $rows+=@{mode=$mode;status=$status;durationMs=$w.Elapsed.TotalMilliseconds;exit=$exit;budgetSeconds=$BudgetSeconds;certificateCleanupVerified=(-not(@(RootCertificates).Count -ne 0));executable=$exe}
