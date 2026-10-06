@@ -1319,6 +1319,7 @@ jobs:
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     env:
       HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
+      RUSTUP_MAX_RETRIES: '10'
     needs:
     - driver
     - mesa
@@ -1416,10 +1417,11 @@ jobs:
       shell: pwsh
       run: ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/tool-selection"
       id: llvm_select
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
-      with:
-        toolchain: ${{ env.RUST_TOOLCHAIN }}
+    - name: Install Rust nightly with finite Package acquisition budget
+      shell: pwsh
+      run: |
+        python ./ci/windows/acquire_package_rust.py --receipt-dir "$env:RUNNER_TEMP/helios-package-qualification/rust-acquisition"
+        if ($LASTEXITCODE -ne 0) { throw 'Exact Package Rust acquisition failed' }
       id: s14
     - name: Enforce installer producer pins
       shell: pwsh
@@ -2239,6 +2241,13 @@ jobs:
     - name: Preserve historical RED and typed GREEN with actual INF
       shell: pwsh
       run: ./ci/windows/Test-PackageDriverDate.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-control"
+    - name: Real native Rust acquisition and exhausted-budget controls
+      shell: pwsh
+      env:
+        RUSTUP_MAX_RETRIES: '10'
+      run: |
+        python ./ci/windows/Test-PackageRustAcquisition.py --receipt-dir "$env:RUNNER_TEMP/package-control/rust"
+        if ($LASTEXITCODE -ne 0) { throw 'Native Rust acquisition contract failed' }
     - name: Seal diagnostic bytes
       id: seal
       if: ${{ always() }}

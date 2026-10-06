@@ -185,9 +185,26 @@ if ($infText -notmatch "(?im)^\s*DriverVer\s*=\s*([^,\r\n]+),\s*([^\r\n]+)\s*$")
 $driverDate = $Matches[1].Trim()
 $infVersion = $Matches[2].Trim()
 if ($infVersion -ne $Version) { throw "INF DriverVer version $infVersion differs from candidate $Version." }
+# PowerShell7.6.6 binds Object[] to the single-format overload; explicit String[]
+# is required. Native historical/typed controls preserve the MethodInvocation trace.
+[string[]]$driverDateFormats = @("M/d/yyyy", "MM/dd/yyyy")
 try {
-    $driverDateValue = [DateTime]::ParseExact($driverDate, @("M/d/yyyy", "MM/dd/yyyy"), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None)
-} catch { throw "INF DriverVer date is invalid: $driverDate" }
+    $driverDateValue = [DateTime]::ParseExact($driverDate, $driverDateFormats, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None)
+} catch {
+    $dateError = $_
+    $dateDiagnostic = [ordered]@{
+        date = $driverDate
+        formatArrayRuntimeType = $driverDateFormats.GetType().FullName
+        exceptionType = $dateError.Exception.GetType().FullName
+        message = $dateError.Exception.Message
+        innerExceptionType = $(if ($dateError.Exception.InnerException) { $dateError.Exception.InnerException.GetType().FullName } else { $null })
+        innerMessage = $(if ($dateError.Exception.InnerException) { $dateError.Exception.InnerException.Message } else { $null })
+        fullyQualifiedErrorId = $dateError.FullyQualifiedErrorId
+        scriptStackTrace = $dateError.ScriptStackTrace
+    }
+    $dateDiagnostic | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDir "driver-date-diagnostic.json") -Encoding utf8
+    throw [FormatException]::new("INF DriverVer date is invalid: $driverDate", $dateError.Exception)
+}
 foreach ($name in @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll")) {
     Assert-HeliosPeArchitecture (Join-Path $driverOut $name) x64
 }

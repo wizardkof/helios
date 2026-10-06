@@ -34,3 +34,37 @@ $receipt=[ordered]@{powerShell=$PSVersionTable.PSVersion.ToString();edition=$PSV
 $receipt|ConvertTo-Json -Depth 12|Set-Content (Join-Path $ReceiptDir 'driver-date-diagnostic.json') -Encoding utf8
 if($cases[0].result -ne 'FAIL' -or $cases[1].result -ne 'PASS' -or $cases[2].result -ne 'FAIL' -or $cases[3].result -ne 'PASS'){throw 'Date array hypothesis NOT_PROVEN; production patch prohibited'}
 Write-Host 'PACKAGE_DRIVER_DATE_RED_GREEN=PASS'
+
+# Execute the production regex/version/typed-date gate, not a parallel parser.
+$assembly=Get-Content (Join-Path $PSScriptRoot 'Assemble-Package.ps1') -Raw
+$start=$assembly.IndexOf('$infText = Get-Content')
+$end=$assembly.IndexOf('foreach ($name in @("helios_kmd_render.sys", "helios_umd.dll", "helios_umd12.dll"))', $start)
+if($start -lt 0 -or $end -lt $start){throw 'Production driver-date block not found'}
+$gate=[scriptblock]::Create($assembly.Substring($start,$end-$start))
+$negativeCases=@(
+ @{date='10/06/2026';version='22.22.313.0';accept=$true},
+ @{date='1/6/2026';version='22.22.313.0';accept=$true},
+ @{date='01/06/2026';version='22.22.313.0';accept=$true},
+ @{date='13/06/2026';version='22.22.313.0';accept=$false},
+ @{date='10/32/2026';version='22.22.313.0';accept=$false},
+ @{date='2026-10-06';version='22.22.313.0';accept=$false},
+ @{date='';version='22.22.313.0';accept=$false},
+ @{date='10/06/2026';version='22.22.314.0';accept=$false}
+)
+$matrix=@();$Version='22.22.313.0'
+foreach($case in $negativeCases){
+ $caseDir=Join-Path $ReceiptDir ('negative-'+$matrix.Count)
+ New-Item -ItemType Directory -Force $caseDir|Out-Null
+ $driverOut=$caseDir;$OutputDir=$caseDir
+ "DriverVer=$($case.date),$($case.version)"|Set-Content (Join-Path $driverOut 'helios_kmd_render.inf')
+ $accepted=$false;$errorText=$null
+ try{& $gate;$accepted=$true}catch{$errorText=$_.Exception.Message}
+ $matrix+=@{date=$case.date;version=$case.version;accepted=$accepted;expected=$case.accept;error=$errorText}
+ if($accepted -ne $case.accept){throw 'Strict production DriverVer matrix failed'}
+ if($case.date -in @('13/06/2026','10/32/2026','2026-10-06')){
+  $diagnostic=Get-Content (Join-Path $caseDir 'driver-date-diagnostic.json') -Raw|ConvertFrom-Json
+  if($diagnostic.formatArrayRuntimeType -ne 'System.String[]' -or -not $diagnostic.innerMessage -or -not $diagnostic.exceptionType){throw 'Production invalid-date cause lost'}
+ }
+}
+$matrix|ConvertTo-Json -Depth 8|Set-Content (Join-Path $ReceiptDir 'driver-date-negative-matrix.json') -Encoding utf8
+Write-Host 'PACKAGE_DRIVER_DATE_STRICT_MATRIX=PASS_8_OF_8'
