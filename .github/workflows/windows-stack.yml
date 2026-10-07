@@ -2821,242 +2821,41 @@ jobs:
   package_certificate_control:
     if: ${{ inputs.infrastructure_only && inputs.package_audit_timing_only && inputs.package_certificate_only && !inputs.package_path_only }}
     runs-on: windows-2022
-    timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: frozen
+    timeout-minutes: 15
+    env:
+      HELIOS_CI_CONFIGURATION: Release
+      HELIOS_CONTROL_RUN_ID: ${{ github.run_id }}
+      HELIOS_CONTROL_SHA: ${{ github.sha }}
+      RUSTUP_MAX_RETRIES: '10'
+      HELIOS_CONTROL_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
     - uses: actions/checkout@v7
       with:
         path: control
         submodules: false
-    - uses: actions/checkout@v7
-      with:
-        path: frozen
-        ref: d03d79ebec6d857d141469d197e11c04097c4d75
-        submodules: false
-    - name: Select immutable source authority
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        $head=(git rev-parse HEAD).Trim()
-
-        if($head -ne $env:GITHUB_SHA){throw ''Frozen HEAD mismatch''}
-
-        git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
-
-        if($LASTEXITCODE -ne 0){throw ''Frozen submodule checkout failed''}
-
-        New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/timing"|Out-Null
-
-        @(''DIAGNOSTIC_PACKAGE_ONLY'',''NOT_QUALIFIED_314_PACKAGE'',"CONTROL_RUN=$env:HELIOS_CONTROL_RUN_ID", "CONTROL_SHA=$env:HELIOS_CONTROL_SHA", "FROZEN_SHA=$head")|Set-Content
-        "$env:RUNNER_TEMP/timing/CONTROL_IDENTITY.txt"
-
-        '
-    - name: Observe actual runner profile
-      shell: powershell
-      run: ./ci/windows/Measure-CIRunner.ps1 -ReceiptDir "$env:RUNNER_TEMP/runner-qualification"
-    - name: Initialize frozen pinned PowerShell
-      shell: powershell
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        ./ci/windows/Initialize-CIPowerShell.ps1
-
-        '
     - uses: actions/setup-python@v7
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    - name: Verify original API archive SHA256 candidate configuration and component pins
+    - name: Fetch and pin preserved paired export
       shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        python ../control/ci/windows/Download-PackageAuditInputs.py --source "$PWD" --output "$env:RUNNER_TEMP/artifacts" --configuration ''Release''
-
-        if($LASTEXITCODE -ne 0){throw ''Original inputs rejected''}
-
-        '
       env:
         GH_TOKEN: ${{ github.token }}
-    - name: Frozen pre-source fingerprint
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        . ./ci/windows/CI-Qualification.ps1
-
-        Write-CIFingerprint "$PWD" "$env:RUNNER_TEMP/helios-package-qualification" pre
-
-        '
-    - name: Provision frozen WDK SDK
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        ./ci/windows/Install-WindowsDriverKit.ps1
-
-        '
-    - name: Acquire frozen LLVM
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        ./ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification/tools"
-
-        '
-    - name: Select frozen LLVM
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification/tools"
-
-        '
-    - name: Frozen finite Rust acquisition
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        python ./ci/windows/acquire_package_rust.py --receipt-dir "$env:RUNNER_TEMP/helios-package-qualification/rust"
-
-        if($LASTEXITCODE -ne 0){throw ''Rust acquisition failed''}
-
-        '
-    - name: Frozen Package producer pins
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
-
-        '
-    - name: Build diagnostic installer with frozen script
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        $w=[Diagnostics.Stopwatch]::StartNew()
-
-        ./ci/windows/Build-Installer.ps1 -RepoRoot "$PWD" -OutputDir "$env:RUNNER_TEMP/helios-installer" -Configuration ''Release''
-
-        [ordered]@{classification=''RECONSTRUCTED_DIAGNOSTIC_INSTALLER'';controlRun=$env:HELIOS_CONTROL_RUN_ID;controlSha=$env:HELIOS_CONTROL_SHA;source=$env:GITHUB_SHA;durationMs=$w.Elapsed.TotalMilliseconds;historicalExecution=$false}|ConvertTo-Json|Set-Content
-        "$env:RUNNER_TEMP/timing/installer-provenance.json"
-
-        # Frozen assembly requires the original candidate identity. This contract seal is
-
-        # explicitly a reconstructed diagnostic input, never proof of historical execution.
-
-        python ./ci/windows/ci_artifact.py seal --directory "$env:RUNNER_TEMP/helios-installer" --source-root "$PWD" --component installer --configuration
-        ''Release'' --architecture x64
-
-        if($LASTEXITCODE -ne 0){throw ''Diagnostic installer contract seal failed''}
-
-        '
-    - name: Frozen assembly with separately timed schema
-      shell: pwsh
-      run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
-
-        $env:GITHUB_RUN_ID=''37417032761''
-
-        $env:GITHUB_RUN_ATTEMPT=''1''
-
-        python ../control/ci/windows/Prepare-PackageAssemblyTiming.py --source "$PWD" --output "$env:RUNNER_TEMP/assembly-diagnostic" --receipt "$env:RUNNER_TEMP/timing/assembly-script-provenance.json"
-
-        if($LASTEXITCODE -ne 0){throw ''Assembly copy correlation failed''}
-
-        python ../control/ci/windows/Prepare-PeerAssembly.py "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" "$env:RUNNER_TEMP/timing/peer-assembly-observation.json"
-
-        if($LASTEXITCODE -ne 0){throw "Signing observations failed"}
-
-        $w=[Diagnostics.Stopwatch]::StartNew()
-
-        try {
-
-        $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
-
-        & "$env:RUNNER_TEMP/assembly-diagnostic/Assemble-Package.ps1" -RepoRoot "$PWD" -DriverArtifact "$env:RUNNER_TEMP/artifacts/driver" -MesaArtifact
-        "$env:RUNNER_TEMP/artifacts/mesa" -MesaX86Artifact "$env:RUNNER_TEMP/artifacts/mesa-x86" -OpenClArtifact "$env:RUNNER_TEMP/artifacts/opencl" -LoadersArtifact
-        "$env:RUNNER_TEMP/artifacts/loaders" -CompatibilityArtifact "$env:RUNNER_TEMP/artifacts/compatibility" -InstallerArtifact "$env:RUNNER_TEMP/helios-installer"
-        -OutputDir "$env:RUNNER_TEMP/helios-package" -Configuration ''Release'' -Version $lock.version -RepositoryCommit $env:GITHUB_SHA -MesaCommit $lock.sourceCommits.mesa
-        -DxvkCommit $lock.sourceCommits.dxvk -Vkd3dCommit $lock.sourceCommits.vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT
-        -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT
-
-        } finally {[ordered]@{durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content "$env:RUNNER_TEMP/timing/assembly-duration.json"}
-
-
-        $schema=Get-Content "$env:RUNNER_TEMP/helios-package/packaged-state-schema.json" -Raw|ConvertFrom-Json
-
-        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object status -ne ''PASS'').Count){throw ''Native schema
-        8/8 required''}
-
-        '
-    - name: Verify final extraction ZIP separately
-      shell: pwsh
-      run: "$env:GITHUB_SHA='d03d79ebec6d857d141469d197e11c04097c4d75'\n$env:GITHUB_RUN_ID='37417032761'\n$env:GITHUB_RUN_ATTEMPT='1'\n$w=[Diagnostics.Stopwatch]::StartNew();$status='FAIL'\n\
-        Write-Host 'VERIFY_PACKAGE_START'\ntry {\npython ./ci/windows/Verify-CIPackage.py --root \"$env:RUNNER_TEMP/helios-package\"\nif($LASTEXITCODE -ne\
-        \ 0){throw 'Extraction ZIP failed'}\n$receipt=Get-Content \"$env:RUNNER_TEMP/helios-package/extraction-roundtrip.json\" -Raw|ConvertFrom-Json\n\
-        if($receipt.status -ne 'PASS' -or $receipt.files -ne 69 -or $receipt.version -ne '22.22.314.0' -or $receipt.configuration -ne 'Release' -or $receipt.sourceFingerprint\
-        \ -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69 exact identity failed'}\n$status='PASS'\
-        \ \n} finally {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content \"$env:RUNNER_TEMP/timing/verify-duration.json\"\
-        ;Write-Host \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"}\n"
-    - name: Paired fixture SignTool RED and TrustedPeople causal control
-      shell: pwsh
-      run: ../control/ci/windows/Test-PackagePeerTrust.ps1 -PackageOutput "$env:RUNNER_TEMP/helios-package" -ControlRoot "$(Resolve-Path ../control)" -ReceiptDir
-        "$env:RUNNER_TEMP/certificate-control"
-    - name: Preserve assembly prerequisites even on focal failure
-      if: ${{ always() }}
-      shell: pwsh
       run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/certificate-control"|Out-Null
 
-        if(Test-Path "$env:RUNNER_TEMP/timing"){Copy-Item "$env:RUNNER_TEMP/timing" "$env:RUNNER_TEMP/certificate-control/assembly-evidence" -Recurse -Force}
+        python ./control/ci/windows/Download-MemoryTrustFixture.py --output "$env:RUNNER_TEMP/memory-fixture"
 
-        [ordered]@{classification="NEW_DIAGNOSTIC_PAIRED_CONTROL";controlSha=$env:HELIOS_CONTROL_SHA;controlRun=$env:HELIOS_CONTROL_RUN_ID;controlAttempt=$env:HELIOS_CONTROL_RUN_ATTEMPT;frozenSha="d03d79ebec6d857d141469d197e11c04097c4d75";frozenProductRun="37417032761";historicalD533Replaced=$false}|ConvertTo-Json|Set-Content
-        "$env:RUNNER_TEMP/certificate-control/control-identity.json"'
-    - name: Seal certificate evidence
+        if($LASTEXITCODE -ne 0){throw "Paired fixture import failed"}'
+    - name: Native exclusive-memory Authenticode and catalog matrix
+      shell: pwsh
+      run: ./control/ci/windows/Run-MemoryTrustControl.ps1 -ControlRoot "$(Resolve-Path control)" -FixtureRoot "$env:RUNNER_TEMP/memory-fixture" -ReceiptDir
+        "$env:RUNNER_TEMP/certificate-control"
+    - name: Seal memory trust evidence
       id: upload_seal
       if: ${{ always() }}
       shell: pwsh
-      run: '$env:GITHUB_SHA=$env:HELIOS_CONTROL_SHA
+      run: 'python ./control/ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/certificate-control" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
 
-        $env:GITHUB_RUN_ID=$env:HELIOS_CONTROL_RUN_ID
-
-        $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
-
-        python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/certificate-control" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
-
-        if($LASTEXITCODE -ne 0){throw "Certificate seal failed"}'
+        if($LASTEXITCODE -ne 0){throw "Memory trust seal failed"}'
     - uses: actions/upload-artifact@v7
       id: upload
       if: ${{ always() && steps.upload_seal.outcome == 'success' }}
@@ -3082,18 +2881,9 @@ jobs:
 
         $env:GITHUB_RUN_ATTEMPT=$env:HELIOS_CONTROL_RUN_ATTEMPT
 
-        python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/certificate-control-download" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
+        python ./control/ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/certificate-control-download" --receipt "$env:RUNNER_TEMP/certificate-seal.json"
 
         if($LASTEXITCODE -ne 0){throw "Certificate roundtrip failed"}'
-    env:
-      HELIOS_CI_CONFIGURATION: Release
-      HELIOS_CONTROL_RUN_ID: ${{ github.run_id }}
-      HELIOS_CONTROL_SHA: ${{ github.sha }}
-      RUSTUP_MAX_RETRIES: '10'
-      HELIOS_CONTROL_RUN_ATTEMPT: ${{ github.run_attempt }}
-    permissions:
-      contents: read
-      actions: read
 'on':
   workflow_dispatch:
     inputs:
