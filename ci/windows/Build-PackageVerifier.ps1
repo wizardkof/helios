@@ -23,7 +23,7 @@ if (-not $env:VCToolsInstallDir -or $env:HELIOS_MSVC_VERSION -cne $expectedMsvc 
 $compilerCommand = Get-Command cl.exe -CommandType Application -ErrorAction Stop
 $compiler = [IO.Path]::GetFullPath($compilerCommand.Source)
 $expectedCompiler = [IO.Path]::GetFullPath((Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\cl.exe'))
-if ($compiler -cne $expectedCompiler) { throw "Resolved cl.exe path differs from the pinned x64 toolset: $compiler" }
+if (-not [string]::Equals($compiler, $expectedCompiler, [StringComparison]::OrdinalIgnoreCase)) { throw "Resolved cl.exe path differs from the pinned x64 toolset: $compiler" }
 $source = Join-Path $PSScriptRoot 'memory-trust\package_verify.cpp'
 $gate = Join-Path $PSScriptRoot 'memory-trust\result_gate.h'
 $testSource = Join-Path $PSScriptRoot 'memory-trust\result_gate_test.cpp'

@@ -61,6 +61,8 @@ class PackageProductionMemoryTrustTests(unittest.TestCase):
             "peMachine",
         ):
             self.assertIn(required, build)
+        self.assertIn("[StringComparison]::OrdinalIgnoreCase", build)
+        self.assertNotIn("$compiler -cne $expectedCompiler", build)
         assembly = ROOT.joinpath("ci/windows/Assemble-Package.ps1").read_text(encoding="utf-8-sig")
         self.assertNotIn("package-verify.exe", assembly)
 
