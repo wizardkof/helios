@@ -26,15 +26,15 @@ $flow=Join-Path $Output 'flow.exe'
 $generator=@'
 from pathlib import Path
 import sys
-r=Path(sys.argv[1]); out=Path(sys.argv[2]);s=(r/'vn_renderer_helios.c').read_text()
+r=Path(sys.argv[1]); out=Path(sys.argv[2]);s=(r/'vn_renderer_helios.c').read_text(encoding='utf-8')
 def body(n):
  start=s.index(n+'(');brace=s.index('{',start);end=brace+1;depth=1
  while depth:
   depth+=(s[end]=='{')-(s[end]=='}');end+=1
  return 'static bool\n'+s[start:end]
 f='\n'.join(body(n) for n in ['helios_attest_exchange','helios_carrier_attest_negotiated'])
-t=(r/'test_helios_attest_flow_mock.c').read_text().replace('/* FUNCTIONS */',f+'\n'+f.replace('helios_attest_exchange','second_exchange').replace('helios_carrier_attest_negotiated','second_negotiated'))
-out.write_text(t)
+t=(r/'test_helios_attest_flow_mock.c').read_text(encoding='utf-8').replace('/* FUNCTIONS */',f+'\n'+f.replace('helios_attest_exchange','second_exchange').replace('helios_carrier_attest_negotiated','second_negotiated'))
+out.write_text(t,encoding='utf-8')
 '@
 $gen=Join-Path $Output 'generate-flow.py';$generator|Set-Content $gen
 & python $gen $src (Join-Path $Output 'flow.c')
