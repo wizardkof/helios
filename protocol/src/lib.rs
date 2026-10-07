@@ -21,6 +21,7 @@
 #![allow(non_camel_case_types, non_upper_case_globals)]
 
 pub mod escape;
+pub mod attest_transport;
 pub mod features;
 pub mod ioctl;
 pub mod producer;

@@ -1,0 +1,12 @@
+use bytemuck::Zeroable;
+// Extracted .315-derived production wrapper; OS Section decision and wire container are mock seams. NOT WDK/runtime proof.
+use helios_protocol::attest_transport::{AttestTransport,QUERY,ATTEST};
+type NTSTATUS=i32;
+mod wdk_sys {pub const STATUS_SUCCESS:i32=0;pub const STATUS_INVALID_PARAMETER:i32=0xc000000du32 as i32;pub const STATUS_INVALID_HANDLE:i32=0xc0000008u32 as i32;pub const STATUS_UNSUCCESSFUL:i32=0xc0000001u32 as i32;}
+thread_local! {static CLASS:std::cell::Cell<u32>=const {std::cell::Cell::new(0)};static STATUS:std::cell::Cell<i32>=const {std::cell::Cell::new(0)};static CALLS:std::cell::Cell<u32>=const {std::cell::Cell::new(0)};}
+mod section_attest {pub fn attest(r:&mut helios_protocol::HeliosEscapeP06ProductionCarrier)->i32 {super::CALLS.with(|c|c.set(c.get()+1));assert_eq!(r.op,9);assert_eq!(r.user_handle,42);assert_eq!(r.carrier_id,[2;16]);assert_eq!(r.expected_record_version,2);super::CLASS.with(|c|r.status=c.get());super::STATUS.with(|s|s.get())}}
+mod ddi {pub mod escape {
+ pub static ESCAPE_BAD_HEADER:std::sync::atomic::AtomicU32=std::sync::atomic::AtomicU32::new(0);
+ pub struct EscapeBuf<'a,T>{b:&'a mut[u8],p:std::marker::PhantomData<T>}
+ impl<'a,T:bytemuck::Pod> EscapeBuf<'a,T>{pub fn new(b:&'a mut[u8],_h:&helios_protocol::HeliosEscapeHeader)->Result<Self,i32>{if b.len()!=std::mem::size_of::<T>(){return Err(super::super::wdk_sys::STATUS_INVALID_PARAMETER)}Ok(Self{b,p:std::marker::PhantomData})}pub fn read(&self)->T{bytemuck::pod_read_unaligned(self.b)}pub fn write_back(&mut self,t:&T){self.b.copy_from_slice(bytemuck::bytes_of(t));}}
+}}

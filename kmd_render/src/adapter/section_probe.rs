@@ -1274,3 +1274,39 @@ pub(crate) unsafe fn release_all(adapter: &AdapterContext) {
         unsafe { crate::diag::record_named_bytes(b"P06Cln", status as u32) };
     }
 }
+
+/// Classified transport shares the exact legacy provenance decision and RAII.
+/// Only a fully classified result changes transport status; op9 is untouched.
+pub(crate) fn escape_attest_transport(
+    buf: &mut [u8], hdr: &helios_protocol::HeliosEscapeHeader,
+) -> NTSTATUS {
+    use helios_protocol::attest_transport::{AttestTransport, ATTEST};
+    let actual = buf.len();
+    let mut wire = match crate::ddi::escape::EscapeBuf::<AttestTransport>::new(buf, hdr) {
+        Ok(wire) => wire, Err(status) => return status,
+    };
+    let request = wire.read();
+    if !request.valid_request(actual) {
+        crate::ddi::escape::ESCAPE_BAD_HEADER.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        return wdk_sys::STATUS_INVALID_PARAMETER;
+    }
+    let mut class = 0;
+    if request.operation == ATTEST {
+        let mut decision = helios_protocol::HeliosEscapeP06ProductionCarrier::zeroed();
+        decision.op = helios_protocol::HELIOS_P06_PRODUCTION_ATTEST_HANDLE;
+        decision.user_handle = request.user_handle;
+        decision.carrier_id = request.carrier_id;
+        decision.expected_record_version = request.expected_record_version;
+        decision.status = u32::MAX;
+        let status = section_attest::attest(&mut decision);
+        class = decision.status;
+        if !((status == wdk_sys::STATUS_SUCCESS && class == 0)
+            || (status == wdk_sys::STATUS_INVALID_HANDLE && (1..=7).contains(&class))) {
+            return wdk_sys::STATUS_UNSUCCESSFUL;
+        }
+    }
+    match request.complete(class) {
+        Some(response) => { wire.write_back(&response); wdk_sys::STATUS_SUCCESS }
+        None => wdk_sys::STATUS_UNSUCCESSFUL,
+    }
+}
