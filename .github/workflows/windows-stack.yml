@@ -2621,7 +2621,14 @@ jobs:
         \ }}' -or $receipt.sourceFingerprint -ne 'a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'){throw 'Final extraction 69/69 exact\
         \ identity failed'}\n$status='PASS' \n} finally {[ordered]@{status=$status;durationMs=$w.Elapsed.TotalMilliseconds}|ConvertTo-Json|Set-Content \"\
         $env:RUNNER_TEMP/timing/verify-duration.json\";Write-Host \"VERIFY_PACKAGE_END VERIFY_PACKAGE_DURATION_MS=$($w.Elapsed.TotalMilliseconds)\"}\n"
-    - name: Audit complete frozen contract with 90 minute internal watchdog
+    - name: Import exact native-qualified memory verifier
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'python ../control/ci/windows/Download-MemoryVerifierQualification.py --output "$env:RUNNER_TEMP/timing/verifier"
+
+        if($LASTEXITCODE -ne 0){throw "Native verifier qualification import failed"}'
+    - name: Full diagnostic exact-Package Authenticode catalog memory audit
       shell: pwsh
       run: '$env:GITHUB_SHA=''d03d79ebec6d857d141469d197e11c04097c4d75''
 
@@ -2629,8 +2636,8 @@ jobs:
 
         $env:GITHUB_RUN_ATTEMPT=''1''
 
-        ../control/ci/windows/Invoke-PackageAuditTiming.ps1 -FrozenRoot "$PWD" -ControlRoot "$(Resolve-Path ../control)" -OutputDir "$env:RUNNER_TEMP/helios-package"
-        -ReceiptDir "$env:RUNNER_TEMP/timing" -BudgetMinutes 90
+        ../control/ci/windows/Invoke-PackageMemoryAudit.ps1 -FrozenRoot "$PWD" -ControlRoot "$(Resolve-Path ../control)" -OutputDir "$env:RUNNER_TEMP/helios-package"
+        -ReceiptDir "$env:RUNNER_TEMP/timing" -Verifier "$env:RUNNER_TEMP/timing/verifier/package-verify.exe"
 
         '
     - name: Post-package toolchain
