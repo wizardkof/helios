@@ -51,6 +51,9 @@ jobs:
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
       id: s02
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - uses: actions/setup-python@v7
       with:
         python-version: ${{ env.PYTHON_VERSION }}
@@ -820,6 +823,9 @@ jobs:
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
       id: s02
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - name: Initialize source lock
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
@@ -1025,6 +1031,9 @@ jobs:
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
       id: s02
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - name: Initialize source lock
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
@@ -1182,6 +1191,9 @@ jobs:
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
       id: s02
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - name: Initialize source lock
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
@@ -1350,6 +1362,9 @@ jobs:
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
       id: s02
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - name: Initialize candidate source-lock submodules
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
@@ -1950,6 +1965,9 @@ jobs:
     - name: Initialize pinned PowerShell
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - name: Provision only selected Windows kit requirements
       shell: pwsh
       run: ./ci/windows/Install-WindowsDriverKit.ps1 -ReceiptDir "$env:RUNNER_TEMP/component-qualification"
@@ -2001,10 +2019,10 @@ jobs:
       run: "$component='${{ matrix.component }}'\nif($PSVersionTable.PSVersion.ToString() -ne '7.6.6' -or $PSVersionTable.PSEdition -ne 'Core' -or -not [Environment]::Is64BitProcess){throw\
         \ 'Expected PowerShell 7.6.6/Core x64'}\nif($component -eq 'package') {\n    $env:HELIOS_LLVM_BIN='';$env:HELIOS_WIDL='';$env:HELIOS_NINJA=''\n    ./ci/windows/Assert-ComponentToolchain.ps1\
         \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-zero\"\n    $zero=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-zero/pre-producer-tools.json\"\
-        \ -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne 0){throw 'Package zero priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path\
+        \ -Raw|ConvertFrom-Json\n    if($zero.context.priorityCount -ne 1){throw 'Package Git-only priority fixture not isolated'}\n    $env:HELIOS_LLVM_BIN=Join-Path\
         \ $env:RUNNER_TEMP 'package-one-priority'\n    New-Item -ItemType Directory -Force $env:HELIOS_LLVM_BIN|Out-Null\n    ./ci/windows/Assert-ComponentToolchain.ps1\
         \ -Component package -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/package-one\"\n    $one=Get-Content \"$env:RUNNER_TEMP/component-qualification/package-one/pre-producer-tools.json\"\
-        \ -Raw|ConvertFrom-Json\n    if($one.context.priorityCount -ne 1){throw 'Package one priority fixture not isolated'}\n} else {\n    ./ci/windows/Assert-ComponentToolchain.ps1\
+        \ -Raw|ConvertFrom-Json\n    if($one.context.priorityCount -ne 2){throw 'Package Git plus one optional priority fixture not isolated'}\n} else {\n    ./ci/windows/Assert-ComponentToolchain.ps1\
         \ -Component $component -ReceiptDir \"$env:RUNNER_TEMP/component-qualification/checker\"\n}\nWrite-Host ($component.ToUpperInvariant()+'_TOOLCHAIN_CONTROL=PASS')"
     - name: Preserve receipts and execution context
       id: preserve_control
@@ -2297,6 +2315,9 @@ jobs:
     - name: Initialize exact Package PowerShell
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - uses: actions/setup-python@v7
       with:
         python-version: ${{ env.PYTHON_VERSION }}
@@ -2376,6 +2397,9 @@ jobs:
         if($LASTEXITCODE -ne 0){throw ''Exact Package Rust acquisition failed''}
 
         '
+    - name: Test pinned Git resolution and real consumers
+      shell: pwsh
+      run: ./ci/windows/Test-PinnedGit.ps1 -RepoRoot $env:GITHUB_WORKSPACE -ReceiptDir "$env:RUNNER_TEMP/git-qualification/control"
     - name: Verify pre-package toolchain
       shell: pwsh
       run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/package-production-preflight/toolchain"
@@ -2524,6 +2548,8 @@ jobs:
 
         foreach($file in $files){if(Test-Path -LiteralPath $file -PathType Leaf){Copy-Item -LiteralPath $file -Destination $evidence -Force}}
 
+        foreach($directory in @("$env:RUNNER_TEMP/git-qualification", "$env:RUNNER_TEMP/package-production-preflight/toolchain")){if(Test-Path -LiteralPath $directory -PathType Container){Copy-Item -LiteralPath $directory -Destination $evidence -Recurse -Force}}
+
         $receipts="$env:RUNNER_TEMP/helios-package/native-signature-receipts"
 
         if(Test-Path -LiteralPath $receipts -PathType Container){Copy-Item -LiteralPath $receipts -Destination $evidence -Recurse -Force}
@@ -2640,6 +2666,9 @@ jobs:
     - name: Initialize exact Package PowerShell
       shell: powershell
       run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - name: Acquire exact native MinGit
+      shell: pwsh
+      run: ./ci/windows/Install-PinnedGit.ps1 -ReceiptDir "$env:RUNNER_TEMP/git-qualification"
     - uses: actions/setup-python@v7
       with:
         python-version: ${{ env.PYTHON_VERSION }}

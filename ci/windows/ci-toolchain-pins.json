@@ -389,5 +389,13 @@
     "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe",
     "sha256": "16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c",
     "size": 455545840
+  },
+  "gitUpstream": {
+    "distribution": "Git for Windows / MinGit",
+    "releaseTag": "v2.55.0.windows.5",
+    "assetName": "MinGit-2.55.0.5-64-bit.zip",
+    "archiveSha256": "56d7b226b7693196cfc71fef26568f536c4a021ab6c37ff2db4287bed908e96e",
+    "executableRelativePath": "cmd/git.exe",
+    "executableVersion": "git version 2.55.0.windows.5"
   }
 }

@@ -11,7 +11,7 @@ try{& $observer -Phase "immediately-before-component-$Component-vs-import" -Rece
 try{Import-VisualStudioEnvironment -Architecture x64}catch{$blocked.Add([pscustomobject]@{name='visual-studio-environment-x64';reason=$_.Exception.Message})}
 # Normalize the complete pipeline, including its zero/one-result cases.
 $priority=@(
-    @($env:HELIOS_LLVM_BIN, $(if($env:HELIOS_NINJA){Split-Path -Parent $env:HELIOS_NINJA}), $(if($env:HELIOS_WIDL){Split-Path -Parent $env:HELIOS_WIDL}), (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
+    @($(if($env:HELIOS_GIT){Split-Path -Parent $env:HELIOS_GIT}), $env:HELIOS_LLVM_BIN, $(if($env:HELIOS_NINJA){Split-Path -Parent $env:HELIOS_NINJA}), $(if($env:HELIOS_WIDL){Split-Path -Parent $env:HELIOS_WIDL}), (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Bin')) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique
 )
 if($priority.Count){$env:PATH=(@($priority)+@($env:PATH -split ';'|Where-Object {$_ -and $_ -notin $priority}|Select-Object -Unique)) -join ';'}
 if(Test-Path -LiteralPath (Join-Path (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion) 'Include/vulkan/vulkan.h')){$env:VULKAN_SDK=Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion}
@@ -52,7 +52,7 @@ $observedMsvc=([string]$env:VCToolsVersion).TrimEnd('\')
 Add-ComponentValueCheck 'VCToolsVersion' $pins.visualStudio.msvcVersion $observedMsvc ($observedMsvc -ceq $pins.visualStudio.msvcVersion)
 try{& (Join-Path $PSScriptRoot 'Assert-WindowsKitPins.ps1') -ReceiptDir $ReceiptDir}catch{$blocked.Add([pscustomobject]@{name='windows-kit-pins';reason=$_.Exception.Message})}
 
-$checksToRun=@(@{name='python';args=@('--version');expected=('Python '+$pins.pythonVersion);pattern=('^Python '+[regex]::Escape($pins.pythonVersion)+'$')},@{name='git';args=@('--version');expected=('git version '+$pins.gitVersion);pattern=('^git version '+[regex]::Escape(($pins.gitVersion -replace '\.\d+$',''))+'(?:\.windows\.\d+)?$')})
+$checksToRun=@(@{name='python';args=@('--version');expected=('Python '+$pins.pythonVersion);pattern=('^Python '+[regex]::Escape($pins.pythonVersion)+'$')},@{name='git';args=@('--version');expected=$pins.gitUpstream.executableVersion;pattern=('^'+[regex]::Escape($pins.gitUpstream.executableVersion)+'$')})
 if($Component -in 'opencl','loaders'){
     $checksToRun+=,@{name='cmake';args=@('--version');expected=('cmake version '+$pins.cmakeVersion);pattern=('(?m)^cmake version '+[regex]::Escape($pins.cmakeVersion)+'$')}
 }
@@ -76,6 +76,14 @@ if($Component -eq 'package'){
 }
 foreach($check in $checksToRun){
     $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;VersionPattern=$check.pattern;Phase=$Phase}
+    if($check.name -eq 'git'){
+        if(-not $env:HELIOS_GIT -or -not (Test-Path -LiteralPath $env:HELIOS_GIT -PathType Leaf)){
+            $blocked.Add([pscustomobject]@{name='git';reason='HELIOS_GIT_REQUIRED: qualified native Git selection is absent or missing'})
+            continue
+        }
+        $options.ExecutablePath=[string]$env:HELIOS_GIT
+        $options.ExpectedResolvedPath=[string]$env:HELIOS_GIT
+    }
     if($check.name -eq 'ninja.exe' -and $env:HELIOS_NINJA){$options.ExecutablePath=[string]$env:HELIOS_NINJA;$options.ExpectedResolvedPath=[string]$env:HELIOS_NINJA}
     if($check.name -eq 'clang-cl' -and $env:HELIOS_LLVM_BIN){$options.ExecutablePath=Join-Path $env:HELIOS_LLVM_BIN 'clang-cl.exe';$options.ExpectedResolvedPath=$options.ExecutablePath}
     if($check.name -eq 'widl' -and $env:HELIOS_WIDL){$options.ExecutablePath=[string]$env:HELIOS_WIDL;$options.ExpectedResolvedPath=$options.ExecutablePath}
@@ -97,7 +105,7 @@ if($Component -eq 'opencl'){
 if($Component -eq 'driver'){
     try{. (Join-Path $PSScriptRoot 'CI-Qualification.ps1');Write-CIRustScriptContract $ReceiptDir $Phase}catch{$blocked.Add([pscustomobject]@{name='rust-script-host-private';reason=$_.Exception.Message})}
 }
-$receipt=New-CIToolReceipt -Name "$Component-producer-toolchain-$Phase" -Checks @($checks.ToArray()) -Blocked @($blocked.ToArray()) -Context @{component=$Component;phase=$Phase;visualStudio=$vs;msvc=$observedMsvc;vulkanSdk=$env:VULKAN_SDK;selectedNinja=$env:HELIOS_NINJA;priorityDirectories=@($priority);priorityCount=$priority.Count}
+$receipt=New-CIToolReceipt -Name "$Component-producer-toolchain-$Phase" -Checks @($checks.ToArray()) -Blocked @($blocked.ToArray()) -Context @{component=$Component;phase=$Phase;visualStudio=$vs;msvc=$observedMsvc;vulkanSdk=$env:VULKAN_SDK;selectedNinja=$env:HELIOS_NINJA;selectedGit=$env:HELIOS_GIT;priorityDirectories=@($priority);priorityCount=$priority.Count}
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir "$Phase-producer-tools.json") -Receipt $receipt
 Write-Host (ConvertTo-Json -InputObject $receipt -Depth 16)
 Assert-CIToolReceiptPass -Receipt $receipt

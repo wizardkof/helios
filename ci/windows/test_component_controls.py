@@ -22,8 +22,8 @@ class ComponentControls(unittest.TestCase):
         self.assertEqual(set(job['strategy']['matrix']['component']), {'compatibility', 'loaders', 'opencl', 'package'})
         checker = next(step for step in job['steps'] if step.get('id') == 'checker')
         self.assertIn('Assert-ComponentToolchain.ps1', checker['run'])
-        self.assertIn('priorityCount -ne 0', checker['run'])
-        self.assertIn('priorityCount -ne 1', checker['run'])
+        self.assertIn('$zero.context.priorityCount -ne 1', checker['run'])
+        self.assertIn('$one.context.priorityCount -ne 2', checker['run'])
         self.assertFalse(any('Build-' in step.get('run', '') for step in job['steps']))
 
     @unittest.skipIf(os.name == 'nt', 'Bash fixture is a portable Linux control')
