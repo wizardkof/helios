@@ -1,0 +1,3 @@
+package_verify.cpp text eol=lf
+result_gate.h text eol=lf
+result_gate_test.cpp text eol=lf
