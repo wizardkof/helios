@@ -387,7 +387,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
-    if: ${{ !inputs.python_evidence_only }}
+    if: ${{ !inputs.python_evidence_only && !inputs.package_production_integration_preflight }}
   msys2_x86_preflight:
     if: ${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}
     name: MSYS2 MINGW32 archived pins and native Ninja control
@@ -456,7 +456,7 @@ jobs:
         Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
       if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
   mesa:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
+    if: ${{ always() && !inputs.infrastructure_only && !inputs.package_production_integration_preflight && needs.driver.result == 'success' }}
     needs:
     - driver
     name: Mesa Venus Vulkan and Zink OpenGL (x64)
@@ -626,7 +626,7 @@ jobs:
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
   mesa_x86:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
+    if: ${{ always() && !inputs.infrastructure_only && !inputs.package_production_integration_preflight && needs.driver.result == 'success' }}
     needs:
     - driver
     env:
@@ -797,7 +797,7 @@ jobs:
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
   opencl:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
+    if: ${{ always() && !inputs.infrastructure_only && !inputs.package_production_integration_preflight && needs.driver.result == 'success' }}
     needs:
     - driver
     name: CLVK with embedded clspv
@@ -1005,7 +1005,7 @@ jobs:
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
   loaders:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
+    if: ${{ always() && !inputs.infrastructure_only && !inputs.package_production_integration_preflight && needs.driver.result == 'success' }}
     needs:
     - driver
     name: Khronos loaders and smoke probes
@@ -1162,7 +1162,7 @@ jobs:
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
   compatibility:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' }}
+    if: ${{ always() && !inputs.infrastructure_only && !inputs.package_production_integration_preflight && needs.driver.result == 'success' }}
     needs:
     - driver
     name: Application compatibility shims
@@ -1314,7 +1314,7 @@ jobs:
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
   package:
-    if: ${{ always() && !inputs.infrastructure_only && needs.driver.result == 'success' && needs.mesa.result == 'success' && needs.mesa_x86.result == 'success' &&
+    if: ${{ always() && !inputs.infrastructure_only && !inputs.package_production_integration_preflight && needs.driver.result == 'success' && needs.mesa.result == 'success' && needs.mesa_x86.result == 'success' &&
       needs.opencl.result == 'success' && needs.loaders.result == 'success' && needs.compatibility.result == 'success' }}
     name: Sign and assemble installable bundle (${{ matrix.configuration }})
     env:
@@ -1328,7 +1328,8 @@ jobs:
     - loaders
     - compatibility
     runs-on: windows-2022
-    timeout-minutes: 30
+    # Measured max complete Package job: 14m12s. Policy: round_up_to_5_minutes(2 x max + 5m) = 35m.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -1459,6 +1460,24 @@ jobs:
         "vkd3d=$(git rev-parse HEAD:vkd3d-proton-helios)" >> $env:GITHUB_OUTPUT
 
         '
+    - name: Test native verifier acceptance predicate
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: ./ci/windows/Test-PackageVerifierGate.ps1 -OutputDir "$env:RUNNER_TEMP/package-verifier-gate-test"
+      id: verifier_gate_test
+    - name: Build pinned native Package verifier
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: ./ci/windows/Build-PackageVerifier.ps1 -OutputDir "$env:RUNNER_TEMP/package-verifier"
+      id: verifier_build
+    - name: Confirm exact native-qualified verifier source
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: |
+        $receipt=Get-Content "$env:RUNNER_TEMP/package-verifier/package-verifier-build.json" -Raw|ConvertFrom-Json
+        if($receipt.status -ne 'PASS' -or $receipt.sourceSha256 -cne 'd8ccc0571583f056e1494c731862e89d27b23151efe0963104b28fc575c7bdb3' -or $receipt.resultGateSha256 -cne '6dc0fb254ebec768ea2de881ef9c790730775654cab39161df33d9457af35a61'){throw 'Verifier source differs from the native-qualified negative matrix; rerun the full native matrix before promotion.'}
+        Write-Host 'PRODUCTION_VERIFIER_SOURCE_MATCH_NATIVE_QUALIFIED=PASS_EXACT_SOURCE'
+      id: verifier_source_match
     - name: Assemble and test-sign bundle
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
@@ -1471,37 +1490,58 @@ jobs:
         \ $env:VULKAN_LOADER_COMMIT -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n\
         }\n"
       id: s19
-    - name: Independent final package extraction and native audit
+    - name: Verify native packaged schema 8 of 8
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: |
+        $schema=Get-Content "$env:RUNNER_TEMP/helios-package/packaged-state-schema.json" -Raw|ConvertFrom-Json
+        if($schema.status -ne 'PASS' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object {$_.status -ne 'PASS'}).Count){throw 'Native packaged schema did not pass 8/8'}
+        Write-Host 'NATIVE_PACKAGED_SCHEMA=PASS_8_OF_8'
+    - name: Independent final extraction
       if: ${{ !inputs.infrastructure_only }}
       shell: pwsh
       run: 'python ./ci/windows/Verify-CIPackage.py --root "$env:RUNNER_TEMP/helios-package"
 
         if ($LASTEXITCODE -ne 0) { throw ''Final extraction/ZIP qualification failed'' }
 
-        $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
-
-        ./ci/windows/Audit-CIPackage.ps1 -OutputDir "$env:RUNNER_TEMP/helios-package" -Version $lock.version -Fingerprint $lock.sourceFingerprint
-
-        . ./ci/windows/CI-Qualification.ps1
-
-        ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -Phase post -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
-
-        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" post
-
-        @("FINAL_PACKAGE=PASS", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
-
-        Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
-
         '
       id: s20
-    - name: Admit and seal s21 transport
-      id: s21_seal
+    - name: Native Authenticode and catalog package audit
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: |
+        $lock=Get-Content metadata/candidate-reservation.json -Raw|ConvertFrom-Json
+        ./ci/windows/Audit-CIPackage.ps1 -OutputDir "$env:RUNNER_TEMP/helios-package" -Version $lock.version -Fingerprint $lock.sourceFingerprint -Verifier "$env:RUNNER_TEMP/package-verifier/package-verify.exe" -VerifierBuildReceipt "$env:RUNNER_TEMP/package-verifier/package-verifier-build.json"
+      id: package_authenticode_audit
+    - name: Post-package toolchain
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -Phase post -ReceiptDir "$env:RUNNER_TEMP/helios-package-qualification"
+      id: package_post_toolchain
+    - name: Post-package source fingerprint
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: |
+        . ./ci/windows/CI-Qualification.ps1
+        Write-CIFingerprint $env:GITHUB_WORKSPACE "$env:RUNNER_TEMP/helios-package-qualification" post
+      id: package_post_fingerprint
+    - name: Qualification report and final hash index
+      if: ${{ !inputs.infrastructure_only }}
+      shell: pwsh
+      run: |
+        @("PACKAGE_CONFIGURATION_QUALIFICATION=PASS", "CONFIGURATION=${{ matrix.configuration }}", "PUBLICATION=NO", "RUNTIME=NOT_RUN", "CI_RUN_ID=$env:GITHUB_RUN_ID", "CI_RUN_ATTEMPT=$env:GITHUB_RUN_ATTEMPT") | Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
+        . ./ci/windows/CI-Qualification.ps1
+        Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
+      id: package_qualification_report
+    - name: Seal final Package artifact
+      id: package_seal
       shell: powershell
       run: 'python ./ci/windows/artifact_roundtrip.py seal --root "${{ runner.temp }}/helios-package" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
 
         if ($LASTEXITCODE -ne 0) { throw "Artifact admission/seal failed" }'
       if: ${{ !inputs.infrastructure_only }}
-    - if: ${{ always() && steps.s21_seal.outcome == 'success' }}
+    - if: ${{ always() && steps.package_seal.outcome == 'success' }}
+      name: Upload final Package artifact
       uses: actions/upload-artifact@v7
       with:
         name: helios-windows-x64-${{ steps.metadata.outputs.version }}-${{ matrix.configuration }}
@@ -1509,23 +1549,23 @@ jobs:
         if-no-files-found: error
         retention-days: 90
         include-hidden-files: true
-      id: s21
-    - name: Download real s21 artifact
-      id: s21_download
+      id: package
+    - name: Download final Package artifact
+      id: package_download
       uses: actions/download-artifact@v8
       with:
         name: helios-windows-x64-${{ steps.metadata.outputs.version }}-${{ matrix.configuration }}
-        path: ${{ runner.temp }}/artifact-roundtrip-download/s21
-      if: ${{ always() && steps.s21.outcome == 'success' }}
-    - name: Verify real s21 roundtrip set size hashes
-      id: s21_verify
+        path: ${{ runner.temp }}/artifact-roundtrip-download/package
+      if: ${{ success() && steps.package.outcome == 'success' }}
+    - name: Verify final Package artifact roundtrip
+      id: package_verify
       shell: powershell
-      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/s21" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/artifact-roundtrip-download/package" --receipt "${{ runner.temp }}/artifact-roundtrip/s21.json"
 
         if ($LASTEXITCODE -ne 0) { throw "EVIDENCE_ROUNDTRIP_COMPLETENESS=FAIL" }
 
         Write-Host "EVIDENCE_ROUNDTRIP_COMPLETENESS=PASS"'
-      if: ${{ always() && steps.s21_download.outcome == 'success' }}
+      if: ${{ success() && steps.package_download.outcome == 'success' }}
     - name: Collect explicit failure and qualification evidence
       id: collect_evidence
       if: always()
@@ -2226,6 +2266,304 @@ jobs:
       run: 'python ./ci/windows/artifact_roundtrip.py verify --root "${{ runner.temp }}/control-download" --receipt "${{ runner.temp }}/control-seal.json"
 
         if ($LASTEXITCODE -ne 0) { throw "Roundtrip failed" }'
+  package_production_integration_preflight:
+    if: ${{ inputs.package_production_integration_preflight }}
+    name: Real production Package Audit-CIPackage integration (${{ matrix.configuration }})
+    runs-on: windows-2022
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      contents: read
+    env:
+      HELIOS_CI_CONFIGURATION: ${{ matrix.configuration }}
+      RUSTUP_MAX_RETRIES: '10'
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+        - Release
+        - Debug
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 1
+    - uses: actions/checkout@v7
+      with:
+        ref: d03d79ebec6d857d141469d197e11c04097c4d75
+        path: frozen-314
+        fetch-depth: 1
+        submodules: false
+    - name: Initialize exact Package PowerShell
+      shell: powershell
+      run: ./ci/windows/Initialize-CIPowerShell.ps1
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Initialize frozen source-lock submodules
+      shell: pwsh
+      run: 'git submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+
+        if($LASTEXITCODE -ne 0){throw "Integration submodules failed"}
+
+        git -C frozen-314 submodule update --init --recursive dxvk-helios vkd3d-proton-helios icd/mesa
+
+        if($LASTEXITCODE -ne 0){throw "Frozen submodules failed"}
+
+        python frozen-314/tools/candidate_version.py verify --portable --root frozen-314 --remote origin --require-remote
+
+        if($LASTEXITCODE -ne 0){throw "Frozen .314 source lock failed"}'
+    - name: Observe integration source before qualification
+      shell: pwsh
+      run: '$root=Join-Path $env:RUNNER_TEMP ''package-production-preflight''
+
+        New-Item -ItemType Directory -Force $root|Out-Null
+
+        $fp=python -c "from pathlib import Path; from tools.candidate_version import source_fingerprint; print(source_fingerprint(Path(''.'')))"
+
+        if($LASTEXITCODE -ne 0){throw ''Integration fingerprint failed''}
+
+        $fp.Trim()|Set-Content (Join-Path $root ''integration-fingerprint-pre.txt'')
+
+        Write-Host "INTEGRATION_FINGERPRINT_PRE=$($fp.Trim())"'
+    - name: Verify frozen .314 run and exact original artifact identities
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: "$runId='37417032761'; $frozenSha='d03d79ebec6d857d141469d197e11c04097c4d75'\n$headers=@{Authorization=\"Bearer $env:GITHUB_TOKEN\";Accept='application/vnd.github+json';'X-GitHub-Api-Version'='2022-11-28'}\n\
+        $run=Invoke-RestMethod -Headers $headers -Uri \"https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs/$runId\"\nif($run.head_sha -cne $frozenSha -or $run.run_attempt\
+        \ -ne 1 -or $run.conclusion -cne 'cancelled'){throw 'Frozen .314 producer run identity is not the exact frozen historical authority.'}\n$response=Invoke-RestMethod -Headers $headers\
+        \ -Uri \"https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs/$runId/artifacts?per_page=100\"\n$expected=@(\n  @{name='helios-driver-Release';id='11393556083';digest='sha256:4f3106549370556f99fef12f0adeee348f3037f8f9ebf295039d74a45487f436'},\n\
+        \  @{name='helios-driver-Debug';id='11393459422';digest='sha256:428ee14db53cb73858b3239d535cf101fdd6ded3f9378333153ea9a59ca153af'},\n  @{name='helios-mesa';id='11394823054';digest='sha256:7e3b8402f0bca6618f85a98e5ea13cc7a8815d91f2dd1fd41f31765c8a947eb3'},\n\
+        \  @{name='helios-mesa-x86';id='11394732672';digest='sha256:08faab8d7db6601432bd440de35142cebb90eef7149f7b72bdaf911d0e1944ab'},\n  @{name='helios-opencl';id='11402804083';digest='sha256:9c83c464a46ecdc1838b871a5903d1d26e5505721400b5b1835efe0eb37707e6'},\n\
+        \  @{name='helios-loaders';id='11394302075';digest='sha256:6fdcf651641ea222dc4721d71607bc3d5cbc4c499a59d7febd11bc6bf46e2505'},\n  @{name='helios-compatibility';id='11395090909';digest='sha256:9558b63089a36742aadbd2c55fbbf87e3029edc58076e2666298f96448ea1c28'}\n\
+        )\n$verified=@()\nforeach($item in $expected){\n  $matches=@($response.artifacts|Where-Object {$_.name -ceq $item.name -and [string]$_.id -ceq $item.id -and $_.digest -ceq $item.digest\
+        \ -and -not $_.expired})\n  if($matches.Count -ne 1){throw \"Frozen .314 artifact identity mismatch: $($item.name)\"}\n  $verified+=@([ordered]@{name=$item.name;artifactId=$item.id;sha256=$item.digest.Substring(7);size=[long]$matches[0].size_in_bytes;runId=$runId;headSha=$frozenSha;attempt=1})\n\
+        }\n$root=Join-Path $env:RUNNER_TEMP 'package-production-preflight';New-Item -ItemType Directory -Force $root|Out-Null\n[ordered]@{status='PASS_EXACT_FROZEN_314_ARTIFACTS';runId=$runId;headSha=$frozenSha;attempt=1;version='22.22.314.0';sourceFingerprint='a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe';artifacts=$verified}|ConvertTo-Json\
+        \ -Depth 6|Set-Content (Join-Path $root 'frozen-input-provenance.json') -Encoding UTF8\n"
+    - name: Download exact frozen artifacts and verify digest CRC
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: 'python ./ci/windows/package_preflight_inputs.py --provenance "$env:RUNNER_TEMP/package-production-preflight/frozen-input-provenance.json" --output "$env:RUNNER_TEMP/artifacts"
+        --configuration "${{ matrix.configuration }}"
+
+        if($LASTEXITCODE -ne 0){throw "Frozen input download/digest/CRC failed"}'
+    - name: Verify frozen producer receipts and admit immutable input bytes
+      shell: pwsh
+      run: "$root=Join-Path $env:GITHUB_WORKSPACE 'frozen-314';$frozenSha='d03d79ebec6d857d141469d197e11c04097c4d75';$frozenRun='37417032761'\n$current=@{sha=$env:GITHUB_SHA;run=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT}\n\
+        $items=@(\n  @{path=\"$env:RUNNER_TEMP/artifacts/driver\";component='driver';configuration='${{ matrix.configuration }}';architecture='x64+x86'},\n  @{path=\"$env:RUNNER_TEMP/artifacts/mesa\"\
+        ;component='mesa';configuration='Release';architecture='x64'},\n  @{path=\"$env:RUNNER_TEMP/artifacts/mesa-x86\";component='mesa-x86';configuration='Release';architecture='x86'},\n\
+        \  @{path=\"$env:RUNNER_TEMP/artifacts/opencl\";component='opencl';configuration='Release';architecture='x64'},\n  @{path=\"$env:RUNNER_TEMP/artifacts/loaders\";component='loaders';configuration='Release';architecture='x64+x86'},\n\
+        \  @{path=\"$env:RUNNER_TEMP/artifacts/compatibility\";component='compatibility';configuration='Release';architecture='x64'}\n)\ntry {\n  $env:GITHUB_SHA=$frozenSha;$env:GITHUB_RUN_ID=$frozenRun;$env:GITHUB_RUN_ATTEMPT='1'\n\
+        \  foreach($item in $items){\n    & python (Join-Path $root 'ci/windows/ci_artifact.py') verify --directory $item.path --source-root $root --component $item.component --configuration\
+        \ $item.configuration --architecture $item.architecture\n    if($LASTEXITCODE -ne 0){throw \"Frozen .314 producer receipt failed: $($item.component) $($item.configuration)\"}\n\
+        \          }\n        } finally {$env:GITHUB_SHA=$current.sha;$env:GITHUB_RUN_ID=$current.run;$env:GITHUB_RUN_ATTEMPT=$current.attempt}\n        Write-Host 'FROZEN_314_INPUT_IDENTITIES=PASS_ORIGINAL_RECEIPTS_AND_BYTES'\n"
+    - name: Install exact Package WDK and SDK
+      shell: pwsh
+      run: ./ci/windows/Install-WindowsDriverKit.ps1
+    - name: Install and select exact LLVM
+      shell: pwsh
+      run: './ci/windows/Install-PinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-production-preflight/tools"
+
+        ./ci/windows/Select-CIPinnedLLVM.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-production-preflight/tools"
+
+        '
+    - name: Acquire exact Package Rust
+      shell: pwsh
+      run: 'python ./ci/windows/acquire_package_rust.py --receipt-dir "$env:RUNNER_TEMP/package-production-preflight/rust"
+
+        if($LASTEXITCODE -ne 0){throw ''Exact Package Rust acquisition failed''}
+
+        '
+    - name: Verify pre-package toolchain
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -ReceiptDir "$env:RUNNER_TEMP/package-production-preflight/toolchain"
+    - name: Test native verifier acceptance predicate
+      shell: pwsh
+      run: ./ci/windows/Test-PackageVerifierGate.ps1 -OutputDir "$env:RUNNER_TEMP/package-verifier-gate-test"
+    - name: Build native Package verifier and emit source receipt
+      shell: pwsh
+      run: ./ci/windows/Build-PackageVerifier.ps1 -OutputDir "$env:RUNNER_TEMP/package-verifier"
+    - name: Confirm exact native-qualified verifier source
+      shell: pwsh
+      run: '$receipt=Get-Content "$env:RUNNER_TEMP/package-verifier/package-verifier-build.json" -Raw|ConvertFrom-Json
+
+        if($receipt.status -ne ''PASS'' -or $receipt.sourceSha256 -cne ''d8ccc0571583f056e1494c731862e89d27b23151efe0963104b28fc575c7bdb3'' -or $receipt.resultGateSha256 -cne ''6dc0fb254ebec768ea2de881ef9c790730775654cab39161df33d9457af35a61''){throw
+        ''Verifier source differs from the native-qualified negative matrix; rerun the full native matrix before promotion.''}
+
+        Write-Host ''PRODUCTION_VERIFIER_SOURCE_MATCH_NATIVE_QUALIFIED=PASS_EXACT_SOURCE''
+
+        '
+    - name: Build configuration-specific installer skeleton
+      shell: pwsh
+      run: "./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"$env:RUNNER_TEMP/package-production-preflight/toolchain\" -Producer \"installer-${{ matrix.configuration }}\" -Operation {\n\
+        \  ./frozen-314/ci/windows/Build-Installer.ps1 -RepoRoot \"$env:GITHUB_WORKSPACE/frozen-314\" -OutputDir \"$env:RUNNER_TEMP/helios-installer\" -Configuration '${{ matrix.configuration\
+        \ }}'\n}\n"
+    - name: Seal installer producer identity
+      shell: pwsh
+      run: "$current=@{sha=$env:GITHUB_SHA;run=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT}\ntry {\n  $env:GITHUB_SHA='d03d79ebec6d857d141469d197e11c04097c4d75';$env:GITHUB_RUN_ID='37417032761';$env:GITHUB_RUN_ATTEMPT='1'\n\
+        \  python frozen-314/ci/windows/ci_artifact.py seal --directory \"$env:RUNNER_TEMP/helios-installer\" --source-root frozen-314 --component installer --configuration '${{ matrix.configuration\
+        \ }}' --architecture x64\n  if($LASTEXITCODE -ne 0){throw 'Installer frozen-input seal failed'}\n} finally {$env:GITHUB_SHA=$current.sha;$env:GITHUB_RUN_ID=$current.run;$env:GITHUB_RUN_ATTEMPT=$current.attempt}"
+    - name: Assemble and test-sign frozen .314 Package
+      shell: pwsh
+      run: "$lock=Get-Content frozen-314/metadata/candidate-reservation.json -Raw|ConvertFrom-Json\n$mesa=(git -C frozen-314 rev-parse HEAD:icd/mesa).Trim();$dxvk=(git -C frozen-314 rev-parse\
+        \ HEAD:dxvk-helios).Trim();$vkd3d=(git -C frozen-314 rev-parse HEAD:vkd3d-proton-helios).Trim()\n$current=@{sha=$env:GITHUB_SHA;run=$env:GITHUB_RUN_ID;attempt=$env:GITHUB_RUN_ATTEMPT}\n\
+        try {\n$env:GITHUB_SHA='d03d79ebec6d857d141469d197e11c04097c4d75';$env:GITHUB_RUN_ID='37417032761';$env:GITHUB_RUN_ATTEMPT='1'\n./ci/windows/Invoke-CIProducer.ps1 -ReceiptDir \"\
+        $env:RUNNER_TEMP/package-production-preflight/toolchain\" -Producer \"package-integration-${{ matrix.configuration }}\" -Operation {\n  ./frozen-314/ci/windows/Assemble-Package.ps1\
+        \ -RepoRoot \"$env:GITHUB_WORKSPACE/frozen-314\" -DriverArtifact \"$env:RUNNER_TEMP/artifacts/driver\" -MesaArtifact \"$env:RUNNER_TEMP/artifacts/mesa\" -MesaX86Artifact \"$env:RUNNER_TEMP/artifacts/mesa-x86\"\
+        \ -OpenClArtifact \"$env:RUNNER_TEMP/artifacts/opencl\" -LoadersArtifact \"$env:RUNNER_TEMP/artifacts/loaders\" -CompatibilityArtifact \"$env:RUNNER_TEMP/artifacts/compatibility\"\
+        \ -InstallerArtifact \"$env:RUNNER_TEMP/helios-installer\" -OutputDir \"$env:RUNNER_TEMP/helios-package\" -Configuration '${{ matrix.configuration }}' -Version $lock.version -RepositoryCommit\
+        \ 'd03d79ebec6d857d141469d197e11c04097c4d75' -MesaCommit $mesa -DxvkCommit $dxvk -Vkd3dCommit $vkd3d -ClvkCommit $env:CLVK_COMMIT -VulkanLoaderCommit $env:VULKAN_LOADER_COMMIT\
+        \ -VulkanHeadersCommit $env:VULKAN_HEADERS_COMMIT -OpenClLoaderCommit $env:OPENCL_LOADER_COMMIT -OpenClHeadersCommit $env:OPENCL_HEADERS_COMMIT\n}\n\n} finally {$env:GITHUB_SHA=$current.sha;$env:GITHUB_RUN_ID=$current.run;$env:GITHUB_RUN_ATTEMPT=$current.attempt}\n\
+        Write-Host 'PACKAGE_CLASSIFICATION=DIAGNOSTIC_INPUT_314' "
+    - name: Verify native packaged schema 8 of 8
+      shell: pwsh
+      run: '$schema=Get-Content "$env:RUNNER_TEMP/helios-package/packaged-state-schema.json" -Raw|ConvertFrom-Json
+
+        if($schema.status -ne ''PASS'' -or @($schema.cases).Count -ne 8 -or @($schema.cases|Where-Object {$_.status -ne ''PASS''}).Count){throw ''Native packaged schema did not pass 8/8''}
+
+        Write-Host ''NATIVE_PACKAGED_SCHEMA=PASS_8_OF_8''
+
+        '
+    - name: Independent final extraction
+      shell: pwsh
+      run: 'python ./ci/windows/Verify-CIPackage.py --root "$env:RUNNER_TEMP/helios-package"
+
+        if($LASTEXITCODE -ne 0){throw ''Verify-CIPackage failed''}
+
+        '
+    - name: Native Authenticode and catalog package audit
+      shell: pwsh
+      run: '$lock=Get-Content frozen-314/metadata/candidate-reservation.json -Raw|ConvertFrom-Json
+
+        ./ci/windows/Audit-CIPackage.ps1 -OutputDir "$env:RUNNER_TEMP/helios-package" -Version $lock.version -Fingerprint $lock.sourceFingerprint -Verifier "$env:RUNNER_TEMP/package-verifier/package-verify.exe"
+        -VerifierBuildReceipt "$env:RUNNER_TEMP/package-verifier/package-verifier-build.json"
+
+        $audit=Get-Content "$env:RUNNER_TEMP/helios-package/offline-installation-signature-audit.json" -Raw|ConvertFrom-Json
+
+        if($audit.status -ne ''PASS'' -or $audit.images.Count -ne 27 -or $audit.nativeSignatureReceipts.Count -ne 29 -or $audit.persistentStoreSnapshot -ne ''PASS_EXACT_THUMBPRINT_AND_RAWDATA_ALL_EIGHT_STORES''){throw
+        ''Real production Audit-CIPackage contract incomplete''}
+
+        Write-Host "PRODUCTION_AUDIT=PASS; IMAGES=$($audit.images.Count); NATIVE_SIGNATURE_RECEIPTS=$($audit.nativeSignatureReceipts.Count); STORE_IMMUTABILITY=$($audit.persistentStoreSnapshot);
+        AUDIT_MS=$($audit.auditDurationMs)"
+
+        '
+    - name: Post-package toolchain
+      shell: pwsh
+      run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component package -Phase post -ReceiptDir "$env:RUNNER_TEMP/package-production-preflight/toolchain"
+    - name: Confirm pre-reservation integration source stability
+      shell: pwsh
+      run: '$fp=python -c "from pathlib import Path; from tools.candidate_version import source_fingerprint; print(source_fingerprint(Path(''.'')))"
+
+        if($LASTEXITCODE -ne 0){throw ''Integration post fingerprint failed''}
+
+        $pre=(Get-Content "$env:RUNNER_TEMP/package-production-preflight/integration-fingerprint-pre.txt" -Raw).Trim()
+
+        $fp.Trim()|Set-Content "$env:RUNNER_TEMP/package-production-preflight/integration-fingerprint-post.txt"
+
+        if($pre -cne $fp.Trim()){throw ''Pre-reservation integration source changed''}
+
+        Write-Host ''PRE_RESERVATION_SOURCE_STABILITY=PASS''
+
+        Write-Host ''PRODUCTION_PREFLIGHT_POST_FINGERPRINT=PASS_PRE_RESERVATION_SOURCE_STABLE'' '
+    - name: Qualification report and final hash index
+      shell: pwsh
+      run: '$audit=Get-Content "$env:RUNNER_TEMP/helios-package/offline-installation-signature-audit.json" -Raw|ConvertFrom-Json
+
+        $build=Get-Content "$env:RUNNER_TEMP/package-verifier/package-verifier-build.json" -Raw|ConvertFrom-Json
+
+        @(''PACKAGE_PRODUCTION_INTEGRATION_PREFLIGHT=PASS'',''CANDIDATE_RESERVATION=NOT_RUN'',''INPUT_CANDIDATE_VERSION=22.22.314.0'',''INPUT_CANDIDATE_FINGERPRINT=a034c3d1660540ab717868444c8882ca7883fae485be6955d16ff366daf1babe'',''INPUT_PRODUCT_RUN=37417032761'',''DIAGNOSTIC_PACKAGE_ONLY'',''CANDIDATE_RESERVED=NO'',''PRODUCTION_AUDIT_SCRIPT=REAL_INTEGRATED_SOURCE'',"CONFIGURATION=${{
+        matrix.configuration }}","VERIFIER_SOURCE_SHA256=$($build.sourceSha256)",''PRODUCTION_VERIFIER_SOURCE_MATCH_NATIVE_QUALIFIED=PASS_EXACT_SOURCE'',"VERIFIER_BINARY_SHA256=$($build.outputSha256)","AUDIT_IMAGES=$($audit.images.Count)","NATIVE_SIGNATURE_RECEIPTS=$($audit.nativeSignatureReceipts.Count)","STORE_IMMUTABILITY=$($audit.persistentStoreSnapshot)",''PUBLICATION=NO'',''RUNTIME=NOT_RUN'')
+        | Set-Content "$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt"
+
+        . ./ci/windows/CI-Qualification.ps1
+
+        Write-CIHashIndex "$env:RUNNER_TEMP/helios-package"
+
+        if(Get-ChildItem "$env:RUNNER_TEMP/helios-package" -File -Recurse | Where-Object {$_.Name -ieq ''package-verify.exe''}){throw ''CI-only verifier entered the Package payload''}
+
+        '
+    - name: Seal final Package artifact
+      shell: pwsh
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/helios-package" --receipt "$env:RUNNER_TEMP/package-production-preflight/final-package-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Final Package seal failed''}
+
+        '
+      id: package_seal
+    - name: Upload final Package artifact
+      id: package
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-package-integration-preflight-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/helios-package
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 90
+    - name: Download final Package artifact
+      id: package_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-package-integration-preflight-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/package-production-preflight/roundtrip
+    - name: Verify final Package artifact roundtrip
+      id: package_verify
+      shell: pwsh
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/package-production-preflight/roundtrip" --receipt "$env:RUNNER_TEMP/package-production-preflight/final-package-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Final Package artifact roundtrip failed''}
+
+        '
+    - name: Collect production integration evidence
+      if: always()
+      shell: pwsh
+      run: '$evidence=Join-Path $env:RUNNER_TEMP ''package-production-evidence'';New-Item -ItemType Directory -Force $evidence|Out-Null
+
+        $files=@("$env:RUNNER_TEMP/artifacts/verified-intake.json","$env:RUNNER_TEMP/package-production-preflight/integration-fingerprint-pre.txt","$env:RUNNER_TEMP/package-production-preflight/integration-fingerprint-post.txt","$env:RUNNER_TEMP/package-production-preflight/frozen-input-provenance.json","$env:RUNNER_TEMP/package-verifier/package-verifier-build.json","$env:RUNNER_TEMP/package-production-preflight/final-package-seal.json","$env:RUNNER_TEMP/helios-package/offline-installation-signature-audit.json","$env:RUNNER_TEMP/helios-package/package-certificate-stores-before.json","$env:RUNNER_TEMP/helios-package/package-certificate-stores-after.json","$env:RUNNER_TEMP/helios-package/audit-events.jsonl","$env:RUNNER_TEMP/helios-package/QUALIFICATION_REPORT.txt","$env:RUNNER_TEMP/helios-package/SHA256SUMS.txt")
+
+        foreach($file in $files){if(Test-Path -LiteralPath $file -PathType Leaf){Copy-Item -LiteralPath $file -Destination $evidence -Force}}
+
+        $receipts="$env:RUNNER_TEMP/helios-package/native-signature-receipts"
+
+        if(Test-Path -LiteralPath $receipts -PathType Container){Copy-Item -LiteralPath $receipts -Destination $evidence -Recurse -Force}
+
+        '
+    - name: Seal production integration evidence
+      if: always()
+      id: package_evidence_seal
+      shell: pwsh
+      run: 'python ./ci/windows/artifact_roundtrip.py seal --root "$env:RUNNER_TEMP/package-production-evidence" --receipt "$env:RUNNER_TEMP/package-production-evidence-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Production integration evidence seal failed''}
+
+        '
+    - name: Upload production integration evidence
+      if: ${{ always() && steps.package_evidence_seal.outcome == 'success' }}
+      id: package_evidence
+      uses: actions/upload-artifact@v7
+      with:
+        name: helios-package-integration-evidence-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/package-production-evidence
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 90
+    - name: Download production integration evidence
+      if: ${{ always() && steps.package_evidence.outcome == 'success' }}
+      id: package_evidence_download
+      uses: actions/download-artifact@v8
+      with:
+        name: helios-package-integration-evidence-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/package-production-evidence-roundtrip
+    - name: Verify production evidence roundtrip
+      id: package_evidence_verify
+      if: ${{ always() && steps.package_evidence_download.outcome == 'success' }}
+      shell: pwsh
+      run: 'python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/package-production-evidence-roundtrip" --receipt "$env:RUNNER_TEMP/package-production-evidence-seal.json"
+
+        if($LASTEXITCODE -ne 0){throw ''Production evidence roundtrip failed''}
+
+        '
   package_controls:
     name: Native Package parser control before production patch
     if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.package_controls_only }}
@@ -2371,6 +2709,10 @@ jobs:
     inputs:
       infrastructure_only:
         description: Provision and verify every CI toolchain job without product builds or candidate reservation
+        type: boolean
+        default: false
+      package_production_integration_preflight:
+        description: Build and qualify the real production Package audit on frozen .314 inputs only; never reserves or dispatches a candidate
         type: boolean
         default: false
       python_evidence_only:
