@@ -1,12 +1,13 @@
 """Fetch only the exact preserved paired producer export; never generate signing material."""
-import os,json,hashlib,zipfile,urllib.request,argparse
+import os,json,hashlib,zipfile,subprocess,argparse
 from pathlib import Path
 RUN=37547412355
 SHA='8a27b6059fe4ac6bc79c12b97e23df81812065d0'
 ARTIFACT=11451781562
 DIGEST='f56c2fa166c7d43841fc2536cd87ed2c7d6df3101114725c0437af9222d2ee46'
 def request(path):
- return urllib.request.urlopen(urllib.request.Request('https://api.github.com/repos/wizardkof/helios/'+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','User-Agent':'Helios-diagnostic-fixture'})).read()
+ # Reuse the existing qualified gh transport, which strips API auth on storage redirects.
+ return subprocess.check_output(['gh','api','repos/wizardkof/helios/'+path])
 def main():
  p=argparse.ArgumentParser();p.add_argument('--output',required=True);a=p.parse_args();out=Path(a.output);out.mkdir(parents=True,exist_ok=True)
  api=json.loads(request(f'actions/artifacts/{ARTIFACT}'));assert api['workflow_run']['id']==RUN and api['workflow_run']['head_sha']==SHA and api['digest']=='sha256:'+DIGEST and not api['expired']

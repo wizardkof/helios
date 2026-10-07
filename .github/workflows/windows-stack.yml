@@ -2842,6 +2842,9 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: 'New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/certificate-control"|Out-Null
 
+        [ordered]@{classification="DIAGNOSTIC_CONTROL";controlSha=$env:GITHUB_SHA;controlRun=$env:GITHUB_RUN_ID;controlAttempt=$env:GITHUB_RUN_ATTEMPT;nativeVerifier="NOT_RUN_AT_COLLECTION_START";pairedFixtureSourceRun="37547412355";pairedFixtureSourceSha="8a27b6059fe4ac6bc79c12b97e23df81812065d0"}|ConvertTo-Json|Set-Content
+        "$env:RUNNER_TEMP/certificate-control/control-identity.json"
+
         python ./control/ci/windows/Download-MemoryTrustFixture.py --output "$env:RUNNER_TEMP/memory-fixture"
 
         if($LASTEXITCODE -ne 0){throw "Paired fixture import failed"}'
