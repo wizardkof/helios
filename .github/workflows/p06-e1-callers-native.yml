@@ -1,0 +1,54 @@
+name: P06 versioned ATTEST Windows callers diagnostic
+run-name: DIAGNOSTIC_GREEN_A_CALLERS_316 ${{ github.sha }}
+on:
+  workflow_dispatch:
+  push:
+    branches: [p06/e1-callers-native-20261007]
+    paths: ["tools/p06-e1-callers/**", "ci/windows/Build-E1CallersNative.ps1", ".github/workflows/p06-e1-callers-native.yml"]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: e1-callers-native-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  LLVM_VERSION: '22.1.8'
+  HELIOS_MSVC_VERSION: '14.44.35207'
+  HELIOS_WINDOWS_KIT_VERSION: '10.0.26100.0'
+  PRODUCT_BUILD: 'NOT_RUN'
+  GPU_EXECUTION: 'NOT_RUN'
+jobs:
+  callers:
+    if: github.repository == 'wizardkof/helios'
+    runs-on: windows-2022
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, x86]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+      - uses: actions/checkout@v7
+        with:
+          repository: KhronosGroup/Vulkan-Headers
+          ref: 11d6898377797e07dbd543aaaa367e4465074597
+          path: headers-diagnostic
+          submodules: false
+      - uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+        with:
+          version: ${{ env.LLVM_VERSION }}
+          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-${{ env.LLVM_VERSION }}/LLVM-${{ env.LLVM_VERSION }}-win64.exe
+      - name: Native Windows caller compilation, no GPU execution
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./ci/windows/Build-E1CallersNative.ps1 -Architecture ${{ matrix.architecture }} -HeadersRoot "$env:GITHUB_WORKSPACE/headers-diagnostic" -Output "$env:RUNNER_TEMP/e1-callers-native"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: diagnostic-e1-callers-${{ matrix.architecture }}-${{ github.sha }}
+          path: ${{ runner.temp }}/e1-callers-native
+          if-no-files-found: error
+          retention-days: 30

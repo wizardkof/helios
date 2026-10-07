@@ -1,0 +1,24 @@
+{
+  "kind": "DIAGNOSTIC_CALLERS_TARGET_ONLY_NOT_PRODUCT_SOURCE",
+  "version": "22.22.316.0",
+  "productRunId": "37688261356",
+  "productFreeze": "5a25fb0006904f76e671eb1436bc9d9cb4a977b8",
+  "sourceFingerprint": "892d265ac31d15451b8021b83bbf238de6493caffa8e4e4b2b86284e57c3e5b8",
+  "kmdReleaseSha256": "a4888542b970e103a1c96bad6ad56ce84431862359a58947a7dbccfdfbb74484",
+  "mesa": {
+    "x64": {
+      "sha256": "0c3248570fccfd2bf0904d548c13be182a28ae6de7085ef058af0f1fb8adbf83",
+      "artifactId": 11515664068,
+      "artifactName": "helios-mesa",
+      "apiDigest": "132c46870e7306144b27e7549885a12da82450e5f1f8e598fa6db4e121f92467"
+    },
+    "x86": {
+      "sha256": "47ef659005c385024e4b8bc88028df68e7871db4c1863e9bd38b6adf56367a92",
+      "artifactId": 11515204596,
+      "artifactName": "helios-mesa-x86",
+      "apiDigest": "2646ea5b2cffd4e6025da480e518d1640c43f82628f64738b6db6945708488ff"
+    }
+  },
+  "runtimeGate": "Qualified complete package, controlled deploy, new KMD/Mesa loaded identity, fresh active WTS user/session and DWM/Explorer correlation; never run on315",
+  "gpuExecution": "NOT_RUN"
+}
