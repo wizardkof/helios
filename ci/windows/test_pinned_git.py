@@ -1,4 +1,8 @@
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 import unittest
 import yaml
@@ -6,6 +10,60 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 class PinnedGitContractTests(unittest.TestCase):
+    def test_installer_normalizes_multiple_application_candidates_before_source(self):
+        code = (ROOT/'ci/windows/Install-PinnedGit.ps1').read_text()
+        self.assertRegex(code, r'(?s)\$runnerGitCandidates\s*=\s*@\(\s*Get-Command git[^)]*-All[^)]*\)')
+        selection = '$runnerGit = $runnerGitCandidates | Select-Object -First 1'
+        self.assertIn(selection, code)
+        self.assertLess(code.index(selection), code.index('& $runnerGit.Source --version'))
+        self.assertIn('$receipt.runnerGitPath = [string]$runnerGit.Source', code)
+        self.assertIn('runnerGitCandidates=@()', code)
+        self.assertIn('$runnerGitCandidates | ForEach-Object { [string]$_.Source }', code)
+        self.assertNotIn('& $runnerGitCandidates.Source', code)
+
+    def test_resolution_requires_first_application_not_any_matching_candidate(self):
+        code = (ROOT/'ci/windows/Test-PinnedGit.ps1').read_text()
+        self.assertRegex(code, r'(?s)\$candidates\s*=\s*@\(\s*Get-Command git[^)]*-All[^)]*\)')
+        selection = '$command = $candidates | Select-Object -First 1'
+        self.assertIn(selection, code)
+        self.assertLess(code.index(selection), code.index('[string]$command.Source'))
+        self.assertIn('if ($candidates.Count -lt 1)', code)
+        self.assertIn('resolutionCandidates=', code)
+        self.assertIn('[StringComparison]::OrdinalIgnoreCase', code)
+        self.assertNotIn('(Get-Command git -CommandType Application -ErrorAction Stop).Source', code)
+        self.assertNotIn('$candidates.Count -ne 1', code)
+
+    @unittest.skipUnless(os.name == 'nt' and shutil.which('pwsh'), 'PowerShell native multi-candidate regression requires Windows')
+    def test_native_three_candidates_select_first_and_reject_later_authority(self):
+        install = (ROOT/'ci/windows/Install-PinnedGit.ps1').read_text()
+        # Execute the real observation block; only command discovery is substituted.
+        observation = install[install.index('    $runnerGitCandidates ='):install.index('    $pins =')]
+        test = (ROOT/'ci/windows/Test-PinnedGit.ps1').read_text()
+        resolution = test[test.index('function Assert-GitResolution'):test.index('\ntry {')]
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = [str(Path(temporary)/f'git-{i}.cmd') for i in range(3)]
+            for path in paths:
+                Path(path).write_text('@echo off\necho git version 2.55.0.windows.5\nexit /b 0\n')
+            fixture = json.dumps(paths)
+            script = """$ErrorActionPreference='Stop'
+$paths = ConvertFrom-Json -InputObject '%s'
+function Get-Command { param($Name,$CommandType,[switch]$All,$ErrorAction) $paths | ForEach-Object { [pscustomobject]@{Source=$_;CommandType='Application'} } }
+$receipt = [ordered]@{runnerGitCandidates=@();runnerGitPath=$null;runnerGitVersion=$null;resolution=@()}
+%s
+if($receipt.runnerGitCandidates.Count -ne 3 -or $receipt.runnerGitPath -cne $paths[0]){throw 'Observation did not select first of three candidates'}
+$selected=$paths[0]
+$pins=[pscustomobject]@{gitUpstream=[pscustomobject]@{executableVersion='git version 2.55.0.windows.5'}}
+%s
+Assert-GitResolution 'three-candidates-first-authority'
+if($receipt.resolution[0].resolutionCandidates.Count -ne 3){throw 'Resolution candidates lost'}
+$selected=$paths[1]
+$refused=$false
+try{Assert-GitResolution 'authority-present-but-not-first'}catch{$refused=$true}
+if(-not $refused){throw 'A later matching authority was incorrectly accepted'}
+""" % (fixture.replace("'", "''"), observation, resolution)
+            result = subprocess.run(['pwsh','-NoProfile','-Command',script], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
     def test_release_authority_preserves_native_and_msys_pins(self):
         pins = json.loads((ROOT/'ci/windows/ci-toolchain-pins.json').read_text())
         self.assertEqual(pins['gitVersion'], '2.55.0.5')

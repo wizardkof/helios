@@ -7,14 +7,16 @@ $receipt = [ordered]@{
     schemaVersion=1; status='FAIL'; releaseTag=$null; assetName=$null; acquisitionUrl=$null
     expectedArchiveSha256=$null; observedArchiveSha256=$null
     gitPath=$null; gitSize=$null; gitSha256=$null
-    runnerGitPath=$null; runnerGitVersion=$null
+    runnerGitCandidates=@(); runnerGitPath=$null; runnerGitVersion=$null
     expectedVersion=$null; observedVersion=$null; exitCode=$null; error=$null
 }
 try {
     New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
-    $runnerGit = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
+    $runnerGitCandidates = @(Get-Command git -CommandType Application -All -ErrorAction SilentlyContinue)
+    $receipt.runnerGitCandidates = @($runnerGitCandidates | ForEach-Object { [string]$_.Source })
+    $runnerGit = $runnerGitCandidates | Select-Object -First 1
     if ($runnerGit) {
-        $receipt.runnerGitPath = $runnerGit.Source
+        $receipt.runnerGitPath = [string]$runnerGit.Source
         $receipt.runnerGitVersion = (@(& $runnerGit.Source --version 2>&1 | ForEach-Object {$_.ToString()}) -join "`n").Trim()
     }
     $pins = Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw | ConvertFrom-Json

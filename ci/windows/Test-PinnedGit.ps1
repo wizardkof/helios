@@ -7,10 +7,13 @@ $selected = $env:HELIOS_GIT
 $receipt = [ordered]@{schemaVersion=1;status='FAIL';selectedGit=$selected;version=$null;resolution=@();consumers=@();missingSelection=$null;rejectedVersions=@();error=$null}
 New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
 function Assert-GitResolution([string]$Phase) {
-    $resolved = [IO.Path]::GetFullPath((Get-Command git -CommandType Application -ErrorAction Stop).Source)
+    $candidates = @(Get-Command git -CommandType Application -All -ErrorAction Stop)
+    if ($candidates.Count -lt 1) { throw 'No Git application resolved' }
+    $command = $candidates | Select-Object -First 1
+    $resolved = [IO.Path]::GetFullPath([string]$command.Source)
     $output = @(& $selected --version 2>&1 | ForEach-Object {$_.ToString()}) -join "`n"
     $exit = $LASTEXITCODE
-    $row = [ordered]@{phase=$Phase;resolvedPath=$resolved;selectedPath=$selected;version=$output;exitCode=$exit}
+    $row = [ordered]@{phase=$Phase;resolvedPath=$resolved;selectedPath=$selected;resolutionCandidates=@($candidates | ForEach-Object { [string]$_.Source });version=$output;exitCode=$exit}
     $receipt.resolution += $row
     if (-not [string]::Equals($resolved, [IO.Path]::GetFullPath($selected), [StringComparison]::OrdinalIgnoreCase) -or $exit -ne 0 -or $output.Trim() -cne $pins.gitUpstream.executableVersion) { throw "Pinned Git resolution/version failed at $Phase." }
 }
