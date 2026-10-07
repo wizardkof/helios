@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [p06/e1-resume-315-20261007]
+    paths: ["protocol/**", "kmd_logic/**", "kmd_render/src/adapter/section_probe.rs", "ci/windows/Test-AttestPortNative.ps1", ".github/workflows/p06-attest-port-native.yml", "tools/p06-e1/**"]
 permissions:
   contents: read
 concurrency:

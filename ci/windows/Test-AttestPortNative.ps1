@@ -6,9 +6,11 @@ New-Item -ItemType Directory -Force $Output|Out-Null
 $env:CARGO_TARGET_DIR="C:\helios-diag-target\$Architecture\$env:GITHUB_RUN_ID"
 $target=if($Architecture -eq 'x64'){'x86_64-pc-windows-msvc'}else{'i686-pc-windows-msvc'}
 $root=Resolve-Path "$PSScriptRoot/../.."
-$clang=(Get-Command clang.exe -ErrorAction Stop).Source
+if(!$env:LLVM_PATH){throw 'Pinned LLVM_PATH absent'}
+$clang=Join-Path $env:LLVM_PATH 'bin/clang.exe'
 if(!(Test-Path $clang)){throw 'Pinned clang absent'}
 $version=& $clang --version
+@{Path=$clang;Version=$version;SHA256=(Get-FileHash $clang).Hash;Expected='22.1.8'}|ConvertTo-Json -Depth 4|Set-Content (Join-Path $Output 'clang-before-gate.json')
 if($version[0] -notmatch 'clang version 22\.1\.8'){throw 'Clang identity mismatch'}
 $identity=@{Kind='DIAGNOSTIC_ATTEST_PORT_ONLY';Helios=(& git -C $root rev-parse HEAD).Trim();Mesa=(& git -C $MesaRoot rev-parse HEAD).Trim();Architecture=$Architecture;Clang=$version;ClangSHA256=(Get-FileHash $clang).Hash;Msvc=$env:VCToolsVersion;Sdk=$env:WindowsSDKVersion;Utc=[DateTime]::UtcNow.ToString('o');ProductBuild='NOT_RUN';GpuExecution='NOT_RUN'}
 $identity|ConvertTo-Json -Depth 5|Set-Content (Join-Path $Output 'identity.json')
