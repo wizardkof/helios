@@ -64,6 +64,10 @@ def authenticate_package(package, path, run=None):
     for options in (["--init"], ["--populate", "msys2"]):
         code, _ = command(["bash", "/usr/bin/pacman-key", *options], run, rows)
         if code: raise ValueError("ARCHIVE_SIGNATURE_KEYRING_INIT_FAILED: " + repr(rows))
+    # MSYS2 pacman-key query operations require lock-never, which --init does not add.
+    # This controls GPG file locking only; signature and trusted-signer checks stay enabled.
+    code, _ = command(["bash", "-c", 'set -eu; conf=/etc/pacman.d/gnupg/gpg.conf; test -f "$conf"; grep -q "^[[:space:]]*lock-never[[:space:]]*$" "$conf" || printf "\\nlock-never\\n" >> "$conf"; grep -q "^[[:space:]]*lock-never[[:space:]]*$" "$conf"'], run, rows)
+    if code: raise ValueError("ARCHIVE_SIGNATURE_KEYRING_CONFIG_FAILED: " + repr(rows))
     code, _ = command(["bash", "/usr/bin/pacman-key", "--verify", str(path)+".sig", str(path)], run, rows)
     if code: raise ValueError("ARCHIVE_SIGNATURE_INVALID: " + repr(rows))
     code, text = command(["bsdtar", "-xOf", str(path), ".PKGINFO"], run, rows)

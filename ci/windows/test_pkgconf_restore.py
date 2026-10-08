@@ -98,7 +98,8 @@ class RestoreTests(unittest.TestCase):
         restore.authenticate_package(self.package,self.path,good)
         self.assertIn('--init',calls[0])
         self.assertEqual(calls[1][-2:],['--populate','msys2'])
-        self.assertIn('--verify',calls[2])
+        self.assertIn('lock-never',calls[2][-1])
+        self.assertIn('--verify',calls[3])
     def test_native_child_path_starts_with_qualified_msys2_tools(self):
         root=pathlib.Path(self.temp.name)/'msys64';binary=root/'ucrt64/bin/python.exe';binary.parent.mkdir(parents=True);binary.touch();tool=root/'usr/bin/bash.exe';tool.parent.mkdir(parents=True);tool.touch()
         def child(argv,**kwargs):
