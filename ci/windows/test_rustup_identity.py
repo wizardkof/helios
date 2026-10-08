@@ -11,16 +11,31 @@ SPEC.loader.exec_module(PACKAGE)
 
 class RustupPinIntegrationTests(unittest.TestCase):
     def test_all_production_checkers_use_shared_rustup_identity(self):
-        module = (ROOT / "ci/windows/CIToolchainReceipts.psm1").read_text()
+        module = (ROOT / "ci/windows/CIToolchainOptions.psm1").read_text()
         native = (ROOT / "ci/windows/Assert-CIToolchain.ps1").read_text()
         component = (ROOT / "ci/windows/Assert-ComponentToolchain.ps1").read_text()
         pins = json.loads((ROOT / "ci/windows/ci-toolchain-pins.json").read_text())
         self.assertEqual(pins["rust"]["rustupVersion"], "1.29.1")
-        self.assertIn("Test-CIRustupIdentity", module)
-        self.assertIn("$toolOptions.RustupVersion", native)
-        self.assertIn("$options.RustupVersion", component)
+        self.assertIn("Test-CIRustupIdentity", (ROOT / "ci/windows/CIToolchainReceipts.psm1").read_text())
+        self.assertIn("New-CICheckOptions -Definition $tool", native)
+        self.assertIn("New-CICheckOptions -Definition $check", component)
         self.assertIn("rustupVersion=$pins.rust.rustupVersion", component)
-        self.assertIn("RustupVersion", native)
+        self.assertIn("ContainsKey('rustupVersion')", module)
+        self.assertIn("ContainsKey('pattern')", module)
+
+    def test_strictmode_preflight_runs_before_provisioning_and_keeps_evidence(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / ".github/workflows/windows-stack.yml").read_text())
+        steps = workflow["jobs"]["driver"]["steps"]
+        preflight = next(i for i, step in enumerate(steps) if step.get("id") == "rustup_strictmode_preflight")
+        self.assertLess(preflight, next(i for i, step in enumerate(steps) if "Install-PinnedGit.ps1" in step.get("run", "")))
+        self.assertLess(preflight, next(i for i, step in enumerate(steps) if step.get("name") == "Ensure Windows Driver Kit is installed"))
+        for step in steps[preflight + 1:]:
+            condition = step.get("if", "")
+            if "success() || inputs.infrastructure_only" in condition or "always() && inputs.infrastructure_only" in condition:
+                self.assertIn("steps.rustup_strictmode_preflight.outcome == 'success'", condition, step.get("name"))
+        evidence = next(step for step in steps if step.get("id") == "collect_evidence")
+        self.assertEqual(evidence.get("if"), "always()")
 
     def test_package_acquirer_uses_same_identity_contract_and_keeps_streams(self):
         source = (ROOT / "ci/windows/acquire_package_rust.py").read_text()

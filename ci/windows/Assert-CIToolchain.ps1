@@ -2,6 +2,7 @@ param([Parameter(Mandatory)][string]$ReceiptDir)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Initialize-HeliosBuild.ps1')
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'CIToolchainOptions.psm1') -Force
 $pins = Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw | ConvertFrom-Json
 New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
 $checks = [Collections.Generic.List[object]]::new()
@@ -60,9 +61,7 @@ $priorityBin = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Pa
 if ($priorityBin.Count -gt 0) { $env:PATH = (@($priorityBin) + @($env:PATH -split ';' | Where-Object { $_ -and $_ -notin $priorityBin } | Select-Object -Unique)) -join ';' }
 $env:VULKAN_SDK = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\','/')
 foreach ($tool in $toolChecks) {
-    $toolOptions = @{Name=$tool.name;Arguments=$tool.args;ExpectedVersion=$tool.expected;Phase='post-vs-x64'}
-    if ($tool.pattern) { $toolOptions.VersionPattern = $tool.pattern }
-    if ($tool.rustupVersion) { $toolOptions.RustupVersion = $tool.rustupVersion }
+    $toolOptions = New-CICheckOptions -Definition $tool -BaseOptions @{Phase='post-vs-x64'}
     if ($tool.name -eq 'clang-cl' -and $env:HELIOS_LLVM_BIN) { $toolOptions.ExecutablePath = Join-Path $env:HELIOS_LLVM_BIN 'clang-cl.exe'; $toolOptions.ExpectedResolvedPath = $toolOptions.ExecutablePath }
     if ($tool.name -eq 'widl' -and $env:HELIOS_WIDL) { $toolOptions.ExecutablePath = $env:HELIOS_WIDL; $toolOptions.ExpectedResolvedPath = $env:HELIOS_WIDL }
     $checks.Add((Invoke-CIToolCheck @toolOptions))

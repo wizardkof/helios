@@ -2,6 +2,7 @@ param([Parameter(Mandatory)][ValidateSet('driver','opencl','loaders','compatibil
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Initialize-HeliosBuild.ps1')
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'CIToolchainOptions.psm1') -Force
 $pins=Get-Content (Join-Path $PSScriptRoot 'ci-toolchain-pins.json') -Raw|ConvertFrom-Json
 New-Item -ItemType Directory -Force -Path $ReceiptDir|Out-Null
 $checks=[Collections.Generic.List[object]]::new();$blocked=[Collections.Generic.List[object]]::new()
@@ -75,9 +76,7 @@ if($Component -eq 'package'){
     Add-ComponentValueCheck 'RUSTUP_MAX_RETRIES' '10' $env:RUSTUP_MAX_RETRIES ($env:RUSTUP_MAX_RETRIES -ceq '10')
 }
 foreach($check in $checksToRun){
-    $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;Phase=$Phase}
-    if($check.pattern){$options.VersionPattern=$check.pattern}
-    if($check.rustupVersion){$options.RustupVersion=$check.rustupVersion}
+    $options=New-CICheckOptions -Definition $check -BaseOptions @{Phase=$Phase}
     if($check.name -eq 'git'){
         if(-not $env:HELIOS_GIT -or -not (Test-Path -LiteralPath $env:HELIOS_GIT -PathType Leaf)){
             $blocked.Add([pscustomobject]@{name='git';reason='HELIOS_GIT_REQUIRED: qualified native Git selection is absent or missing'})

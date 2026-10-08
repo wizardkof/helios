@@ -17,10 +17,11 @@ class WorkflowMsysParityTests(unittest.TestCase):
         driver = self.jobs['driver']
         steps = {s.get('id'): s for s in driver['steps']}
         provision = steps['msys2_archive']
-        self.assertEqual(provision.get('if'), '${{ success() || inputs.infrastructure_only }}')
+        self.assertIn("steps.rustup_strictmode_preflight.outcome == 'success'", provision.get('if'))
+        self.assertIn('inputs.infrastructure_only', provision.get('if'))
         self.assertIn('Install-PinnedMSYS2Packages.py" x64 ', provision['run'])
-        self.assertEqual(steps['msys2_archive_verify'].get('if'), INFRA)
-        self.assertEqual(steps['msys_ninja_control'].get('if'), INFRA)
+        self.assertIn("steps.rustup_strictmode_preflight.outcome == 'success'", steps['msys2_archive_verify'].get('if'))
+        self.assertIn("steps.rustup_strictmode_preflight.outcome == 'success'", steps['msys_ninja_control'].get('if'))
         for name in ('mesa', 'mesa_x86', 'opencl', 'loaders', 'compatibility', 'package'):
             self.assertIn('!inputs.infrastructure_only', self.jobs[name]['if'])
         self.assertEqual(steps['s19'].get('if'), '${{ !inputs.infrastructure_only }}')

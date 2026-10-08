@@ -1,6 +1,8 @@
 param([Parameter(Mandatory)][string]$ReceiptDir)
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'CIToolchainOptions.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts-RustupRed.psm1') -Prefix Red -Force
 New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
 $failures = [Collections.Generic.List[string]]::new()
@@ -56,26 +58,57 @@ $red = Invoke-RedCIToolCheck -Name 'rustup' -ExecutablePath $fixture -ExpectedRe
 Assert-That ($red.status -eq 'FAIL' -and $red.error -match 'VERSION_MISMATCH') 'R4 matcher must reproduce RED for valid rustup identity after info line'
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'original-red.json') -Receipt (New-CIToolReceipt -Name 'rustup-original-red' -Checks @($red))
 $cases = @(
-  @{mode='valid';pass=$true}, @{mode='valid-info';pass=$true}, @{mode='valid-after';pass=$true},
-  @{mode='lf';pass=$true}, @{mode='crlf';pass=$true}, @{mode='stderr';pass=$true},
-  @{mode='wrong';pass=$false}, @{mode='prefix';pass=$false}, @{mode='suffix-custom';pass=$false},
-  @{mode='suffix-zero';pass=$false}, @{mode='suffix-plus';pass=$false}, @{mode='info-only';pass=$false},
-  @{mode='prefixed';pass=$false}, @{mode='empty';pass=$false}, @{mode='duplicate';pass=$false},
-  @{mode='conflict';pass=$false}, @{mode='exit23';pass=$false;exit=23}
+  @{mode='valid';pass=$true;expectedError=$null}, @{mode='valid-info';pass=$true;expectedError=$null}, @{mode='valid-after';pass=$true;expectedError=$null},
+  @{mode='lf';pass=$true;expectedError=$null}, @{mode='crlf';pass=$true;expectedError=$null}, @{mode='stderr';pass=$true;expectedError=$null},
+  @{mode='wrong';pass=$false;expectedError='VERSION_MISMATCH'}, @{mode='prefix';pass=$false;expectedError='VERSION_MISMATCH'}, @{mode='suffix-custom';pass=$false;expectedError='VERSION_MISMATCH'},
+  @{mode='suffix-zero';pass=$false;expectedError='VERSION_MISMATCH'}, @{mode='suffix-plus';pass=$false;expectedError='VERSION_MISMATCH'}, @{mode='info-only';pass=$false;expectedError='VERSION_MISMATCH'},
+  @{mode='prefixed';pass=$false;expectedError='VERSION_MISMATCH'}, @{mode='empty';pass=$false;expectedError='VERSION_MISMATCH'}, @{mode='duplicate';pass=$false;expectedError='AMBIGUOUS_RUSTUP_IDENTITY'},
+  @{mode='conflict';pass=$false;expectedError='AMBIGUOUS_RUSTUP_IDENTITY'}, @{mode='exit23';pass=$false;expectedError='EXECUTION_EXIT_NONZERO';exit=23}
 )
 $rows = foreach ($case in $cases) {
+    $expectedExit = Get-CIRustupExpectedExit -Case $case
     $row = Invoke-RustupFixture $case.mode
     $saved = New-CIToolReceipt -Name "rustup-$($case.mode)" -Checks @($row)
     Write-CIToolReceipt -Path (Join-Path $ReceiptDir "$($case.mode).json") -Receipt $saved
-    if ($case.pass -and $row.status -ne 'PASS') { throw "Expected $($case.mode) to pass: $($row.error)" }
-    if (-not $case.pass -and $row.status -ne 'FAIL') { throw "Expected $($case.mode) to fail: $($row.status)" }
-    if ($case.exit -and $row.exitCode -ne $case.exit) { throw "Expected $($case.mode) exit $($case.exit), got $($row.exitCode)" }
+    $actualError = if ($null -eq $row.error) { $null } else { (($row.error -split ';\s*') | Where-Object { $_ -in @('VERSION_MISMATCH','AMBIGUOUS_RUSTUP_IDENTITY','EXECUTION_EXIT_NONZERO') } | Select-Object -Last 1) }
+    if (-not (Test-CIRustupFixtureExpectation -Case $case -ObservedExit ([int]$row.exitCode) -ObservedStatus ([string]$row.status) -ObservedError $actualError)) {
+        throw "Fixture expectation mismatch for $($case.mode): exit=$($row.exitCode), status=$($row.status), error=$actualError; expected exit=$expectedExit, pass=$($case.pass), error=$($case.expectedError)"
+    }
     if ($case.mode -eq 'valid-info') {
         Assert-That ($row.observedVersion -match 'info: This is the version' -and $row.observedVersion -match 'rustc 1.99.0-nightly') 'full stdout must be retained'
         Assert-That ($row.path -ceq $fixture -and $row.size -gt 0 -and $row.sha256.Length -eq 64 -and $row.exitCode -eq 0) 'executable identity and exit must be retained'
     }
     if ($case.mode -eq 'stderr') { Assert-That ($row.observedVersion -match 'stderr before' -and $row.observedVersion -match 'stderr after') 'stderr lines must be captured with stdout' }
-    [pscustomobject]@{mode=$case.mode;status=$row.status;error=$row.error;exitCode=$row.exitCode}
+    [pscustomobject]@{mode=$case.mode;status=$row.status;error=$actualError;exitCode=$row.exitCode}
+}
+
+# The expected-exit assertion must reject a VERSION_MISMATCH expectation when the
+# executable actually failed before producing a valid observation.
+$unknown = Invoke-RustupFixture 'unknown-mode-control'
+$unknownExpectedMismatch = @{mode='unknown-mode-control';pass=$false;expectedError='VERSION_MISMATCH'}
+$unknownWouldMatchVersionMismatch = Test-CIRustupFixtureExpectation -Case $unknownExpectedMismatch -ObservedExit ([int]$unknown.exitCode) -ObservedStatus ([string]$unknown.status) -ObservedError ([string]$unknown.error)
+Assert-That ($unknown.exitCode -eq 99 -and -not $unknownWouldMatchVersionMismatch) 'unknown mode exit 99 must not satisfy a VERSION_MISMATCH control'
+Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'unknown-exit-control.json') -Receipt (New-CIToolReceipt -Name 'rustup-unknown-exit-control' -Checks @($unknown))
+
+# Exercise the same production option builder used by both canonical checkers.
+$commonDefinition = @{name='python';args=@('--version');expected='Python 3.12.10';pattern='^Python 3\.12\.10$';phase='preflight'}
+$commonOptions = New-CICheckOptions -Definition $commonDefinition -BaseOptions @{Name='';Arguments=@();ExpectedVersion='';Phase=''}
+Assert-That ($commonOptions.Name -eq 'python' -and $commonOptions.ExpectedVersion -eq 'Python 3.12.10' -and $commonOptions.VersionPattern -eq '^Python 3\.12\.10$' -and -not $commonOptions.ContainsKey('RustupVersion')) 'common definition options were not preserved/selected'
+$rustupDefinition = @{name='rustup';args=@('--version');expected='rustup 1.29.1';rustupVersion='1.29.1';phase='preflight'}
+$rustupOptions = New-CICheckOptions -Definition $rustupDefinition -BaseOptions @{Name='';Arguments=@();ExpectedVersion='';Phase=''}
+Assert-That ($rustupOptions.RustupVersion -eq '1.29.1' -and -not $rustupOptions.ContainsKey('VersionPattern') -and $rustupOptions.Phase -eq 'preflight') 'rustup definition options were not preserved/selected'
+foreach ($badDefinition in @(@{name='invalid-version';args=@();expected='x';pattern=''}, @{name='invalid-rustup';args=@();expected='x';rustupVersion=$null})) {
+    $rejected = $false
+    try { $null = New-CICheckOptions -Definition $badDefinition -BaseOptions @{} } catch { $rejected = $true }
+    Assert-That $rejected 'invalid present optional definition value must be rejected'
+}
+foreach ($exitCase in @(@{expected=0},@{expected=0;exit=0},@{expected=23;exit=23})) {
+    Assert-That ((Get-CIRustupExpectedExit -Case $exitCase) -eq $exitCase.expected) 'exit expectation contract mismatch'
+}
+foreach ($exitCase in @(@{exit=$null},@{exit='bad'})) {
+    $rejected = $false
+    try { $null = Get-CIRustupExpectedExit -Case $exitCase } catch { $rejected = $true }
+    Assert-That $rejected 'present null/invalid exit expectation must be rejected'
 }
 
 $identityChecks = @(
@@ -107,15 +140,27 @@ try {
         [pscustomobject]@{name='package-pre';script='Assert-ComponentToolchain.ps1';args=@('-Component','package','-Phase','pre','-ReceiptDir',(Join-Path $ReceiptDir 'checker-package-pre'));dir=(Join-Path $ReceiptDir 'checker-package-pre');receipt='pre-producer-tools.json'},
         [pscustomobject]@{name='package-post';script='Assert-ComponentToolchain.ps1';args=@('-Component','package','-Phase','post','-ReceiptDir',(Join-Path $ReceiptDir 'checker-package-post'));dir=(Join-Path $ReceiptDir 'checker-package-post');receipt='post-producer-tools.json'}
     )
+    $fixtureIdentity = [pscustomobject]@{path=[IO.Path]::GetFullPath($namedFixture);size=[long](Get-Item -LiteralPath $namedFixture).Length;sha256=(Get-FileHash -LiteralPath $namedFixture -Algorithm SHA256).Hash.ToLowerInvariant()}
     foreach ($target in $targets) {
         $targetArgs = $target.args
-        try { & (Join-Path $PSScriptRoot $target.script) @targetArgs } catch { }
+        $checkerException = $null
+        try { & (Join-Path $PSScriptRoot $target.script) @targetArgs } catch { $checkerException = [pscustomobject]@{type=$_.Exception.GetType().FullName;message=$_.Exception.Message} }
         $receiptPath = Join-Path $target.dir $target.receipt
-        if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) { throw "$($target.name) did not write its production receipt" }
-        $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-        $row = $receipt.checks | Where-Object requestedName -eq 'rustup' | Select-Object -First 1
-        if (-not $row -or $row.status -ne 'PASS' -or $row.exitCode -ne 0 -or $row.observedVersion -notmatch 'info: This is the version') { throw "$($target.name) did not accept the pinned rustup identity while preserving output" }
-        Write-CIToolReceipt -Path (Join-Path $ReceiptDir "checker-$($target.name).json") -Receipt $receipt
+        $receipt = $null
+        if (Test-Path -LiteralPath $receiptPath -PathType Leaf) { $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json }
+        $rowsForRustup = if ($receipt) { @($receipt.checks | Where-Object requestedName -eq 'rustup') } else { @() }
+        $rustupRowResult = 'FAIL'
+        if ($rowsForRustup.Count -eq 1) {
+            $row = $rowsForRustup[0]
+            $identityOk = $row.path -ceq $fixtureIdentity.path -and $row.resolvedPath -ceq $fixtureIdentity.path -and [long]$row.size -eq $fixtureIdentity.size -and $row.sha256 -ceq $fixtureIdentity.sha256 -and [int]$row.exitCode -eq 0 -and $row.status -eq 'PASS' -and $null -eq $row.error -and $row.observedVersion -match 'info: This is the version' -and $row.observedVersion -match 'rustc 1.99.0-nightly'
+            if ($identityOk) { $rustupRowResult = 'PASS' }
+        }
+        $otherFailedChecks = if ($receipt) { @($receipt.checks | Where-Object { $_.requestedName -ne 'rustup' -and $_.status -ne 'PASS' } | ForEach-Object { [pscustomobject]@{name=$_.requestedName;status=$_.status;error=$_.error} }) } else { @() }
+        $blockers = if ($receipt) { @($receipt.blocked) } else { @() }
+        $wholeCheckerResult = if ($receipt) { [string]$receipt.status } else { 'NO_RECEIPT' }
+        $control = [pscustomobject][ordered]@{schemaVersion=1;name="checker-focal-control-$($target.name)";status='FOCAL_ROW_ONLY';target=$target.name;RUSTUP_ROW_RESULT=$rustupRowResult;WHOLE_CHECKER_RESULT=$wholeCheckerResult;OTHER_FAILED_CHECKS=$otherFailedChecks;BLOCKERS=$blockers;CHECKER_EXCEPTION=$checkerException;PRODUCT_SOURCE_READINESS='NOT_PROVEN';rustupRowCount=$rowsForRustup.Count;fixture=$fixtureIdentity}
+        Write-CIToolReceipt -Path (Join-Path $ReceiptDir "checker-$($target.name).json") -Receipt $control
+        if ($rustupRowResult -ne 'PASS') { throw "$($target.name) rustup focal receipt row failed identity/result assertions" }
     }
 } finally {
     $env:PATH = $savedPath

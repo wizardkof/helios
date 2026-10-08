@@ -38,11 +38,12 @@ class WorkflowInfrastructureOnlyTests(unittest.TestCase):
             if name in ('Install Meson', 'Install and validate Vulkan SDK'):
                 self.assertNotIn('if',step,name)
             else:
-                self.assertEqual(step['if'],'${{ success() || inputs.infrastructure_only }}',name)
+                self.assertIn("steps.rustup_strictmode_preflight.outcome == 'success'", step['if'], name)
+                self.assertIn('inputs.infrastructure_only', step['if'], name)
         for name in ('Build pinned Wine 11.12 WIDL from official source', 'Capture Mesa MSYS2 package and Ninja consumer preflight'):
             step = next(step for step in steps if step.get('name') == name)
-            expected='${{ success() || inputs.infrastructure_only }}' if name.startswith('Build pinned') else '${{ always() && inputs.infrastructure_only }}'
-            self.assertEqual(step['if'],expected,name)
+            self.assertIn("steps.rustup_strictmode_preflight.outcome == 'success'", step['if'], name)
+            self.assertIn('inputs.infrastructure_only', step['if'], name)
 
     def test_widl_build_uses_msys_make_and_disables_unneeded_freetype(self):
         from pathlib import Path
