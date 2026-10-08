@@ -1403,7 +1403,9 @@ pub fn submit_venus_async(
     ring_idx: u32,
     stream: &[u8],
 ) -> Result<u64, VirtioError> {
-    submit_venus_async_inner(passive, adapter, owner, ctx_id, ring_idx, stream, None)
+    submit_venus_async_inner(
+        passive, adapter, owner, ctx_id, ring_idx, stream, None, None,
+    )
 }
 
 /// Tagged async submit for a registered present stream.  `cookie` and `value`
@@ -1428,36 +1430,77 @@ pub fn submit_venus_async_present_stream(
         ring_idx,
         stream,
         Some((owner, cookie, value)),
+        None,
     );
 
     if result.is_err() {
-        // The UMD Present marker is deliberately allowed to reach VidSch before
-        // Mesa has queued this tagged batch.  Once this function returns an
-        // error, however, no tag can ever retire that marker.  Revoke the exact
-        // registration and explicitly discharge its scheduler condition while
-        // retaining the ordinary wire/GPU watermark; otherwise an allocation or
-        // queue failure here can leave DMA_COMPLETED waiting forever for a tag
-        // that was never placed on the transport.
-        let _ = adapter.with_wddm_notify_lock(|guard| {
-            guard.with_virtio(|order, v| {
-                // `submit_venus_async_inner` opportunistically drains used
-                // descriptors before enqueue. If that drain consumed a host
-                // rejection, the stream is already dead and unregister returns
-                // false; still run the ordered discharge here so correctness
-                // never depends on receiving the interrupt that prompted the
-                // opportunistic drain in the first place.
-                let _ =
-                    v.cancel_present_buffer_read_claims_before_submit(owner, ctx_id, cookie, value);
-                let _ = v.unregister_present_stream(order, owner, ctx_id, cookie);
-                let _ = v.discharge_dead_present_stream_waits(order);
-            })
-        });
-        // Rare terminal path: request unconditionally. The stream may have
-        // been invalidated by the drain above even when exact unregister could
-        // no longer find it, and a now-ready WDDM head needs a fresh DPC edge.
-        crate::ddi::interrupt::request_wddm_completion_dpc(adapter);
+        cancel_failed_present_stream(adapter, owner, ctx_id, cookie, value);
     }
 
+    result
+}
+
+fn cancel_failed_present_stream(
+    adapter: &AdapterContext,
+    owner: DeviceOwner,
+    ctx_id: u32,
+    cookie: u64,
+    value: u32,
+) {
+    // The UMD Present marker is deliberately allowed to reach VidSch before
+    // Mesa has queued this tagged batch.  Once this function returns an
+    // error, however, no tag can ever retire that marker.  Revoke the exact
+    // registration and explicitly discharge its scheduler condition while
+    // retaining the ordinary wire/GPU watermark; otherwise an allocation or
+    // queue failure here can leave DMA_COMPLETED waiting forever for a tag
+    // that was never placed on the transport.
+    let _ = adapter.with_wddm_notify_lock(|guard| {
+        guard.with_virtio(|order, v| {
+            // `submit_venus_async_inner` opportunistically drains used
+            // descriptors before enqueue. If that drain consumed a host
+            // rejection, the stream is already dead and unregister returns
+            // false; still run the ordered discharge here so correctness
+            // never depends on receiving the interrupt that prompted the
+            // opportunistic drain in the first place.
+            let _ = v.cancel_present_buffer_read_claims_before_submit(owner, ctx_id, cookie, value);
+            let _ = v.unregister_present_stream(order, owner, ctx_id, cookie);
+            let _ = v.discharge_dead_present_stream_waits(order);
+        })
+    });
+    // Rare terminal path: request unconditionally. The stream may have
+    // been invalidated by the drain above even when exact unregister could
+    // no longer find it, and a now-ready WDDM head needs a fresh DPC edge.
+    crate::ddi::interrupt::request_wddm_completion_dpc(adapter);
+}
+
+pub(crate) fn submit_venus_async_e1(
+    passive: PassiveLevel,
+    adapter: &AdapterContext,
+    owner: DeviceOwner,
+    ctx_id: u32,
+    ring_idx: u32,
+    stream: &[u8],
+    cookie: u64,
+    value: u32,
+    batch: crate::adapter::green_b::Batch,
+) -> Result<u64, VirtioError> {
+    let result = submit_venus_async_inner(
+        passive,
+        adapter,
+        Some(owner),
+        ctx_id,
+        ring_idx,
+        stream,
+        if cookie != 0 {
+            Some((owner, cookie, value))
+        } else {
+            None
+        },
+        Some(batch),
+    );
+    if result.is_err() && cookie != 0 {
+        cancel_failed_present_stream(adapter, owner, ctx_id, cookie, value);
+    }
     result
 }
 
@@ -1469,6 +1512,7 @@ fn submit_venus_async_inner(
     ring_idx: u32,
     stream: &[u8],
     present_stream: Option<(DeviceOwner, u64, u32)>,
+    e1_batch: Option<crate::adapter::green_b::Batch>,
 ) -> Result<u64, VirtioError> {
     if stream.is_empty() {
         return Err(VirtioError::DeviceError);
@@ -1518,18 +1562,34 @@ fn submit_venus_async_inner(
         let waiter_ref = &space_waiter;
         let res = adapter.with_virtio(move |v| {
             v.drain_used();
-            let result = match present_stream {
-                Some((stream_owner, cookie, value)) => v.enqueue_async_submit_present_stream(
-                    stream_owner,
+            let result = if let Some(batch) = e1_batch {
+                let Some(owner) = owner else {
+                    return Err((meta, venus, VirtioError::NotOwned));
+                };
+                v.enqueue_e1_submit(
+                    owner,
                     ctx_id,
                     ring_idx,
-                    cookie,
-                    value,
                     meta,
                     venus,
                     venus_len,
-                ),
-                None => v.enqueue_async_submit(ctx_id, ring_idx, meta, venus, venus_len),
+                    present_stream.map(|(_, c, v)| (c, v)),
+                    batch,
+                )
+            } else {
+                match present_stream {
+                    Some((stream_owner, cookie, value)) => v.enqueue_async_submit_present_stream(
+                        stream_owner,
+                        ctx_id,
+                        ring_idx,
+                        cookie,
+                        value,
+                        meta,
+                        venus,
+                        venus_len,
+                    ),
+                    None => v.enqueue_async_submit(ctx_id, ring_idx, meta, venus, venus_len),
+                }
             };
             if matches!(result, Err((_, _, VirtioError::QueueFull))) {
                 if let Some(waiter) = waiter_ref {
@@ -1832,7 +1892,9 @@ pub enum WaitFenceOutcome {
     Invalid,
 }
 
-fn terminal_wait_outcome(state: helios_kmd_logic::fence_completion::TerminalState) -> WaitFenceOutcome {
+fn terminal_wait_outcome(
+    state: helios_kmd_logic::fence_completion::TerminalState,
+) -> WaitFenceOutcome {
     use helios_kmd_logic::fence_completion::TerminalState;
     match state {
         TerminalState::Pending => WaitFenceOutcome::TimedOut,
@@ -1864,7 +1926,9 @@ pub fn wait_fence(
             match prep {
                 Err(_) => return WaitFenceOutcome::Invalid, // transport gone
                 Ok(FenceWaitPrep::Complete) => return WaitFenceOutcome::Complete,
-                Ok(FenceWaitPrep::Error(response_type)) => return WaitFenceOutcome::Error(response_type),
+                Ok(FenceWaitPrep::Error(response_type)) => {
+                    return WaitFenceOutcome::Error(response_type)
+                }
                 Ok(FenceWaitPrep::Invalid) => return WaitFenceOutcome::Invalid,
                 Ok(FenceWaitPrep::TableFull) => {
                     full_retries += 1;
@@ -1887,7 +1951,9 @@ pub fn wait_fence(
 
         if timeout_ns == 0 {
             // Poll: deregister immediately; completion may still have raced in.
-            return match adapter.with_virtio(|v| v.fence_wait_cancel(block.as_ptr(), completion_slot)) {
+            return match adapter
+                .with_virtio(|v| v.fence_wait_cancel(block.as_ptr(), completion_slot))
+            {
                 Ok(state) => terminal_wait_outcome(state),
                 // Transport gone: the fence did NOT retire. Reporting Complete here
                 // made escape_wait_fence write out_completed = 1 and return

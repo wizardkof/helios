@@ -51,7 +51,7 @@ use helios_protocol::{
     resp_is_ok, VirtioGpuCmdSubmit, VirtioGpuCtrlHdr, VirtioGpuRespDisplayInfo,
     VirtioGpuSetScanoutBlob, HELIOS_OPTIONAL_FEATURES, HELIOS_REQUIRED_FEATURES,
     VIRTIO_GPU_CMD_GET_DISPLAY_INFO, VIRTIO_GPU_CMD_SUBMIT_3D, VIRTIO_GPU_FLAG_FENCE,
-    VIRTIO_GPU_FLAG_INFO_RING_IDX,
+    VIRTIO_GPU_FLAG_INFO_RING_IDX, VIRTIO_GPU_RESP_OK_NODATA,
 };
 use virtio_drivers::queue::VirtQueue;
 use virtio_drivers::transport::pci::bus::{DeviceFunction, PciRoot};
@@ -822,6 +822,8 @@ enum InFlightKind {
     /// GPU-completion fence (virglrenderer vkr sync thread) that legally stays
     /// in flight for the full GPU-work duration.
     AsyncVenus {
+        e1_batch: Option<crate::adapter::green_b::Batch>,
+        e1_ctx: u32,
         fence_id: u64,
         ring_idx: u8,
         completion_slot: usize,
@@ -3792,6 +3794,44 @@ impl VirtioGpu {
     /// pending FIFO. `meta` carries `[SUBMIT_3D hdr | ctrl resp]`; `venus` is
     /// the opaque stream (second device-read descriptor — kept split so the
     /// host never mis-parses the submit header as another control command).
+    pub(crate) fn enqueue_e1_submit(
+        &mut self,
+        owner: DeviceOwner,
+        ctx_id: u32,
+        ring_idx: u32,
+        meta: DmaBuffer,
+        venus: DmaBuffer,
+        venus_len: usize,
+        present: Option<(u64, u32)>,
+        batch: crate::adapter::green_b::Batch,
+    ) -> Result<u64, (DmaBuffer, DmaBuffer, VirtioError)> {
+        if ring_idx == 0 || ring_idx > 255 || self.resolve_owned_ctx(Some(owner), ctx_id).is_none()
+        {
+            return Err((meta, venus, VirtioError::NotOwned));
+        }
+        let retire = match present {
+            Some((cookie, value)) => {
+                match self.prepare_present_stream_tag(owner, ctx_id, ring_idx, cookie, value) {
+                    Ok(r) => Some(r),
+                    Err(e) => return Err((meta, venus, e)),
+                }
+            }
+            None => None,
+        };
+        self.enqueue_submit_inner(
+            ctx_id,
+            ring_idx,
+            meta,
+            venus,
+            venus_len,
+            None,
+            retire,
+            None,
+            None,
+            Some(batch),
+        )
+    }
+
     pub fn enqueue_async_submit(
         &mut self,
         ctx_id: u32,
@@ -3801,7 +3841,7 @@ impl VirtioGpu {
         venus_len: usize,
     ) -> Result<u64, (DmaBuffer, DmaBuffer, VirtioError)> {
         self.enqueue_submit_inner(
-            ctx_id, ring_idx, meta, venus, venus_len, None, None, None, None,
+            ctx_id, ring_idx, meta, venus, venus_len, None, None, None, None, None,
         )
     }
 
@@ -3824,6 +3864,7 @@ impl VirtioGpu {
             None,
             None,
             Some(resource_id),
+            None,
         )
     }
 
@@ -3863,6 +3904,7 @@ impl VirtioGpu {
                 stream_boundary,
             }),
             None,
+            None,
         )
     }
 
@@ -3892,6 +3934,7 @@ impl VirtioGpu {
             venus_len,
             None,
             Some(retire),
+            None,
             None,
             None,
         )
@@ -3928,6 +3971,7 @@ impl VirtioGpu {
             None,
             None,
             None,
+            None,
         )
     }
 
@@ -3944,6 +3988,7 @@ impl VirtioGpu {
         present_stream: Option<PresentStreamRetire>,
         windowed_blt: Option<WindowedBltRetire>,
         present_buffer_write: Option<u32>,
+        e1_batch: Option<crate::adapter::green_b::Batch>,
     ) -> Result<u64, (DmaBuffer, DmaBuffer, VirtioError)> {
         let hdr_len = core::mem::size_of::<VirtioGpuCmdSubmit>();
         let resp_len = core::mem::size_of::<VirtioGpuCtrlHdr>();
@@ -3981,10 +4026,19 @@ impl VirtioGpu {
         cmd.size = venus_len as u32;
         meta.as_mut_slice()[..hdr_len].copy_from_slice(bytemuck::bytes_of(&cmd));
 
+        if let Some(batch) = e1_batch {
+            if !batch.associate(identity.generation, fence_id, ctx_id) {
+                self.completions[completion_slot].abandon_pending(identity);
+                return Err((meta, venus, VirtioError::DeviceError));
+            }
+        }
         let chain = Chain::MetaPlusVenus { hdr_len, venus_len };
         let token = match self.enqueue_core(chain, &meta, Some(&venus), resp_len) {
             Ok(token) => token,
             Err(e) => {
+                if let Some(batch) = e1_batch {
+                    batch.rollback_admission();
+                }
                 self.completions[completion_slot].abandon_pending(identity);
                 return Err((meta, venus, e));
             }
@@ -4004,6 +4058,8 @@ impl VirtioGpu {
         self.publish_then_notify(InFlight {
             token,
             kind: InFlightKind::AsyncVenus {
+                e1_batch,
+                e1_ctx: ctx_id,
                 fence_id,
                 ring_idx: ring,
                 completion_slot,
@@ -4041,6 +4097,13 @@ impl VirtioGpu {
     /// mistake in the Sync-waiter sequence is a use-after-free of a stack block.
     fn latch_failed_and_fail_inflight(&mut self) {
         self.failed = true;
+        if self.producer_adapter != 0 {
+            // SAFETY: attached stable adapter outlives this transport. This
+            // atomics/event-only edge also covers registered unbound waiters.
+            crate::adapter::green_b::notify_device_loss(unsafe {
+                &*(self.producer_adapter as *const crate::adapter::AdapterContext)
+            });
+        }
         self.control_space_epoch = self.control_space_epoch.wrapping_add(1);
         // Neither a host-accepted completion nor a deferred producer boundary
         // survives a terminal transport failure. Clear both value-only slots so
@@ -4134,11 +4197,17 @@ impl VirtioGpu {
                     crate::ddi::scanout_trace::note_fast_bind_error();
                 }
                 InFlightKind::AsyncVenus {
+                    e1_batch,
+                    e1_ctx,
+                    fence_id,
                     scanout_notify,
                     present_stream: _,
                     windowed_blt,
                     ..
                 } => {
+                    if let Some(batch) = e1_batch {
+                        batch.outcome(self.wire_fence_base, fence_id, e1_ctx, 0x1200);
+                    }
                     // A transport latch is an epoch abort, not a producer
                     // retirement. `purge_all_present_streams` below explicitly
                     // cancels every remaining stream; advancing a marker here
@@ -4218,6 +4287,18 @@ impl VirtioGpu {
     /// (token-matched), signal sync/fence waiters, and park the entry for a
     /// PASSIVE reap. The ONLY used-ring consumer (interrupt DPC + opportunistic
     /// callers under the same spinlock).
+    /// Retain DMA ownership at DISPATCH; reclamation occurs only in the
+    /// existing PASSIVE reap. Capacity was preallocated during bring-up.
+    fn park_drained(&mut self, entry: InFlight) {
+        if self.parked.len() < MAX_PARKED {
+            self.parked.push(entry);
+            bump_high_water(&PARKED_HIGH_WATER, self.parked.len());
+        } else {
+            PARKED_LEAKS.fetch_add(1, Ordering::Relaxed);
+            core::mem::forget(entry);
+        }
+    }
+
     pub fn drain_used(&mut self) {
         if self.failed {
             return;
@@ -4520,6 +4601,8 @@ impl VirtioGpu {
                     }
                 }
                 InFlightKind::AsyncVenus {
+                    e1_batch,
+                    e1_ctx,
                     fence_id,
                     ring_idx,
                     completion_slot,
@@ -4532,7 +4615,21 @@ impl VirtioGpu {
                     if ring_idx != 0 {
                         RING_COMPLETE_COUNT.fetch_add(1, Ordering::Relaxed);
                     }
-                    let response_ok = resp_is_ok(resp_type);
+                    let transport_response = if e1_batch.is_some() {
+                        let classified = crate::adapter::green_b::completion_response(resp_type);
+                        if classified == 0 {
+                            VIRTIO_GPU_RESP_OK_NODATA
+                        } else {
+                            classified
+                        }
+                    } else {
+                        resp_type
+                    };
+                    let response_ok = if e1_batch.is_some() {
+                        transport_response == VIRTIO_GPU_RESP_OK_NODATA
+                    } else {
+                        resp_is_ok(resp_type)
+                    };
                     if !response_ok {
                         ASYNC_RESP_ERRORS.fetch_add(1, Ordering::Relaxed);
                         P06_DIAG.record_async_error_drain(fence_id, resp_type);
@@ -4541,11 +4638,46 @@ impl VirtioGpu {
                         generation: self.wire_fence_base,
                         fence_id,
                     };
-                    if !self.completions[completion_slot].complete(completed_identity, resp_type) {
-                        DRAIN_BAD_TOKEN.fetch_add(1, Ordering::Relaxed);
+                    let e1_response_valid = if e1_batch.is_some() {
+                        // SAFETY: async submit reserves a full VirtioGpuCtrlHdr
+                        // response span; descriptor ownership was validated above.
+                        let response = unsafe {
+                            core::ptr::read_unaligned(resp_base as *const VirtioGpuCtrlHdr)
+                        };
+                        response.flags & VIRTIO_GPU_FLAG_FENCE != 0
+                            && response.fence_id == fence_id
+                            && response.ctx_id == e1_ctx
+                    } else {
+                        true
+                    };
+                    if !e1_response_valid {
+                        if let Some(batch) = e1_batch {
+                            batch.outcome(self.wire_fence_base, fence_id, e1_ctx, 0x1200);
+                        }
+                        self.park_drained(entry);
                         self.latch_failed_and_fail_inflight();
                         return;
                     }
+                    if !self.completions[completion_slot]
+                        .complete(completed_identity, transport_response)
+                    {
+                        if let Some(batch) = e1_batch {
+                            batch.outcome(self.wire_fence_base, fence_id, e1_ctx, 0x1200);
+                        }
+                        DRAIN_BAD_TOKEN.fetch_add(1, Ordering::Relaxed);
+                        self.park_drained(entry);
+                        self.latch_failed_and_fail_inflight();
+                        return;
+                    }
+                    if let Some(batch) = e1_batch {
+                        batch.outcome(
+                            completed_identity.generation,
+                            fence_id,
+                            e1_ctx,
+                            crate::adapter::green_b::completion_response(resp_type),
+                        );
+                    }
+
                     // Only a successful host response retires this stream
                     // value.  A rejected tagged submit invalidates the stream
                     // instead; the next ordered WDDM pass explicitly discharges
@@ -4855,8 +4987,13 @@ impl VirtioGpu {
     // ── Wire-fence table (WAIT_FENCE) ────────────────────────────────────────
 
     fn completion_slot_for_fence(&self, fence_id: u64) -> Option<usize> {
-        let identity = FenceIdentity { generation: self.wire_fence_base, fence_id };
-        self.completions.iter().position(|entry| entry.identity() == Some(identity))
+        let identity = FenceIdentity {
+            generation: self.wire_fence_base,
+            fence_id,
+        };
+        self.completions
+            .iter()
+            .position(|entry| entry.identity() == Some(identity))
     }
 
     /// Prepare a wait on wire fence `fence_id`, registering `block` if the
@@ -4892,7 +5029,10 @@ impl VirtioGpu {
         let Some(completion_slot) = self.completion_slot_for_fence(fence_id) else {
             return FenceWaitPrep::Complete;
         };
-        let identity = FenceIdentity { generation: self.wire_fence_base, fence_id };
+        let identity = FenceIdentity {
+            generation: self.wire_fence_base,
+            fence_id,
+        };
         match self.completions[completion_slot].state() {
             TerminalState::Success => return FenceWaitPrep::Complete,
             TerminalState::Error { response_type } => return FenceWaitPrep::Error(response_type),
@@ -4904,23 +5044,35 @@ impl VirtioGpu {
         if !self.completions[completion_slot].add_consumer(identity) {
             return FenceWaitPrep::TableFull;
         }
-        self.fence_waiters.push(FenceWaiter { fence_id, completion_slot, block });
+        self.fence_waiters.push(FenceWaiter {
+            fence_id,
+            completion_slot,
+            block,
+        });
         FENCE_WAIT_REGISTERED.fetch_add(1, Ordering::Relaxed);
         FenceWaitPrep::Registered(completion_slot)
     }
 
     /// Deregister a timed-out fence waiter. Returns `true` if the fence had
     /// ALREADY completed (the drain signaled + removed the waiter first).
-    pub fn fence_wait_cancel(&mut self, block: NonNull<SyncWaitBlock>, completion_slot: usize) -> TerminalState {
+    pub fn fence_wait_cancel(
+        &mut self,
+        block: NonNull<SyncWaitBlock>,
+        completion_slot: usize,
+    ) -> TerminalState {
         if let Some(i) = self.fence_waiters.iter().position(|w| w.block == block) {
             let w = self.fence_waiters.swap_remove(i);
-            if w.completion_slot != completion_slot { return TerminalState::Pending; }
+            if w.completion_slot != completion_slot {
+                return TerminalState::Pending;
+            }
         }
         self.fence_wait_consume(completion_slot)
     }
 
     pub fn fence_wait_consume(&mut self, completion_slot: usize) -> TerminalState {
-        let Some(record) = self.completions.get_mut(completion_slot) else { return TerminalState::Pending; };
+        let Some(record) = self.completions.get_mut(completion_slot) else {
+            return TerminalState::Pending;
+        };
         let state = record.state();
         if let Some(identity) = record.identity() {
             let _ = record.release_consumer(identity);
@@ -4956,7 +5108,11 @@ impl VirtioGpu {
         )
     }
 
-    fn fence_event_register_inner(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventReg {
+    fn fence_event_register_inner(
+        &mut self,
+        fence_id: u64,
+        event: NonNull<KEVENT>,
+    ) -> FenceEventReg {
         // As in fence_wait_prepare. `Invalid` leaves the object reference with
         // the caller, per the ownership contract documented on this function —
         // including the foreign-generation arm below, which is why it returns
@@ -4972,10 +5128,15 @@ impl VirtioGpu {
             FENCE_EVENT_ALREADY_COMPLETE.fetch_add(1, Ordering::Relaxed);
             return FenceEventReg::AlreadyComplete;
         };
-        let identity = FenceIdentity { generation: self.wire_fence_base, fence_id };
+        let identity = FenceIdentity {
+            generation: self.wire_fence_base,
+            fence_id,
+        };
         match self.completions[completion_slot].state() {
             TerminalState::Success => return FenceEventReg::AlreadyComplete,
-            TerminalState::Error { response_type } => return FenceEventReg::AlreadyError(response_type),
+            TerminalState::Error { response_type } => {
+                return FenceEventReg::AlreadyError(response_type)
+            }
             TerminalState::Pending => {}
         }
         if self
@@ -4993,7 +5154,11 @@ impl VirtioGpu {
         if !self.completions[completion_slot].add_consumer(identity) {
             return FenceEventReg::TableFull;
         }
-        self.fence_events.push(FenceEventEntry { fence_id, completion_slot, event });
+        self.fence_events.push(FenceEventEntry {
+            fence_id,
+            completion_slot,
+            event,
+        });
         bump_high_water(&FENCE_EVENT_HIGH_WATER, self.fence_events.len());
         FENCE_EVENT_REGISTERS.fetch_add(1, Ordering::Relaxed);
         FenceEventReg::Registered
@@ -5003,7 +5168,11 @@ impl VirtioGpu {
     /// was found and removed — the TABLE's object reference transfers back to
     /// the caller (who must deref it); `false` = no such entry (the drain
     /// consumed it — the event was signaled — or it was never parked).
-    pub fn fence_event_unregister(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventUnreg {
+    pub fn fence_event_unregister(
+        &mut self,
+        fence_id: u64,
+        event: NonNull<KEVENT>,
+    ) -> FenceEventUnreg {
         helios_kmd_logic::observe_result_preserving(
             self.fence_event_unregister_inner(fence_id, event),
             |result| {
@@ -5018,14 +5187,21 @@ impl VirtioGpu {
         )
     }
 
-    fn fence_event_unregister_inner(&mut self, fence_id: u64, event: NonNull<KEVENT>) -> FenceEventUnreg {
+    fn fence_event_unregister_inner(
+        &mut self,
+        fence_id: u64,
+        event: NonNull<KEVENT>,
+    ) -> FenceEventUnreg {
         if let Some(i) = self
             .fence_events
             .iter()
             .position(|e| e.fence_id == fence_id && e.event == event)
         {
             let e = self.fence_events.swap_remove(i);
-            let identity = FenceIdentity { generation: self.wire_fence_base, fence_id };
+            let identity = FenceIdentity {
+                generation: self.wire_fence_base,
+                fence_id,
+            };
             let state = self.completions[e.completion_slot].state();
             let _ = self.completions[e.completion_slot].release_consumer(identity);
             FENCE_EVENT_CANCELS.fetch_add(1, Ordering::Relaxed);
@@ -5035,7 +5211,10 @@ impl VirtioGpu {
                 TerminalState::Error { response_type } => FenceEventUnreg::Error(response_type),
             };
         }
-        match self.completion_slot_for_fence(fence_id).map(|i| self.completions[i].state()) {
+        match self
+            .completion_slot_for_fence(fence_id)
+            .map(|i| self.completions[i].state())
+        {
             Some(TerminalState::Error { response_type }) => FenceEventUnreg::Error(response_type),
             _ => FenceEventUnreg::NotFound,
         }

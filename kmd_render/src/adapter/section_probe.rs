@@ -18,8 +18,7 @@ use helios_protocol::{
 use wdk_sys::ntddk::{KeSetEvent, KeWaitForSingleObject};
 use wdk_sys::{HANDLE, NTSTATUS, PVOID};
 
-#[path = "section_attest.rs"]
-mod section_attest;
+use super::section_attest;
 
 use super::AdapterContext;
 
@@ -214,7 +213,7 @@ fn capture_requestor_sid(storage: &mut [u64; 9]) -> Result<usize, (u64, NTSTATUS
     Ok(sid_len)
 }
 
-fn with_slots<R>(
+pub(super) fn with_slots<R>(
     adapter: &AdapterContext,
     f: impl FnOnce(&mut [SectionSlot; MAX_SLOTS]) -> R,
 ) -> Result<R, NTSTATUS> {
@@ -662,7 +661,7 @@ fn write_record(view: usize, probe_id: u32, generation: u64, sequence: u64, valu
     }
 }
 
-fn write_production_record(
+pub(super) fn write_production_record(
     view: usize,
     carrier_id: [u8; 16],
     sequence: u64,

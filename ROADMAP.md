@@ -1,5 +1,40 @@
 # ROADMAP — Stage: Correctness and D3D12
 
+
+## P06 E1 GREEN-B — unreserved source integration, 2026-10-08
+
+Isolated development is derived from the approved .316 freeze 5a25fb0 and Mesa
+0a607ff. The frozen sources, GREEN-A 54/54 receipts and installed .316 remain
+preserved. No product version is reserved and no product or runtime deployment
+is authorized in this source campaign.
+
+Production E1_CONTROL 0x1b (QUERY/REGISTER/UNREGISTER) and E1_SUBMIT 0x1c are now
+wired to exact Section references, pre-admission transport association, correlated
+fence outcomes, the existing HPD PASSIVE worker, v2 record publication and event
+notification. Mesa uses the new submit route only with E1 capability and valid
+carriers; failed E1 submits never retry as legacy 0x0001. Blocking all-E1 waits
+use predicate rechecks, registration tokens and one deadline; mixed wait sets and
+unsupported sync-only E1 submissions fail explicitly. Legacy paths are preserved.
+
+Protocol and kmd_logic suites, exact production broker/submit/wait extraction,
+DMA parking and existing producer/ATTEST regressions pass offline. The whole KMD
+checks against native WDK types; both Mesa Windows production translation units
+compile to objects. These are diagnostic compilation gates, without product
+linking/signing/package qualification or real GPU completion proof.
+
+Five review findings were corrected: invalid-response DMA ownership in DPC,
+false success from response zero, rollback wake, completed members in wait-all,
+and terminal cancellation of unbound registered consumers. Existing bounded DMA
+parking retains its loud overflow/leak behavior; actual OS/transport lifetime and
+worker scheduling remain runtime qualification responsibilities.
+
+Evidence: `.fullstack/artifacts/p06/e1-green-b-implementation-20261008T073207Z/`.
+Next: freeze reviewed source, verify remote monotonic ledger, reserve a new
+candidate, run canonical GitHub Actions product qualification, then controlled
+deploy/loaded-pair identity and independent GREEN-A/GREEN-B runtime controls.
+GREEN-B runtime and SUCCESS_CONTROL stay NOT_RUN; propagation FAIL_HISTORICAL,
+ordering PARTIAL_HISTORICAL, additional real error executions 0 and P09 NOT_STARTED.
+
 ## P06 component frontiers — 2026-10-05
 
 Frozen .311 (5f9f37eb2d0d938ec56db9d691457c957fc3acf8), product run

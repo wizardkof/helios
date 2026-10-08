@@ -371,6 +371,14 @@ pub unsafe extern "C" fn dxgkddi_escape(
             Some(owner) => escape_ctx_destroy(passive, adapter, buf, &hdr, owner),
             None => refuse_no_device(),
         },
+        helios_protocol::green_b::CONTROL => match owner {
+            Some(owner) => crate::adapter::green_b::control(adapter, owner, buf),
+            None => refuse_no_device(),
+        },
+        helios_protocol::green_b::SUBMIT => match owner {
+            Some(owner) => crate::adapter::green_b::submit(passive, adapter, owner, buf),
+            None => refuse_no_device(),
+        },
         HELIOS_ESCAPE_SUBMIT_VENUS => match owner {
             Some(owner) => escape_submit_venus(passive, adapter, buf, &hdr, owner),
             None => refuse_no_device(),

@@ -219,6 +219,8 @@ pub unsafe extern "C" fn hpd_thread_routine(context: *mut c_void) {
             crate::ddi::interrupt::drain_used_and_complete(adapter);
         }
 
+        crate::adapter::green_b::service(adapter);
+
         // The ISR owns setting this bit; the PASSIVE worker consumes it after
         // the DPC's wake so a scanout-completion wake cannot masquerade as HPD.
         if adapter.config_change_pending.swap(0, Ordering::AcqRel) != 0 {

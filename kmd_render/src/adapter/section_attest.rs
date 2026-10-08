@@ -60,7 +60,7 @@ extern "system" {
     fn RtlGetAce(acl: PVOID, index: u32, ace: *mut PVOID) -> NTSTATUS;
 }
 
-struct ObjectRef(PVOID);
+pub(super) struct ObjectRef(pub(super) PVOID);
 impl Drop for ObjectRef {
     fn drop(&mut self) {
         // SAFETY: constructed only after one successful ObReferenceObjectByHandle.
@@ -249,6 +249,10 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
         return classified(request, HELIOS_P06_ATTEST_INVALID_HANDLE);
     }
     let object = ObjectRef(object);
+    attest_object(request, &object)
+}
+
+fn attest_object(request: &mut HeliosEscapeP06ProductionCarrier, object: &ObjectRef) -> NTSTATUS {
     let mut kernel_handle: HANDLE = ptr::null_mut();
     // SAFETY: the referenced object is held; a temporary kernel HANDLE keeps
     // ZwQueryObject tied to this exact object even if caller recycles its HANDLE.
@@ -336,4 +340,22 @@ pub(super) fn attest(request: &mut HeliosEscapeP06ProductionCarrier) -> NTSTATUS
         }
         Err(refusal) => classified(request, refusal_code(refusal)),
     }
+}
+
+/// Reference and attest the same object once: recycling a user HANDLE cannot
+/// switch the object between provenance validation and publication ownership.
+pub(super) fn reference_attested(handle: u64, id: [u8; 16]) -> Option<ObjectRef> {
+    if handle == 0 || handle > usize::MAX as u64 { return None; }
+    let mut object = ptr::null_mut();
+    // SAFETY: caller is a synchronous PASSIVE escape in the user process;
+    // UserMode checks read/query rights 0x5 before any system mapping.
+    let status = unsafe { wdk_sys::ntddk::ObReferenceObjectByHandle(
+        handle as usize as HANDLE, policy::READER_ACCESS, ptr::null_mut(),
+        USER_MODE, &mut object, ptr::null_mut()) };
+    if status < 0 || object.is_null() { return None; }
+    let held = ObjectRef(object);
+    let mut request: HeliosEscapeP06ProductionCarrier = bytemuck::Zeroable::zeroed();
+    request.carrier_id = id;
+    request.expected_record_version = HELIOS_P06_PRODUCTION_SECTION_VERSION;
+    if attest_object(&mut request, &held) < 0 { None } else { Some(held) }
 }

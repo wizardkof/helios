@@ -327,6 +327,7 @@ pub unsafe extern "C" fn dxgkddi_destroy_device(h_device: *mut c_void) -> NTSTAT
             return STATUS_SUCCESS;
         };
         let owner = h_device as usize;
+        crate::adapter::green_b::release_owner(adapter, owner);
         // SAFETY: `DxgkDdiDestroyDevice` is documented "IRQL: PASSIVE_LEVEL" (WDK
         // DXGKDDI_DESTROYDEVICE), and the unmap loop below already depends on it
         // — `MmUnmapLockedPages` is PASSIVE-only, which is exactly why the table

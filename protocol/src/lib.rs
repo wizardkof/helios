@@ -34,3 +34,5 @@ pub use ioctl::*;
 pub use producer::*;
 pub use virtio_gpu::*;
 pub use wddm::*;
+
+pub mod green_b;

@@ -197,6 +197,7 @@ pub unsafe extern "C" fn dxgkddi_start_device(
     // init keeps the ordering safe — otherwise assigning the new transport would
     // drop the old one (resetting the device) right after init configured it.
     adapter.set_virtio(None);
+    crate::adapter::green_b::abort_transport(adapter);
     // Non-zero only if init below fails, so the display-half demotion can report
     // the status that actually killed the transport rather than a bare flag.
     let mut transport_fail_status: u32 = 0;
@@ -424,6 +425,7 @@ pub unsafe extern "C" fn dxgkddi_start_device(
     // approximate "StartDevice has returned" with a 500 ms delay; that delay is
     // now only a bounded fallback (`HpdStTo` counts it firing). Safe to signal
     // even when the worker was never started — nothing else waits on this.
+    crate::adapter::green_b::reset_transport(adapter);
     adapter.signal_start_complete();
     STATUS_SUCCESS
 }
@@ -495,6 +497,7 @@ pub unsafe extern "C" fn dxgkddi_stop_device(miniport_device_context: *mut c_voi
         // frees its rings (plus any in-flight/parked entry buffers). A later
         // StartDevice re-initializes.
         adapter.set_virtio(None);
+        crate::adapter::green_b::abort_transport(adapter);
 
         // Drop the whole transport generation in one store — `bar_segment` and
         // `venus_ctx_id` together, since both are meaningless in the next

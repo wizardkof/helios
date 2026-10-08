@@ -29,6 +29,8 @@ pub(crate) mod producer;
 mod read_ledger;
 mod scanout;
 pub(crate) mod section_probe;
+pub(crate) mod green_b;
+mod section_attest;
 mod segments;
 mod tracking;
 
@@ -509,6 +511,7 @@ pub struct AdapterContext {
     pub mappings: crate::mapping::MappingTable,
     /// Bounded, diagnostic-only E1 section leases. They are adapter-owned and
     /// deliberately independent of any D3D device/context lifetime.
+    pub(crate) green_b_broker: AtomicUsize,
     pub(crate) p06_section_mutex: UnsafeCell<KEVENT>,
     pub(crate) p06_section_slots:
         UnsafeCell<[section_probe::SectionSlot; section_probe::MAX_SLOTS]>,
@@ -1094,6 +1097,7 @@ impl AdapterContext {
             mappings: crate::mapping::MappingTable::new(),
             // Initialized as a PASSIVE synchronization-event mutex before the
             // adapter context is published to Dxgkrnl.
+            green_b_broker: AtomicUsize::new(0),
             p06_section_mutex: UnsafeCell::new(unsafe { core::mem::zeroed() }),
             p06_section_slots: UnsafeCell::new(
                 [section_probe::SectionSlot::EMPTY; section_probe::MAX_SLOTS],
@@ -1650,6 +1654,7 @@ impl Drop for AdapterContext {
         // The transport owns callbacks into producer status. Drop it before
         // that page, including the RemoveDevice-without-StopDevice path.
         self.set_virtio(None);
+        green_b::release_all(self);
         // Free the contiguous paging-RAM segment. RemoveDevice (which drops the
         // boxed AdapterContext) runs at PASSIVE_LEVEL, where MmFreeContiguousMemory
         // is legal.
