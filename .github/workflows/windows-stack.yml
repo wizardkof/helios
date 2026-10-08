@@ -1648,7 +1648,7 @@ jobs:
       shell: powershell
       run: |
         $python=Join-Path $env:pythonLocation 'python.exe'
-        & $python ./ci/windows/native_python_recovery_control.py --output "$env:RUNNER_TEMP/python-test-dependencies/python-native-recovery-red"
+        & $python ./ci/windows/native_python_recovery_control.py --output "$env:RUNNER_TEMP/python-native-recovery-red"
         if ($LASTEXITCODE -ne 0) { throw "Native Python recovery RED conditions failed" }
     - name: Bootstrap exact native test interpreter and real consumer RED GREEN
       shell: powershell

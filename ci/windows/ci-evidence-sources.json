@@ -616,6 +616,22 @@
   ],
   "python_evidence_preflight": [
     {
+      "name": "python-native-recovery-red",
+      "source": "{TEMP}/python-native-recovery-red",
+      "step": "python_native_recovery_red",
+      "required": true,
+      "mandatoryFiles": [
+        "native-red-results.json",
+        "legacy-fixture-byte-identity.json"
+      ],
+      "mandatoryFilesOnSuccess": [
+        "red-0.log",
+        "red-1.log",
+        "red-2.log"
+      ],
+      "missingSuccessCode": "RED_COVERAGE_INCOMPLETE"
+    },
+    {
       "name": "python-test-dependencies",
       "source": "{TEMP}/python-test-dependencies",
       "step": "python_dependencies",
@@ -631,10 +647,6 @@
         "control/tests-1.log",
         "tests/tests-0.log",
         "tests/tests-1.log",
-        "python-native-recovery-red/native-red-results.json",
-        "python-native-recovery-red/red-0.log",
-        "python-native-recovery-red/red-1.log",
-        "python-native-recovery-red/red-2.log",
         "tests/test-results.json",
         "control/test-results.json"
       ]

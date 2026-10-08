@@ -16,14 +16,18 @@ import tempfile
 import unittest
 
 HERE=Path(__file__).resolve().parent
-LEGACY_SHA256="1e76b533ee2a5fb20cd089049744c6dda8ceecb2c3d3741a126d8391a55bf194"
+from legacy_fixture_bytes import LEGACY_SHA256, inspect_legacy_fixture
 
 def execute(out):
     out.mkdir(parents=True,exist_ok=True)
-    record=dict(status='FAIL',python=sys.executable,version=platform.python_version(),bits=struct.calcsize('P')*8,head=os.environ.get('GITHUB_SHA'),run=os.environ.get('GITHUB_RUN_ID'))
+    record=dict(status='FAIL',python=sys.executable,version=platform.python_version(),bits=struct.calcsize('P')*8,head=os.environ.get('GITHUB_SHA'),run=os.environ.get('GITHUB_RUN_ID'),attempt=os.environ.get('GITHUB_RUN_ATTEMPT'),sourceCommit=os.environ.get('GITHUB_SHA'),architecture=platform.machine(),phase='BYTE_IDENTITY',fixturePath=str(HERE/'fixtures/test_pkgconf_restore_318.py.txt'),fixtureExpectedHash=LEGACY_SHA256,exitCode=1,redExecuted=[],redNotExecuted=[0,1,2])
     try:
+        byte_identity=inspect_legacy_fixture(HERE.parents[1],HERE/'fixtures/test_pkgconf_restore_318.py.txt',out/'legacy-fixture-byte-identity.json')
+        record['fixtureObservedHash']=byte_identity['worktreeSha256']
+        record['phase']='NATIVE_IDENTITY'
         if sys.platform!='win32' or record['version']!='3.12.10' or record['bits']!=64 or any(x in sys.executable.lower() for x in ('msys','mingw','ucrt64')):
             raise ValueError('EXACT_NATIVE_WINDOWS_PYTHON_REQUIRED')
+        record['phase']='SHALLOW_CHECKOUT'
         root=HERE.parents[1]
         shallow=subprocess.run(['git','rev-parse','--is-shallow-repository'],cwd=root,capture_output=True,text=True)
         if shallow.returncode or shallow.stdout.strip()!='true':raise ValueError('SHALLOW_CHECKOUT_REQUIRED')
@@ -35,6 +39,7 @@ def execute(out):
         loader=importlib.machinery.SourceFileLoader('legacy318',str(source));spec=importlib.util.spec_from_loader(loader.name,loader);legacy=importlib.util.module_from_spec(spec);loader.exec_module(legacy)
         import msys_archive_restore
         legacy.restore=msys_archive_restore;legacy.HERE=HERE
+        record['phase']='WINDOWS_ALIAS'
         long=Path(tempfile.gettempdir()).resolve();buf=ctypes.create_unicode_buffer(32768)
         short_fn=ctypes.windll.kernel32.GetShortPathNameW;short_fn.argtypes=[ctypes.c_wchar_p,ctypes.c_wchar_p,ctypes.c_uint];short_fn.restype=ctypes.c_uint
         n=short_fn(str(long),buf,len(buf))
@@ -42,7 +47,10 @@ def execute(out):
         record['alias']=dict(short=buf.value,long=str(long),sameFile=True)
         names=['ManifestTests.test_previous_seven_archives_are_preserved','RestoreTests.test_native_tools_bind_to_python_msys2_root','RestoreTests.test_native_child_path_starts_with_qualified_msys2_tools']
         results=[]
+        record['results']=results
         for i,name in enumerate(names):
+            record['phase']='RED_'+str(i+1)
+            record['redExecuted'].append(i);record['redNotExecuted'].remove(i)
             cmd=[sys.executable,str(Path(__file__).resolve()),'--legacy-case',name,'--short-temp',buf.value]
             proc=subprocess.run(cmd,capture_output=True,text=True)
             (out/f'red-{i}.log').write_text(proc.stdout+proc.stderr,encoding='utf-8')
@@ -52,9 +60,12 @@ def execute(out):
             if i==0 and observed['errors']!=1:raise ValueError('RED_1_EXPECTED_GIT_ERROR')
             if i>0 and observed['failures']!=1:raise ValueError('RED_PATH_EXPECTED_TEXTUAL_ASSERTION_FAILURE')
             results.append(dict(test=name,command=cmd,exitCode=proc.returncode,**observed,log=f'red-{i}.log'))
-        record.update(status='PASS_EXPECTED_THREE_NATIVE_RED_REPRODUCED',results=results)
+        record.update(status='PASS_EXPECTED_THREE_NATIVE_RED_REPRODUCED',phase='COMPLETE',exitCode=0,results=results)
     except Exception as error:
         record['error']=str(error)
+        record['firstFailure']=dict(phase=record['phase'],error=str(error),exitCode=1)
+        byte_receipt=out/'legacy-fixture-byte-identity.json'
+        if byte_receipt.exists():record['fixtureObservedHash']=json.loads(byte_receipt.read_text())['worktreeSha256']
         raise
     finally:(out/'native-red-results.json').write_text(json.dumps(record,indent=2)+'\n')
     print(json.dumps(record))

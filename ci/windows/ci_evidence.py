@@ -41,6 +41,8 @@ def collect(entries,root,primary):
     if glob.has_magic(part):break
     parts.append(part)
    prefix=Path(*parts)
+  mandatory=set(entry.get('mandatoryFiles',[]))
+  if entry['outcome']=='success':mandatory.update(entry.get('mandatoryFilesOnSuccess',[]))
   try:
    for src in matches:
     safe(src)
@@ -50,7 +52,7 @@ def collect(entries,root,primary):
      reason=selection_reason(f,relative)
      if reason:
       report['excluded'].append(dict(source=str(f),reason=reason,logicalSource=entry['name']))
-      if (entry['required'] and not src.is_dir()) or relative.as_posix() in entry.get('mandatoryFiles',[]):raise ValueError('required evidence excluded by policy')
+      if (entry['required'] and not src.is_dir()) or relative.as_posix() in mandatory:raise ValueError('required evidence excluded by policy')
       continue
      safe(f);rel=Path(entry['name'])/((Path(src.name)/f.relative_to(src) if len(matches)>1 else f.relative_to(src)) if src.is_dir() else Path(f.name))
      if glob.has_magic(entry['source']):rel=Path(entry['name'])/f.relative_to(prefix)
@@ -60,8 +62,8 @@ def collect(entries,root,primary):
      if before!=digest(dest) or before!=digest(f):raise ValueError('source changed during copy')
      admitted.add(relative.as_posix())
      report['files'].append(dict(source=str(f),destination=rel.as_posix(),size=dest.stat().st_size,sha256=before));count+=1
-   missing_mandatory=set(entry.get('mandatoryFiles',[]))-admitted
-   if missing_mandatory:raise ValueError('mandatory evidence absent or excluded: '+', '.join(sorted(missing_mandatory)))
+   missing_mandatory=mandatory-admitted
+   if missing_mandatory:raise ValueError(entry.get('missingSuccessCode','mandatory evidence absent or excluded')+': '+', '.join(sorted(missing_mandatory)))
    row['status']='COPIED'
    if entry['required'] and not count:row['status']='MISSING_REQUIRED';report['EVIDENCE_COLLECTION_RESULT']='FAIL'
   except (OSError,ValueError) as err:row['status']='READ_OR_COPY_FAILURE';row['reason']=str(err);report['EVIDENCE_COLLECTION_RESULT']='FAIL'
