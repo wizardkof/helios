@@ -28,6 +28,11 @@ try {
   & $python -m unittest discover -s (Join-Path $RepoRoot $spec[0]) -p $spec[1]
   if($LASTEXITCODE -ne 0){throw "Regression failed: $($spec[1])"}
  }
+ & $python -m unittest discover -s (Join-Path $RepoRoot 'ci\windows') -p test_green_b_cpu_controls.py
+ if($LASTEXITCODE -ne 0){throw 'GREEN-B CPU runner control failed'}
+ $greenBReceipt=Join-Path $ReceiptDir 'green-b-cpu'
+ & $python (Join-Path $RepoRoot 'ci\windows\run_green_b_cpu_controls.py') --root $RepoRoot --receipt-dir $greenBReceipt --cc (Join-Path $env:HELIOS_LLVM_BIN 'clang.exe')
+ if($LASTEXITCODE -ne 0){throw 'GREEN-B production CPU/source controls failed'}
  $env:CC=(Get-Command clang-cl.exe).Source;$env:CXX=$env:CC
  $dxvk=Join-Path $RepoRoot 'dxvk-helios';$build='C:\hb\dxvk-regressions'
  foreach($relative in @('tests/test_cs_failure.cpp','tests/test_queue_error.cpp','tests/generate_queue_submit.py')){if(-not(Test-Path (Join-Path $dxvk $relative))){throw "Qualified DXVK regression source missing: $relative"}}
