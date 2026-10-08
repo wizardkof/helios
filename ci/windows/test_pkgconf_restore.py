@@ -76,6 +76,19 @@ class RestoreTests(unittest.TestCase):
     def test_wrong_name_version_or_architecture_refuses(self):
         for text in ['pkgname = wrong\npkgver = 1~3.0.7-1\narch = any\n','pkgname = mingw-w64-i686-pkgconf\npkgver = wrong\narch = any\n','pkgname = mingw-w64-i686-pkgconf\npkgver = 1~3.0.7-1\narch = x86_64\n']:
             with self.assertRaisesRegex(ValueError,'METADATA'):restore.validate_metadata(self.package,text)
+    def test_native_tools_bind_to_python_msys2_root(self):
+        root=pathlib.Path(self.temp.name)/'msys64';binary=root/'ucrt64/bin/python.exe';binary.parent.mkdir(parents=True);binary.touch();tool=root/'usr/bin/bash.exe';tool.parent.mkdir(parents=True);tool.touch()
+        self.assertTrue(hasattr(restore,'resolve_msys_tool'),'native binding absent')
+        self.assertEqual(restore.resolve_msys_tool('bash',str(binary)),str(tool))
+    def test_unqualified_python_root_is_refused(self):
+        self.assertTrue(hasattr(restore,'resolve_msys_tool'),'native binding absent')
+        with self.assertRaisesRegex(ValueError,'MSYS2'):
+            restore.resolve_msys_tool('bash',str(pathlib.Path(self.temp.name)/'python.exe'))
+    def test_missing_native_tool_is_refused_without_path_fallback(self):
+        root=pathlib.Path(self.temp.name)/'msys64';binary=root/'mingw32/bin/python.exe';binary.parent.mkdir(parents=True);binary.touch()
+        self.assertTrue(hasattr(restore,'resolve_msys_tool'),'native binding absent')
+        with self.assertRaisesRegex(ValueError,'MSYS2'):
+            restore.resolve_msys_tool('pacman',str(binary))
     def test_correct_metadata_accepts_any_package_architecture(self):
         restore.validate_metadata(self.package,'pkgname = mingw-w64-i686-pkgconf\npkgver = 1~3.0.7-1\narch = any\n')
 

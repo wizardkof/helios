@@ -1,14 +1,34 @@
 """Authenticated MSYS2 local-archive restoration; no host Linux package installs."""
 import hashlib
 import subprocess
+import sys
 from pathlib import Path
+
+
+def resolve_msys_tool(tool, python_executable):
+    python = Path(python_executable).resolve()
+    if python.parent.name != "bin" or python.parent.parent.name not in ("ucrt64", "mingw32"):
+        raise ValueError("UNQUALIFIED_MSYS2_PYTHON_ROOT")
+    if tool not in ("bash", "pacman", "bsdtar", "sha256sum"):
+        raise ValueError("UNQUALIFIED_MSYS2_TOOL")
+    selected = python.parents[2] / "usr" / "bin" / (tool+".exe")
+    if not selected.is_file(): raise ValueError("MSYS2_TOOL_NOT_FOUND")
+    return str(selected)
+
+
+def run_msys(argv, **kwargs):
+    if argv[0] == sys.executable:
+        selected = argv
+    else:
+        selected = [resolve_msys_tool(argv[0], sys.executable), *argv[1:]]
+    return subprocess.run(selected, **kwargs)
 
 
 def command(argv, run, rows):
     result = run(argv, capture_output=True, check=False)
     stdout = result.stdout if isinstance(result.stdout, bytes) else result.stdout.encode()
     stderr = result.stderr if isinstance(result.stderr, bytes) else result.stderr.encode()
-    rows.append({"command": argv, "exitCode": result.returncode,
+    rows.append({"command": argv, "executedCommand": result.args, "exitCode": result.returncode,
                  "stdout": stdout.decode("utf-8", errors="replace"),
                  "stderr": stderr.decode("utf-8", errors="replace"),
                  "stdoutHex": stdout.hex(), "stderrHex": stderr.hex()})
@@ -30,7 +50,8 @@ def validate_metadata(package, text):
     return fields
 
 
-def authenticate_package(package, path, run=subprocess.run):
+def authenticate_package(package, path, run=None):
+    run = run or run_msys
     rows = []
     if hashlib.sha256(Path(path).read_bytes()).hexdigest() != package["sha256"]:
         raise ValueError("ARCHIVED_PACKAGE_SHA256_MISMATCH")
@@ -42,7 +63,8 @@ def authenticate_package(package, path, run=subprocess.run):
     return {"signature": "PASS_TRUSTED_PACMAN_KEYRING", "metadata": metadata, "commands": rows}
 
 
-def restore_package(package, path, run=subprocess.run):
+def restore_package(package, path, run=None):
+    run = run or run_msys
     rows = []
     row = {"name": package["name"], "version": package["version"], "commands": rows,
            "status": "FAIL", "pacmanExitCode": None, "error": None}
