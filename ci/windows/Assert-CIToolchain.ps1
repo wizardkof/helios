@@ -52,7 +52,7 @@ $toolChecks = @(
     @{name='clang-cl'; args=@('--version'); expected=('clang version ' + $pins.llvmVersion); pattern=('(?m)^clang version ' + [regex]::Escape($pins.llvmVersion) + '(?:\s|$)')},
     @{name='rustc'; args=@('--version'); expected=$pins.qualifiedObservedTools.rustc; pattern=('(?m)^' + [regex]::Escape($pins.qualifiedObservedTools.rustc) + '$')},
     @{name='cargo'; args=@('--version'); expected=$pins.qualifiedObservedTools.cargo; pattern=('^' + [regex]::Escape($pins.qualifiedObservedTools.cargo) + '$')},
-    @{name='rustup'; args=@('--version'); expected=('rustup ' + $pins.rust.rustupVersion); pattern=('^rustup ' + [regex]::Escape($pins.rust.rustupVersion) + '(?:\s|$)')},
+    @{name='rustup'; args=@('--version'); expected=('rustup ' + $pins.rust.rustupVersion); rustupVersion=$pins.rust.rustupVersion},
     @{name='git'; args=@('--version'); expected=('git version ' + $pins.gitVersion); pattern=('^git version ' + [regex]::Escape(($pins.gitVersion -replace '\.\d+$','')) + '(?:\.windows\.\d+)?$')},
     @{name='widl'; args=@('-V'); expected=$pins.qualifiedObservedTools.widlVersion; pattern=('(?m)^Wine IDL Compiler version ' + [regex]::Escape($pins.qualifiedObservedTools.widlVersion) + '(?![0-9.])')}
 )
@@ -60,7 +60,9 @@ $priorityBin = @($env:HELIOS_LLVM_BIN, $(if ($env:HELIOS_NINJA) { Split-Path -Pa
 if ($priorityBin.Count -gt 0) { $env:PATH = (@($priorityBin) + @($env:PATH -split ';' | Where-Object { $_ -and $_ -notin $priorityBin } | Select-Object -Unique)) -join ';' }
 $env:VULKAN_SDK = (Join-Path 'C:/VulkanSDK' $pins.vulkanSdkVersion).Replace('\','/')
 foreach ($tool in $toolChecks) {
-    $toolOptions = @{Name=$tool.name;Arguments=$tool.args;ExpectedVersion=$tool.expected;VersionPattern=$tool.pattern;Phase='post-vs-x64'}
+    $toolOptions = @{Name=$tool.name;Arguments=$tool.args;ExpectedVersion=$tool.expected;Phase='post-vs-x64'}
+    if ($tool.pattern) { $toolOptions.VersionPattern = $tool.pattern }
+    if ($tool.rustupVersion) { $toolOptions.RustupVersion = $tool.rustupVersion }
     if ($tool.name -eq 'clang-cl' -and $env:HELIOS_LLVM_BIN) { $toolOptions.ExecutablePath = Join-Path $env:HELIOS_LLVM_BIN 'clang-cl.exe'; $toolOptions.ExpectedResolvedPath = $toolOptions.ExecutablePath }
     if ($tool.name -eq 'widl' -and $env:HELIOS_WIDL) { $toolOptions.ExecutablePath = $env:HELIOS_WIDL; $toolOptions.ExpectedResolvedPath = $env:HELIOS_WIDL }
     $checks.Add((Invoke-CIToolCheck @toolOptions))

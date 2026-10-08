@@ -61,7 +61,7 @@ if($Component -eq 'opencl'){
     $checksToRun+=,@{name='sccache';args=@('--version');expected=('sccache '+$pins.sccacheVersion);pattern=('^sccache '+[regex]::Escape($pins.sccacheVersion)+'$')}
 }
 if($Component -eq 'driver'){
-    $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);pattern=('^rustup '+[regex]::Escape($pins.rust.rustupVersion)+'(?:\s|$)')}
+    $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);rustupVersion=$pins.rust.rustupVersion}
     $checksToRun+=,@{name='rustc';args=@('--version');expected=$pins.qualifiedObservedTools.rustc;pattern=('(?m)^'+[regex]::Escape($pins.qualifiedObservedTools.rustc)+'$')}
     $checksToRun+=,@{name='cargo';args=@('--version');expected=$pins.qualifiedObservedTools.cargo;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.cargo)+'$')}
     $checksToRun+=,@{name='clang-cl';args=@('--version');expected=('clang version '+$pins.llvmVersion);pattern=('(?m)^clang version '+[regex]::Escape($pins.llvmVersion)+'(?:\s|$)')}
@@ -69,13 +69,15 @@ if($Component -eq 'driver'){
 }
 # Package pre/post checks own the same Rust identities as installer acquisition.
 if($Component -eq 'package'){
-    $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);pattern=('^rustup '+[regex]::Escape($pins.rust.rustupVersion)+'(?:\s|$)')}
+    $checksToRun+=,@{name='rustup';args=@('--version');expected=('rustup '+$pins.rust.rustupVersion);rustupVersion=$pins.rust.rustupVersion}
     $checksToRun+=,@{name='rustc';args=@('--version');expected=$pins.qualifiedObservedTools.rustc;pattern=('(?m)^'+[regex]::Escape($pins.qualifiedObservedTools.rustc)+'$')}
     $checksToRun+=,@{name='cargo';args=@('--version');expected=$pins.qualifiedObservedTools.cargo;pattern=('^'+[regex]::Escape($pins.qualifiedObservedTools.cargo)+'$')}
     Add-ComponentValueCheck 'RUSTUP_MAX_RETRIES' '10' $env:RUSTUP_MAX_RETRIES ($env:RUSTUP_MAX_RETRIES -ceq '10')
 }
 foreach($check in $checksToRun){
-    $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;VersionPattern=$check.pattern;Phase=$Phase}
+    $options=@{Name=$check.name;Arguments=$check.args;ExpectedVersion=$check.expected;Phase=$Phase}
+    if($check.pattern){$options.VersionPattern=$check.pattern}
+    if($check.rustupVersion){$options.RustupVersion=$check.rustupVersion}
     if($check.name -eq 'git'){
         if(-not $env:HELIOS_GIT -or -not (Test-Path -LiteralPath $env:HELIOS_GIT -PathType Leaf)){
             $blocked.Add([pscustomobject]@{name='git';reason='HELIOS_GIT_REQUIRED: qualified native Git selection is absent or missing'})

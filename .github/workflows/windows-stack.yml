@@ -252,6 +252,11 @@ jobs:
       shell: pwsh
       run: ./ci/windows/Test-CIToolchainReceipts.ps1 -ReceiptDir "$env:RUNNER_TEMP/ninja-receipt-tests"
       id: ninja_receipt_tests
+    - name: Qualify exact rustup identity receipt on native processes
+      if: ${{ always() && inputs.infrastructure_only }}
+      shell: pwsh
+      run: ./ci/windows/Test-RustupIdentity.ps1 -ReceiptDir "$env:RUNNER_TEMP/rustup-identity-tests"
+      id: rustup_identity_tests
     - name: Test child, Meson and CMake Ninja selection
       if: ${{ always() && inputs.infrastructure_only }}
       shell: pwsh

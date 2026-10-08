@@ -18,6 +18,12 @@ def retry_manifest_failure(stderr):
                for line in stderr.splitlines())
 
 
+def rustup_identity_matches(output, version):
+    pattern = re.compile(r'^rustup[ \t]+' + re.escape(version) + r'(?:[ \t]+\([0-9a-f]{9} [0-9]{4}-[0-9]{2}-[0-9]{2}\))?[ \t]*$')
+    identity_lines = [line for line in re.split(r'\r?\n', output) if re.match(r'^rustup[ \t]+\S+', line)]
+    return len(identity_lines) == 1 and pattern.fullmatch(identity_lines[0]) is not None
+
+
 def acquire(receipt_dir, environment=None):
     environment = dict(os.environ if environment is None else environment)
     pins = json.loads(PINS.read_text(encoding='utf-8'))
@@ -49,7 +55,8 @@ def acquire(receipt_dir, environment=None):
     save()
     try:
         version = run(['--version'], 'rustup-version')
-        if version.returncode or not re.match(r'^rustup '+re.escape(pins['rust']['rustupVersion'])+r'(?:\s|$)', version.stdout):
+        version_output = version.stdout + ('\n' if version.stdout and version.stderr else '') + version.stderr
+        if version.returncode or not rustup_identity_matches(version_output, pins['rust']['rustupVersion']):
             raise ValueError('rustup version differs from qualified pin')
         arguments = ['toolchain', 'install', toolchain, '--profile', 'minimal', '--no-self-update']
         for attempt in range(1, 12):

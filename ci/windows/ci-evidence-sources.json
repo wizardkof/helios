@@ -186,6 +186,13 @@
       "required": false
     },
     {
+      "name": "rustup-identity-tests",
+      "source": "{TEMP}/rustup-identity-tests",
+      "step": "rustup_identity_tests",
+      "required": true,
+      "mandatoryFilesOnSuccess": ["fixture-identity.json", "original-red.json", "valid-info.json", "valid-after.json", "lf.json", "crlf.json", "stderr.json", "duplicate.json", "conflict.json", "checker-native.json", "checker-driver.json", "checker-package-pre.json", "checker-package-post.json"]
+    },
+    {
       "name": "ninja-consumer-tests",
       "source": "{TEMP}/ninja-consumer-tests",
       "step": "ninja_consumer_tests",

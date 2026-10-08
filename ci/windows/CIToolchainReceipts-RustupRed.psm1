@@ -6,8 +6,7 @@ function Invoke-CIToolCheck {
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string[]]$Arguments,
         [Parameter(Mandatory)][string]$ExpectedVersion,
-        [string]$VersionPattern,
-        [string]$RustupVersion,
+        [Parameter(Mandatory)][string]$VersionPattern,
         [string]$Phase = 'pre',
         [string]$ExecutablePath,
         [string]$ExpectedResolvedPath
@@ -77,13 +76,7 @@ function Invoke-CIToolCheck {
         if ($row.exitCode -ne 0) {
             $row.status = 'FAIL'
             $row.error = if ($row.error) { $row.error + '; EXECUTION_EXIT_NONZERO' } else { 'EXECUTION_EXIT_NONZERO' }
-        } elseif ($RustupVersion) {
-            $identity = Test-CIRustupIdentity -Output $row.observedVersion -Version $RustupVersion
-            if (-not $identity.IsValid) {
-                $row.status = 'FAIL'
-                $row.error = if ($row.error) { $row.error + '; ' + $identity.Error } else { $identity.Error }
-            } elseif ($row.error) { $row.status = 'FAIL' } else { $row.status = 'PASS' }
-        } elseif (-not $VersionPattern -or $row.observedVersion -notmatch $VersionPattern) {
+        } elseif ($row.observedVersion -notmatch $VersionPattern) {
             $row.status = 'FAIL'
             $row.error = if ($row.error) { $row.error + '; VERSION_MISMATCH' } else { 'VERSION_MISMATCH' }
         } elseif ($row.error) {
@@ -97,21 +90,6 @@ function Invoke-CIToolCheck {
         $row.error = if ($row.error) { $row.error + '; EXECUTION: ' + $_.Exception.Message } else { 'EXECUTION: ' + $_.Exception.Message }
     }
     return [pscustomobject]$row
-}
-
-function Test-CIRustupIdentity {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][AllowEmptyString()][string]$Output,
-          [Parameter(Mandatory)][string]$Version)
-    $versionToken = [regex]::Escape($Version)
-    $identityPattern = '^rustup[ \t]+' + $versionToken + '(?:[ \t]+\([0-9a-f]{9} [0-9]{4}-[0-9]{2}-[0-9]{2}\))?[ \t]*$'
-    $identityLines = @(($Output -split "`r?`n") | Where-Object { $_ -cmatch '^rustup[ \t]+\S+' })
-    $validIdentities = @($identityLines | Where-Object { $_ -cmatch $identityPattern })
-    [pscustomobject]@{
-        IsValid = ($identityLines.Count -eq 1 -and $validIdentities.Count -eq 1)
-        IdentityCount = $identityLines.Count
-        Error = if ($identityLines.Count -gt 1) { 'AMBIGUOUS_RUSTUP_IDENTITY' } elseif ($validIdentities.Count -eq 0) { 'VERSION_MISMATCH' } else { $null }
-    }
 }
 
 function New-CIToolReceipt {
@@ -155,4 +133,4 @@ function Assert-CIToolReceiptPass {
     }
 }
 
-Export-ModuleMember -Function Invoke-CIToolCheck, Test-CIRustupIdentity, New-CIToolReceipt, Write-CIToolReceipt, Assert-CIToolReceiptPass
+Export-ModuleMember -Function Invoke-CIToolCheck, New-CIToolReceipt, Write-CIToolReceipt, Assert-CIToolReceiptPass
