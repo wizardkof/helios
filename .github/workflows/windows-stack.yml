@@ -390,7 +390,7 @@ jobs:
       shell: powershell
       run: Write-Host "EVIDENCE_COLLECTION_RESULT=${{ steps.collect_evidence.outcome }} EVIDENCE_UPLOAD_RESULT=${{ steps.upload_evidence.outcome }}" EVIDENCE_ROUNDTRIP_COMPLETENESS=${{
         steps.upload_evidence_verify.outcome }}
-    if: ${{ !inputs.python_evidence_only && !inputs.package_production_integration_preflight }}
+    if: ${{ !inputs.pkgconf_restore_only && !inputs.python_evidence_only && !inputs.package_production_integration_preflight }}
   msys2_x86_preflight:
     if: ${{ always() && inputs.infrastructure_only && !inputs.python_evidence_only }}
     name: MSYS2 MINGW32 archived pins and native Ninja control
@@ -1630,7 +1630,7 @@ jobs:
   python_evidence_preflight:
     name: Native Python test dependency and evidence contracts
     runs-on: windows-2022
-    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only && !inputs.frontier_controls_only && !inputs.package_controls_only
+    if: ${{ !inputs.pkgconf_restore_only && inputs.infrastructure_only && inputs.python_evidence_only && !inputs.producer_audit_control_only && !inputs.component_controls_only && !inputs.frontier_controls_only && !inputs.package_controls_only
       }}
     timeout-minutes: 30
     steps:
@@ -2733,9 +2733,76 @@ jobs:
       run: |
         python ./ci/windows/artifact_roundtrip.py verify --root "$env:RUNNER_TEMP/preflight-download" --receipt "$env:RUNNER_TEMP/preflight-seal.json"
         if ($LASTEXITCODE -ne 0) { throw 'Native preflight roundtrip failed' }
+  pkgconf_restore_preflight:
+    name: Native pkgconf restoration (${{ matrix.arch }})
+    runs-on: windows-2022
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x64
+          msystem: UCRT64
+          packages: git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-yaml mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-vulkan-headers mingw-w64-ucrt-x86_64-vulkan-loader mingw-w64-ucrt-x86_64-tools bison flex
+        - arch: x86
+          msystem: MINGW32
+          packages: git mingw-w64-i686-gcc mingw-w64-i686-meson mingw-w64-i686-ninja mingw-w64-i686-python mingw-w64-i686-python-mako mingw-w64-i686-python-packaging mingw-w64-i686-python-yaml mingw-w64-i686-pkgconf mingw-w64-i686-vulkan-headers mingw-w64-i686-vulkan-loader mingw-w64-i686-tools bison flex
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: false
+        fetch-depth: 0
+      id: checkout
+    - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+      with:
+        msystem: ${{ matrix.msystem }}
+        update: true
+        install: ${{ matrix.packages }}
+      id: setup_msys2
+    - name: CPU restoration regressions
+      shell: msys2 {0}
+      run: python ci/windows/test_pkgconf_restore.py -v
+      id: cpu_tests
+    - name: Real signed downgrade, idempotence and canonical pin checker
+      shell: msys2 {0}
+      env:
+        PYTHONUTF8: '1'
+      run: python ci/windows/pkgconf_native_preflight.py "${{ matrix.arch }}" "$RUNNER_TEMP/pkgconf-preflight"
+      id: native_restore
+    - name: Seal focused diagnostic bytes
+      id: upload_evidence_seal
+      if: ${{ always() }}
+      shell: msys2 {0}
+      run: python ci/windows/artifact_roundtrip.py seal --root "$RUNNER_TEMP/pkgconf-preflight" --receipt "$RUNNER_TEMP/pkgconf-seal.json"
+    - name: Preserve diagnostic evidence
+      if: ${{ always() && steps.upload_evidence_seal.outcome == 'success' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: pkgconf-preflight-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/pkgconf-preflight
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 90
+      id: upload_evidence
+    - uses: actions/download-artifact@v8
+      id: upload_evidence_download
+      if: ${{ always() && steps.upload_evidence.outcome == 'success' }}
+      with:
+        name: pkgconf-preflight-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/pkgconf-roundtrip
+    - name: Verify actual diagnostic roundtrip
+      id: upload_evidence_verify
+      if: ${{ always() && steps.upload_evidence_download.outcome == 'success' }}
+      shell: msys2 {0}
+      run: python ci/windows/artifact_roundtrip.py verify --root "$RUNNER_TEMP/pkgconf-roundtrip" --receipt "$RUNNER_TEMP/pkgconf-seal.json"
+    if: ${{ inputs.infrastructure_only && inputs.python_evidence_only && inputs.pkgconf_restore_only }}
 'on':
   workflow_dispatch:
     inputs:
+      pkgconf_restore_only:
+        description: Signed pkgconf restoration only; requires infrastructure_only and python_evidence_only; no product build
+        type: boolean
+        default: false
       infrastructure_only:
         description: Provision and verify every CI toolchain job without product builds or candidate reservation
         type: boolean
