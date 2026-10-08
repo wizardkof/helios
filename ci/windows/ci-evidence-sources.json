@@ -630,7 +630,13 @@
         "control/tests-0.log",
         "control/tests-1.log",
         "tests/tests-0.log",
-        "tests/tests-1.log"
+        "tests/tests-1.log",
+        "python-native-recovery-red/native-red-results.json",
+        "python-native-recovery-red/red-0.log",
+        "python-native-recovery-red/red-1.log",
+        "python-native-recovery-red/red-2.log",
+        "tests/test-results.json",
+        "control/test-results.json"
       ]
     }
   ],

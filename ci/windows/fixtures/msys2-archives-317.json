@@ -1,0 +1,59 @@
+{
+  "authority": {
+    "commit": "6437badff87d903a4bab4d4f1cc7f9e682e50bea",
+    "path": "ci/windows/ci-toolchain-pins.json",
+    "manifestSha256": "b0d177a63dd13c35365e7a23a98400a35770f47226e4683642e130806b9c78d7"
+  },
+  "packages": [
+    {
+      "architecture": "x64",
+      "name": "mingw-w64-ucrt-x86_64-python",
+      "version": "3.14.7-1",
+      "file": "mingw-w64-ucrt-x86_64-python-3.14.7-1-any.pkg.tar.zst",
+      "sha256": "f409676214aa3d65260761826e1cc4bc356f05bd2d1ccabc8497d513ff86c425"
+    },
+    {
+      "architecture": "x64",
+      "name": "mingw-w64-ucrt-x86_64-vulkan-headers",
+      "version": "1~1.4.357.0-1",
+      "file": "mingw-w64-ucrt-x86_64-vulkan-headers-1~1.4.357.0-1-any.pkg.tar.zst",
+      "sha256": "96749e9c3c10bd7dd6624530006b4ed5c165c0f1bc37125522e046c63aed649c"
+    },
+    {
+      "architecture": "x64",
+      "name": "mingw-w64-ucrt-x86_64-vulkan-loader",
+      "version": "1~1.4.357.0-1",
+      "file": "mingw-w64-ucrt-x86_64-vulkan-loader-1~1.4.357.0-1-any.pkg.tar.zst",
+      "sha256": "4d34983aea34116582700b285279df21cd0ee8519025330e7ac0650bb02f138f"
+    },
+    {
+      "architecture": "x64",
+      "name": "mingw-w64-ucrt-x86_64-tools",
+      "version": "14.0.0.r426.g4564ee4b5-1",
+      "file": "mingw-w64-ucrt-x86_64-tools-14.0.0.r426.g4564ee4b5-1-any.pkg.tar.zst",
+      "sha256": "b4a054e8679e129cdcec4992e750f61ca67106c456b88e106a3f3df76d27746b"
+    },
+    {
+      "architecture": "x86",
+      "name": "mingw-w64-i686-python",
+      "version": "3.14.7-1",
+      "file": "mingw-w64-i686-python-3.14.7-1-any.pkg.tar.zst",
+      "sha256": "b594b773b988b1469031dc2fc23cc88ac93b4cf518890ef16a39ea7f2fdda7c4"
+    },
+    {
+      "architecture": "x86",
+      "name": "mingw-w64-i686-vulkan-headers",
+      "version": "1~1.4.357.0-1",
+      "file": "mingw-w64-i686-vulkan-headers-1~1.4.357.0-1-any.pkg.tar.zst",
+      "sha256": "0ad6238b375c186edd5465be2fea1fac7a38a7d7ea0905c75769daf5000f2f0b"
+    },
+    {
+      "architecture": "x86",
+      "name": "mingw-w64-i686-vulkan-loader",
+      "version": "1~1.4.357.0-1",
+      "file": "mingw-w64-i686-vulkan-loader-1~1.4.357.0-1-any.pkg.tar.zst",
+      "sha256": "2799de5c1e316dc76925fba6a2b5c99f508ede1273a5ecd73625c2b29fe2232c"
+    }
+  ],
+  "baseUrl": "https://repo.msys2.org/mingw"
+}

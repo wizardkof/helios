@@ -1643,6 +1643,13 @@ jobs:
       id: python_setup
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+    - name: Reproduce frozen .318 shallow and real Windows alias RED
+      id: python_native_recovery_red
+      shell: powershell
+      run: |
+        $python=Join-Path $env:pythonLocation 'python.exe'
+        & $python ./ci/windows/native_python_recovery_control.py --output "$env:RUNNER_TEMP/python-test-dependencies/python-native-recovery-red"
+        if ($LASTEXITCODE -ne 0) { throw "Native Python recovery RED conditions failed" }
     - name: Bootstrap exact native test interpreter and real consumer RED GREEN
       shell: powershell
       run: ./ci/windows/Initialize-TestPython.ps1 -Control -Tests

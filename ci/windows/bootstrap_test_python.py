@@ -50,11 +50,18 @@ def bootstrap(receipts):
 def run_tests(python, receipts):
     commands=[[python,'-m','unittest','discover','-s',str(HERE),'-p','test_*.py'],
               [python,'-m','unittest','discover','-s',str(HERE.parents[1]/'tools'),'-p','test_candidate_version.py']]
+    test_identity=json.loads(subprocess.check_output([python,'-c',"import json,sys,platform,struct;print(json.dumps(dict(executable=sys.executable,version=platform.python_version(),bits=struct.calcsize('P')*8,prefix=sys.prefix,base_prefix=sys.base_prefix,importPaths=sys.path)))"]))
+    results=[]
+    first_failure=None
     for i,cmd in enumerate(commands):
         with (receipts/f'tests-{i}.log').open('w',encoding='utf-8') as log:
             proc=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT)
         print((receipts/f'tests-{i}.log').read_text())
-        if proc.returncode: raise ValueError(f'Windows Python test suite failed: {cmd}')
+        results.append(dict(command=cmd,exitCode=proc.returncode,log=f'tests-{i}.log'))
+        if proc.returncode and first_failure is None:first_failure=i
+    record=dict(status='FAIL' if first_failure is not None else 'PASS',firstFailureIndex=first_failure,suites=results,testInterpreter=test_identity,controllerIdentity=identity())
+    (receipts/'test-results.json').write_text(json.dumps(record,indent=2)+'\n')
+    if first_failure is not None:raise ValueError(f'Windows Python test suite failed: {results[first_failure]}')
 
 def control(receipts):
     receipts.mkdir(parents=True,exist_ok=True)
