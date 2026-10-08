@@ -34,6 +34,11 @@ $zeroCase = @{mode='expected-zero';pass=$true;expectedError=$null}
 Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit 23 -ObservedStatus 'PASS' -ObservedError $null)) 'expected zero versus observed 23 must fail'
 $mismatchCase = @{mode='version-mismatch';pass=$false;expectedError='VERSION_MISMATCH'}
 Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $mismatchCase -ObservedExit 23 -ObservedStatus 'FAIL' -ObservedError 'EXECUTION_EXIT_NONZERO')) 'execution failure must not satisfy version mismatch'
+foreach ($observedExit in @($null,'invalid')) {
+    $rejected = $false
+    try { $null = Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit $observedExit -ObservedStatus 'PASS' -ObservedError $null } catch { $rejected = $_.Exception.Message -like 'RUSTUP_OBSERVED_EXIT_INVALID:*' }
+    Assert-Preflight $rejected 'null/invalid observed exit must fail closed'
+}
 
 $identityCases = @(
     [pscustomobject]@{output='unrelated output';count=0;valid=$false;error='VERSION_MISMATCH'},

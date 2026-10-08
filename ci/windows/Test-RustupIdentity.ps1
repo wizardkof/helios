@@ -71,7 +71,7 @@ $rows = foreach ($case in $cases) {
     $saved = New-CIToolReceipt -Name "rustup-$($case.mode)" -Checks @($row)
     Write-CIToolReceipt -Path (Join-Path $ReceiptDir "$($case.mode).json") -Receipt $saved
     $actualError = if ($null -eq $row.error) { $null } else { (($row.error -split ';\s*') | Where-Object { $_ -in @('VERSION_MISMATCH','AMBIGUOUS_RUSTUP_IDENTITY','EXECUTION_EXIT_NONZERO') } | Select-Object -Last 1) }
-    if (-not (Test-CIRustupFixtureExpectation -Case $case -ObservedExit ([int]$row.exitCode) -ObservedStatus ([string]$row.status) -ObservedError $actualError)) {
+    if (-not (Test-CIRustupFixtureExpectation -Case $case -ObservedExit $row.exitCode -ObservedStatus ([string]$row.status) -ObservedError $actualError)) {
         throw "Fixture expectation mismatch for $($case.mode): exit=$($row.exitCode), status=$($row.status), error=$actualError; expected exit=$expectedExit, pass=$($case.pass), error=$($case.expectedError)"
     }
     if ($case.mode -eq 'valid-info') {
@@ -86,7 +86,7 @@ $rows = foreach ($case in $cases) {
 # executable actually failed before producing a valid observation.
 $unknown = Invoke-RustupFixture 'unknown-mode-control'
 $unknownExpectedMismatch = @{mode='unknown-mode-control';pass=$false;expectedError='VERSION_MISMATCH'}
-$unknownWouldMatchVersionMismatch = Test-CIRustupFixtureExpectation -Case $unknownExpectedMismatch -ObservedExit ([int]$unknown.exitCode) -ObservedStatus ([string]$unknown.status) -ObservedError ([string]$unknown.error)
+$unknownWouldMatchVersionMismatch = Test-CIRustupFixtureExpectation -Case $unknownExpectedMismatch -ObservedExit $unknown.exitCode -ObservedStatus ([string]$unknown.status) -ObservedError ([string]$unknown.error)
 Assert-That ($unknown.exitCode -eq 99 -and -not $unknownWouldMatchVersionMismatch) 'unknown mode exit 99 must not satisfy a VERSION_MISMATCH control'
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'unknown-exit-control.json') -Receipt (New-CIToolReceipt -Name 'rustup-unknown-exit-control' -Checks @($unknown))
 

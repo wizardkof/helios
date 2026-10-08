@@ -63,10 +63,17 @@ function Test-CIRustupFixtureExpectation {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][psobject]$Case,
-        [Parameter(Mandatory)][int]$ObservedExit,
+        [Parameter(Mandatory)][object]$ObservedExit,
         [Parameter(Mandatory)][string]$ObservedStatus,
         [AllowNull()][string]$ObservedError
     )
+    if ($null -eq $ObservedExit -or $ObservedExit -is [bool]) {
+        throw 'RUSTUP_OBSERVED_EXIT_INVALID: observed exit must be an integer'
+    }
+    $parsedObservedExit = 0
+    if (-not [int]::TryParse([string]$ObservedExit, [ref]$parsedObservedExit)) {
+        throw 'RUSTUP_OBSERVED_EXIT_INVALID: observed exit must be an integer'
+    }
     $expectedExit = Get-CIRustupExpectedExit -Case $Case
     $statusProperty = $Case.PSObject.Properties['pass']
     $errorProperty = $Case.PSObject.Properties['expectedError']
@@ -83,7 +90,7 @@ function Test-CIRustupFixtureExpectation {
         $expectedStatus = if ($statusProperty.Value) { 'PASS' } else { 'FAIL' }
         $expectedError = $errorProperty.Value
     }
-    return ($ObservedExit -eq $expectedExit -and $ObservedStatus -ceq $expectedStatus -and $ObservedError -ceq $expectedError)
+    return ($parsedObservedExit -eq $expectedExit -and $ObservedStatus -ceq $expectedStatus -and $ObservedError -ceq $expectedError)
 }
 
 Export-ModuleMember -Function New-CICheckOptions, Get-CIRustupExpectedExit, Test-CIRustupFixtureExpectation
