@@ -23,19 +23,8 @@ HISTORIC_FIXTURE=HERE/'fixtures/msys2-archives-317.json'
 HISTORIC_FIXTURE_SHA256='6f529cdd45961ff29420e0bc35dc7de0190c5fce9b28518aaf6f6370cc64a033'
 
 def validate_historical_archives(manifest, fixture=HISTORIC_FIXTURE):
-    data=pathlib.Path(fixture).read_bytes()
-    if hashlib.sha256(data).hexdigest()!=HISTORIC_FIXTURE_SHA256:
-        raise ValueError('HISTORIC_FIXTURE_IDENTITY_MISMATCH')
-    baseline=json.loads(data)
-    if baseline['authority']['commit']!='6437badff87d903a4bab4d4f1cc7f9e682e50bea' or len(baseline['packages'])!=7:
-        raise ValueError('HISTORIC_FIXTURE_INVALID')
-    if manifest['msys2ArchivedPackages']['baseUrl']!=baseline['baseUrl']:
-        raise ValueError('HISTORIC_ARCHIVE_ORIGIN_CHANGED')
-    rows=manifest['msys2ArchivedPackages']['packages']
-    names=[row['name'] for row in rows]
-    if len(names)!=len(set(names)):raise ValueError('ARCHIVE_NAME_DUPLICATE')
-    for old in baseline['packages']:
-        if old not in rows:raise ValueError('HISTORIC_ARCHIVE_CHANGED_OR_MISSING: '+old['name'])
+    from fixture_a_bytes import inspect_fixture_a, default_receipt
+    inspect_fixture_a(HERE.parents[1],fixture,default_receipt(),manifest,expected=HISTORIC_FIXTURE_SHA256)
 
 def assert_child_identity(case, argv, environment, root, python):
     # File identity, never textual prefixes: Windows 8.3 aliases may spell the same path differently.

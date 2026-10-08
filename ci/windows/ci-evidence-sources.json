@@ -649,6 +649,11 @@
         "tests/tests-1.log",
         "tests/test-results.json",
         "control/test-results.json"
+      ],
+      "mandatoryFilesOnSuccess": [
+        "fixture-a-byte-identity.json",
+        "wrapper-end-to-end-tests.json",
+        "powerShell-metadata-forwarding.json"
       ]
     }
   ],

@@ -10,6 +10,8 @@ foreach($s in $sources.$Job) {
  $source=$s.source # Shared Python expansion uses RUNNER_TEMP / HELIOS_CI_CONFIGURATION.
  $entry=@{name=$s.name;source=$source;outcome=$outcome;required=$s.required}
  if($s.PSObject.Properties['mandatoryFiles']){$entry.mandatoryFiles=@($s.mandatoryFiles)}
+ if($s.PSObject.Properties['mandatoryFilesOnSuccess']){$entry.mandatoryFilesOnSuccess=@($s.mandatoryFilesOnSuccess)}
+ if($s.PSObject.Properties['missingSuccessCode']){$entry.missingSuccessCode=[string]$s.missingSuccessCode}
  $spec+=$entry
 }
 $specPath=Join-Path $env:RUNNER_TEMP 'evidence-sources.json'
