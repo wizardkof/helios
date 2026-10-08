@@ -31,14 +31,38 @@ foreach ($case in @([pscustomobject]@{exit=$null},[pscustomobject]@{exit='invali
     Assert-Preflight $rejected 'present null/invalid expected exit must fail closed'
 }
 $zeroCase = @{mode='expected-zero';pass=$true;expectedError=$null}
-Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit 23 -ObservedStatus 'PASS' -ObservedError $null)) 'expected zero versus observed 23 must fail'
-$mismatchCase = @{mode='version-mismatch';pass=$false;expectedError='VERSION_MISMATCH'}
-Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $mismatchCase -ObservedExit 23 -ObservedStatus 'FAIL' -ObservedError 'EXECUTION_EXIT_NONZERO')) 'execution failure must not satisfy version mismatch'
-foreach ($observedExit in @($null,'invalid')) {
+Assert-Preflight (Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit 0 -ObservedStatus 'PASS' -ObservedError $null) 'positive expectation PASS/0/null'
+$versionMismatchCase = @{mode='version-mismatch';pass=$false;expectedError='VERSION_MISMATCH'}
+Assert-Preflight (Test-CIRustupFixtureExpectation -Case $versionMismatchCase -ObservedExit 0 -ObservedStatus 'FAIL' -ObservedError 'VERSION_MISMATCH') 'positive version mismatch control'
+$executionFailureCase = @{mode='execution-failure';pass=$false;expectedError='EXECUTION_EXIT_NONZERO';exit=23}
+Assert-Preflight (Test-CIRustupFixtureExpectation -Case $executionFailureCase -ObservedExit 23 -ObservedStatus 'FAIL' -ObservedError 'EXECUTION_EXIT_NONZERO') 'positive nonzero execution control'
+Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $versionMismatchCase -ObservedExit 0 -ObservedStatus 'FAIL' -ObservedError 'OTHER_ERROR')) 'different observed error must fail'
+Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $versionMismatchCase -ObservedExit 23 -ObservedStatus 'FAIL' -ObservedError 'VERSION_MISMATCH')) 'exit mismatch must fail'
+$nullExitRejected = $false
+try { $null = Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit $null -ObservedStatus 'PASS' -ObservedError $null } catch { $nullExitRejected = $_.Exception.Message -like 'RUSTUP_OBSERVED_EXIT_INVALID:*' }
+Assert-Preflight $nullExitRejected 'null observed exit must reach the helper and fail with its exact contract error'
+foreach ($observedExit in @($true,'invalid')) {
     $rejected = $false
     try { $null = Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit $observedExit -ObservedStatus 'PASS' -ObservedError $null } catch { $rejected = $_.Exception.Message -like 'RUSTUP_OBSERVED_EXIT_INVALID:*' }
-    Assert-Preflight $rejected 'null/invalid observed exit must fail closed'
+    Assert-Preflight $rejected 'bool/invalid observed exit must fail closed'
 }
+$emptyErrorCase = @{mode='empty-error';pass=$false;expectedError=$null}
+Assert-Preflight (-not (Test-CIRustupFixtureExpectation -Case $emptyErrorCase -ObservedExit 0 -ObservedStatus 'FAIL' -ObservedError '')) 'null expected error must remain distinct from empty observed error'
+$invalidObservedErrorRejected = $false
+try { $null = Test-CIRustupFixtureExpectation -Case $zeroCase -ObservedExit 0 -ObservedStatus 'PASS' -ObservedError 7 } catch { $invalidObservedErrorRejected = $_.Exception.Message -like 'RUSTUP_OBSERVED_ERROR_INVALID:*' }
+Assert-Preflight $invalidObservedErrorRejected 'non-string observed error must fail closed'
+
+$receiptRowCases = @(
+    [pscustomobject]@{name='zero';checks=@()},
+    [pscustomobject]@{name='one';checks=@([pscustomobject]@{requestedName='rustup';status='PASS'})},
+    [pscustomobject]@{name='two';checks=@([pscustomobject]@{requestedName='rustup';status='PASS'},[pscustomobject]@{requestedName='rustup';status='PASS'})}
+)
+foreach ($entry in $receiptRowCases) {
+    $rows = @(Get-CIRustupReceiptRows -Receipt $entry)
+    Assert-Preflight ($rows.Count -eq $entry.checks.Count -and ($rows.Count -ne 1 -or $rows[0].status -eq 'PASS')) "rustup receipt row cardinality $($entry.name)"
+}
+$nullRows = @(Get-CIRustupReceiptRows -Receipt $null)
+Assert-Preflight ($nullRows.Count -eq 0) 'null receipt must normalize to zero rows'
 
 $identityCases = @(
     [pscustomobject]@{output='unrelated output';count=0;valid=$false;error='VERSION_MISMATCH'},
@@ -67,7 +91,7 @@ foreach ($file in $files) {
     Assert-Preflight ($parseErrors.Count -eq 0) "PowerShell parser rejected ${file}: $($parseErrors -join '; ')"
 }
 
-$receipt = New-CIToolReceipt -Name 'rustup-strictmode-preflight' -Checks @([pscustomobject]@{requestedName='real-check-option-builder';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='exit-and-identity-contracts';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='r1-unsafe-read-reproductions';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='powershell-parser';phase='pre-provision';status='PASS';error=$null;exitCode=0}) -Context @{powershellVersion=$PSVersionTable.PSVersion.ToString();strictMode='Latest';testedFiles=$files;unsafeReadReproductions=@('tool.rustupVersion','case.exit')}
+$receipt = New-CIToolReceipt -Name 'rustup-strictmode-preflight' -Checks @([pscustomobject]@{requestedName='real-check-option-builder';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='exit-error-and-row-cardinality-contracts';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='r1-unsafe-read-reproductions';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='powershell-parser';phase='pre-provision';status='PASS';error=$null;exitCode=0}) -Context @{powershellVersion=$PSVersionTable.PSVersion.ToString();strictMode='Latest';testedFiles=$files;unsafeReadReproductions=@('tool.rustupVersion','case.exit');expectationControls=@('PASS/0/null','version-mismatch/0','execution-failure/23','different-error-refused','exit-mismatch-refused','null-exit-internal-refusal','bool-and-invalid-exit-refused','null-versus-empty-error','non-string-error-refused');rustupReceiptRowCounts=@(0,1,2)}
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'strictmode-preflight.json') -Receipt $receipt
 Assert-CIToolReceiptPass -Receipt $receipt
 Write-Host 'RUSTUP_STRICTMODE_PREFLIGHT=PASS'

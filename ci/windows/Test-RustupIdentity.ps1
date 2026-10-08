@@ -86,7 +86,7 @@ $rows = foreach ($case in $cases) {
 # executable actually failed before producing a valid observation.
 $unknown = Invoke-RustupFixture 'unknown-mode-control'
 $unknownExpectedMismatch = @{mode='unknown-mode-control';pass=$false;expectedError='VERSION_MISMATCH'}
-$unknownWouldMatchVersionMismatch = Test-CIRustupFixtureExpectation -Case $unknownExpectedMismatch -ObservedExit $unknown.exitCode -ObservedStatus ([string]$unknown.status) -ObservedError ([string]$unknown.error)
+$unknownWouldMatchVersionMismatch = Test-CIRustupFixtureExpectation -Case $unknownExpectedMismatch -ObservedExit $unknown.exitCode -ObservedStatus ([string]$unknown.status) -ObservedError $unknown.error
 Assert-That ($unknown.exitCode -eq 99 -and -not $unknownWouldMatchVersionMismatch) 'unknown mode exit 99 must not satisfy a VERSION_MISMATCH control'
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'unknown-exit-control.json') -Receipt (New-CIToolReceipt -Name 'rustup-unknown-exit-control' -Checks @($unknown))
 
@@ -148,15 +148,15 @@ try {
         $receiptPath = Join-Path $target.dir $target.receipt
         $receipt = $null
         if (Test-Path -LiteralPath $receiptPath -PathType Leaf) { $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json }
-        $rowsForRustup = if ($receipt) { @($receipt.checks | Where-Object requestedName -eq 'rustup') } else { @() }
+        $rowsForRustup = @(Get-CIRustupReceiptRows -Receipt $receipt)
         $rustupRowResult = 'FAIL'
         if ($rowsForRustup.Count -eq 1) {
             $row = $rowsForRustup[0]
             $identityOk = $row.path -ceq $fixtureIdentity.path -and $row.resolvedPath -ceq $fixtureIdentity.path -and [long]$row.size -eq $fixtureIdentity.size -and $row.sha256 -ceq $fixtureIdentity.sha256 -and [int]$row.exitCode -eq 0 -and $row.status -eq 'PASS' -and $null -eq $row.error -and $row.observedVersion -match 'info: This is the version' -and $row.observedVersion -match 'rustc 1.99.0-nightly'
             if ($identityOk) { $rustupRowResult = 'PASS' }
         }
-        $otherFailedChecks = if ($receipt) { @($receipt.checks | Where-Object { $_.requestedName -ne 'rustup' -and $_.status -ne 'PASS' } | ForEach-Object { [pscustomobject]@{name=$_.requestedName;status=$_.status;error=$_.error} }) } else { @() }
-        $blockers = if ($receipt) { @($receipt.blocked) } else { @() }
+        $otherFailedChecks = @(if ($receipt) { $receipt.checks | Where-Object { $_.requestedName -ne 'rustup' -and $_.status -ne 'PASS' } | ForEach-Object { [pscustomobject]@{name=$_.requestedName;status=$_.status;error=$_.error} } })
+        $blockers = @(if ($receipt) { $receipt.blocked })
         $wholeCheckerResult = if ($receipt) { [string]$receipt.status } else { 'NO_RECEIPT' }
         $control = [pscustomobject][ordered]@{schemaVersion=1;name="checker-focal-control-$($target.name)";status='FOCAL_ROW_ONLY';target=$target.name;RUSTUP_ROW_RESULT=$rustupRowResult;WHOLE_CHECKER_RESULT=$wholeCheckerResult;OTHER_FAILED_CHECKS=$otherFailedChecks;BLOCKERS=$blockers;CHECKER_EXCEPTION=$checkerException;PRODUCT_SOURCE_READINESS='NOT_PROVEN';rustupRowCount=$rowsForRustup.Count;fixture=$fixtureIdentity}
         Write-CIToolReceipt -Path (Join-Path $ReceiptDir "checker-$($target.name).json") -Receipt $control

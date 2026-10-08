@@ -186,6 +186,14 @@
       "required": false
     },
     {
+      "name": "rustup-strictmode-preflight",
+      "source": "{TEMP}/rustup-strictmode-preflight",
+      "step": "rustup_strictmode_preflight",
+      "required": false,
+      "mandatoryFilesOnSuccess": ["strictmode-preflight.json"],
+      "missingSuccessCode": "STRICTMODE_PREFLIGHT_RECEIPT_MISSING"
+    },
+    {
       "name": "rustup-identity-tests",
       "source": "{TEMP}/rustup-identity-tests",
       "step": "rustup_identity_tests",
