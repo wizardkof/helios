@@ -380,6 +380,22 @@
         "version": "1~1.4.357.0-1",
         "file": "mingw-w64-i686-vulkan-loader-1~1.4.357.0-1-any.pkg.tar.zst",
         "sha256": "2799de5c1e316dc76925fba6a2b5c99f508ede1273a5ecd73625c2b29fe2232c"
+      },
+      {
+        "architecture": "x64",
+        "name": "mingw-w64-ucrt-x86_64-pkgconf",
+        "version": "1~3.0.7-1",
+        "file": "mingw-w64-ucrt-x86_64-pkgconf-1~3.0.7-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-pkgconf-1~3.0.7-1-any.pkg.tar.zst",
+        "sha256": "74b6fe685d84ec6ea19b9ee285d752d122e31b6b93038f933627b05324d8f2a3"
+      },
+      {
+        "architecture": "x86",
+        "name": "mingw-w64-i686-pkgconf",
+        "version": "1~3.0.7-1",
+        "file": "mingw-w64-i686-pkgconf-1~3.0.7-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/mingw32/mingw-w64-i686-pkgconf-1~3.0.7-1-any.pkg.tar.zst",
+        "sha256": "736d7fb2fa1d337381af2fd65cd41c9c569dfe5faffa2f91f2cce0a5bfbbc79e"
       }
     ]
   },
