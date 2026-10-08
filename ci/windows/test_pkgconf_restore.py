@@ -99,6 +99,13 @@ class RestoreTests(unittest.TestCase):
         self.assertIn('--init',calls[0])
         self.assertEqual(calls[1][-2:],['--populate','msys2'])
         self.assertIn('--verify',calls[2])
+    def test_native_child_path_starts_with_qualified_msys2_tools(self):
+        root=pathlib.Path(self.temp.name)/'msys64';binary=root/'ucrt64/bin/python.exe';binary.parent.mkdir(parents=True);binary.touch();tool=root/'usr/bin/bash.exe';tool.parent.mkdir(parents=True);tool.touch()
+        def child(argv,**kwargs):
+            self.assertTrue(kwargs.get('env',{}).get('PATH','').startswith(str(tool.parent)))
+            return subprocess.CompletedProcess(argv,0,b'',b'')
+        with patch.object(restore.sys,'executable',str(binary)),patch.object(restore.subprocess,'run',side_effect=child):
+            restore.run_msys(['bash','-c','true'],capture_output=True)
     def test_correct_metadata_accepts_any_package_architecture(self):
         restore.validate_metadata(self.package,'pkgname = mingw-w64-i686-pkgconf\npkgver = 1~3.0.7-1\narch = any\n')
 

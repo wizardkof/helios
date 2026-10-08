@@ -1,5 +1,6 @@
 """Authenticated MSYS2 local-archive restoration; no host Linux package installs."""
 import hashlib
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,10 @@ def run_msys(argv, **kwargs):
         selected = argv
     else:
         selected = [resolve_msys_tool(argv[0], sys.executable), *argv[1:]]
-    return subprocess.run(selected, **kwargs)
+    environment = dict(kwargs.pop("env", os.environ))
+    root = Path(sys.executable).resolve().parents[2]
+    environment["PATH"] = str(root/"usr/bin") + os.pathsep + str(Path(sys.executable).parent) + os.pathsep + environment.get("PATH", "")
+    return subprocess.run(selected, env=environment, **kwargs)
 
 
 def command(argv, run, rows):
