@@ -653,7 +653,8 @@
       "mandatoryFilesOnSuccess": [
         "fixture-a-byte-identity.json",
         "wrapper-end-to-end-tests.json",
-        "powerShell-metadata-forwarding.json"
+        "powerShell-metadata-forwarding.json",
+        "reparse-coverage.json"
       ]
     }
   ],

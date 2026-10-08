@@ -55,7 +55,7 @@ class NativeWrapperTests(unittest.TestCase):
                     case_log=archive/(Path(shell).stem+'-'+case);case_log.mkdir()
                     with tempfile.TemporaryDirectory() as directory:
                         base=Path(directory);scripts=base/'scripts';scripts.mkdir()
-                        for name in ('Collect-CIEvidence.ps1','ci_evidence.py','ci-evidence-sources.json'):shutil.copyfile(HERE/name,scripts/name)
+                        for name in ('Collect-CIEvidence.ps1','ci_evidence.py','evidence_fs.py','ci-evidence-sources.json'):shutil.copyfile(HERE/name,scripts/name)
                         if case in ('missing_conditional_field','missing_code_field'):
                             key='mandatoryFilesOnSuccess' if case=='missing_conditional_field' else 'missingSuccessCode'
                             wrapper=scripts/'Collect-CIEvidence.ps1';wrapper.write_text('\n'.join(line for line in wrapper.read_text().splitlines() if '$entry.'+key not in line)+'\n')
@@ -81,7 +81,12 @@ class NativeWrapperTests(unittest.TestCase):
                         if case=='reparse_source':
                             external=base/'external';redroot.rename(external)
                             link=subprocess.run(['cmd.exe','/c','mklink','/J',str(redroot),str(external)],capture_output=True,text=True)
+                            row['junctionCreation']=dict(command=['cmd.exe','/c','mklink','/J',str(redroot),str(external)],exitCode=link.returncode,stdout=link.stdout,stderr=link.stderr)
+                            (case_log/'junction-creation.json').write_text(json.dumps(row['junctionCreation'],indent=2)+'\n')
                             self.assertEqual(link.returncode,0,link.stderr)
+                            info=redroot.lstat()
+                            row['junctionEntry']=dict(path=str(redroot),target=str(external),fileAttributes=getattr(info,'st_file_attributes',None),reparseTag=getattr(info,'st_reparse_tag',None),isJunction=redroot.is_junction() if hasattr(redroot,'is_junction') else None,isSymlink=redroot.is_symlink())
+                            (case_log/'junction-entry.json').write_text(json.dumps(row['junctionEntry'],indent=2)+'\n')
                         env=dict(os.environ,RUNNER_TEMP=str(base),HELIOS_PRIMARY_RESULT=primary,HELIOS_STEPS_JSON=json.dumps({'python_native_recovery_red':{'outcome':red},'python_dependencies':{'outcome':green}}))
                         env['PATH']=str(Path(sys.executable).parent)+os.pathsep+env['PATH']
                         command=[shell,'-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(scripts/'Collect-CIEvidence.ps1'),'-Job','python_evidence_preflight','-Root',str(base/'collected')]
@@ -113,7 +118,11 @@ class NativeWrapperTests(unittest.TestCase):
                         if case=='green_failure':self.assertTrue((base/'collected/python-test-dependencies/control/tests-1.log').is_file())
                         if case=='red_skipped':self.assertEqual(rows['python-native-recovery-red']['status'],'NOT_RUN')
                         if case=='private_required':self.assertTrue(manifest['excluded'])
-                        if case=='reparse_source':self.assertIn('reparse',rows['python-native-recovery-red']['reason'])
+                        if case=='reparse_source':
+                            self.assertIn('reparse',rows['python-native-recovery-red']['reason'])
+                            self.assertEqual(manifest['files'],[],'junction target bytes must not be copied')
+                            self.assertTrue((external/'native-red-results.json').is_file())
+                            self.assertEqual(rows['python-native-recovery-red']['refusal']['code'],'REPARSE_POINT_REFUSED')
                         if case=='hash_tamper':
                             target=base/'collected'/manifest['files'][0]['destination'];target.write_text('tampered')
                             verify=subprocess.run([sys.executable,str(scripts/'ci_evidence.py'),'verify','--root',str(base/'collected')],capture_output=True,text=True)

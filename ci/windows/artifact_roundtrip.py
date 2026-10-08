@@ -5,27 +5,30 @@ import json
 import os
 from pathlib import Path
 from ci_evidence import safe, selection_reason, verify as verify_collection
+from evidence_fs import files as guarded_files, read as guarded_read, guard
 
 def inventory(root):
     rows=[]
-    for f in sorted(root.rglob('*')):
+    for f in guarded_files(root):
         safe(f)
-        if not f.is_file(): continue
         relative=f.relative_to(root)
         reason=selection_reason(f,relative)
         if reason: raise ValueError(f'Unadmitted artifact input: {relative}: {reason}')
-        rows.append(dict(path=relative.as_posix(),size=f.stat().st_size,sha256=hashlib.sha256(f.read_bytes()).hexdigest()))
+        data=guarded_read(f)
+        rows.append(dict(path=relative.as_posix(),size=len(data),sha256=hashlib.sha256(data).hexdigest()))
     if not rows:raise ValueError('Empty artifact')
     return rows
 
 def validate_payload(root):
+    guard(root,'artifact-root')
+    guarded_files(root) # Refuse every reparse entry before reading either identity contract.
     if (root/'collection-manifest.json').exists():
         # A failed collection is still transported and verified, but cannot become collection PASS.
         record=verify_collection(root,allow_failed_collection=True)
         return record['EVIDENCE_COLLECTION_RESULT']
     if (root/'ci-artifact-identity.json').exists():
         from ci_artifact import verify
-        record=json.loads((root/'ci-artifact-identity.json').read_text())
+        record=json.loads(guarded_read(root/'ci-artifact-identity.json').decode('utf-8-sig'))
         verify(root,record['identity'])
     return 'NOT_APPLICABLE_PRODUCT_IDENTITY'
 
