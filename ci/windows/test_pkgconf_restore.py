@@ -89,6 +89,16 @@ class RestoreTests(unittest.TestCase):
         self.assertTrue(hasattr(restore,'resolve_msys_tool'),'native binding absent')
         with self.assertRaisesRegex(ValueError,'MSYS2'):
             restore.resolve_msys_tool('pacman',str(binary))
+    def test_trusted_keyring_initialization_precedes_signature_check(self):
+        calls=[]
+        def good(argv,**kwargs):
+            calls.append(argv)
+            text=b'pkgname = mingw-w64-i686-pkgconf\npkgver = 1~3.0.7-1\narch = any\n' if argv[0]=='bsdtar' else b''
+            return subprocess.CompletedProcess(argv,0,text,b'')
+        restore.authenticate_package(self.package,self.path,good)
+        self.assertIn('--init',calls[0])
+        self.assertEqual(calls[1][-2:],['--populate','msys2'])
+        self.assertIn('--verify',calls[2])
     def test_correct_metadata_accepts_any_package_architecture(self):
         restore.validate_metadata(self.package,'pkgname = mingw-w64-i686-pkgconf\npkgver = 1~3.0.7-1\narch = any\n')
 

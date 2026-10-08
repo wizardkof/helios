@@ -55,6 +55,11 @@ def authenticate_package(package, path, run=None):
     rows = []
     if hashlib.sha256(Path(path).read_bytes()).hexdigest() != package["sha256"]:
         raise ValueError("ARCHIVED_PACKAGE_SHA256_MISMATCH")
+    # Canonical pacman-key requires an initialized trustdb/lock configuration even for --verify.
+    # Populate only the official keyring shipped by the authenticated MSYS2 installation.
+    for options in (["--init"], ["--populate", "msys2"]):
+        code, _ = command(["bash", "/usr/bin/pacman-key", *options], run, rows)
+        if code: raise ValueError("ARCHIVE_SIGNATURE_KEYRING_INIT_FAILED: " + repr(rows))
     code, _ = command(["bash", "/usr/bin/pacman-key", "--verify", str(path)+".sig", str(path)], run, rows)
     if code: raise ValueError("ARCHIVE_SIGNATURE_INVALID: " + repr(rows))
     code, text = command(["bsdtar", "-xOf", str(path), ".PKGINFO"], run, rows)
