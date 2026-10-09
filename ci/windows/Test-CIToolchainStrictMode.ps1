@@ -83,7 +83,9 @@ try { $tool = @{name='python'}; $null = $tool.rustupVersion } catch { $unsafeRus
 try { $case = [pscustomobject]@{mode='valid'}; $null = $case.exit } catch { $unsafeExitRead = $_.Exception.Message -match 'exit' }
 Assert-Preflight ($unsafeRustupRead -and $unsafeExitRead) 'preflight must reproduce and detect both R1 unsafe optional reads'
 
-$files = @('CIToolchainOptions.psm1','Assert-CIToolchain.ps1','Assert-ComponentToolchain.ps1','Test-RustupIdentity.ps1','Test-CIToolchainStrictMode.ps1')
+& (Join-Path $PSScriptRoot 'Test-RustupCheckerBinding.ps1') -ReceiptDir $ReceiptDir
+
+$files = @('CIRustupCheckerTargets.psm1','Test-RustupCheckerBinding.ps1','CIToolchainOptions.psm1','Assert-CIToolchain.ps1','Assert-ComponentToolchain.ps1','Test-RustupIdentity.ps1','Test-CIToolchainStrictMode.ps1')
 foreach ($file in $files) {
     $path = Join-Path $PSScriptRoot $file
     $tokens = $null; $parseErrors = $null
@@ -91,7 +93,7 @@ foreach ($file in $files) {
     Assert-Preflight ($parseErrors.Count -eq 0) "PowerShell parser rejected ${file}: $($parseErrors -join '; ')"
 }
 
-$receipt = New-CIToolReceipt -Name 'rustup-strictmode-preflight' -Checks @([pscustomobject]@{requestedName='real-check-option-builder';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='exit-error-and-row-cardinality-contracts';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='r1-unsafe-read-reproductions';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='powershell-parser';phase='pre-provision';status='PASS';error=$null;exitCode=0}) -Context @{powershellVersion=$PSVersionTable.PSVersion.ToString();strictMode='Latest';testedFiles=$files;unsafeReadReproductions=@('tool.rustupVersion','case.exit');expectationControls=@('PASS/0/null','version-mismatch/0','execution-failure/23','different-error-refused','exit-mismatch-refused','null-exit-internal-refusal','bool-and-invalid-exit-refused','null-versus-empty-error','non-string-error-refused');rustupReceiptRowCounts=@(0,1,2)}
+$receipt = New-CIToolReceipt -Name 'rustup-strictmode-preflight' -Checks @([pscustomobject]@{requestedName='four-checker-named-binding';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='real-check-option-builder';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='exit-error-and-row-cardinality-contracts';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='r1-unsafe-read-reproductions';phase='pre-provision';status='PASS';error=$null;exitCode=0},[pscustomobject]@{requestedName='powershell-parser';phase='pre-provision';status='PASS';error=$null;exitCode=0}) -Context @{powershellVersion=$PSVersionTable.PSVersion.ToString();strictMode='Latest';testedFiles=$files;unsafeReadReproductions=@('tool.rustupVersion','case.exit');expectationControls=@('PASS/0/null','version-mismatch/0','execution-failure/23','different-error-refused','exit-mismatch-refused','null-exit-internal-refusal','bool-and-invalid-exit-refused','null-versus-empty-error','non-string-error-refused');rustupReceiptRowCounts=@(0,1,2)}
 Write-CIToolReceipt -Path (Join-Path $ReceiptDir 'strictmode-preflight.json') -Receipt $receipt
 Assert-CIToolReceiptPass -Receipt $receipt
 Write-Host 'RUSTUP_STRICTMODE_PREFLIGHT=PASS'

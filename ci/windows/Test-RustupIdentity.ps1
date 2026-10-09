@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainOptions.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'CIRustupCheckerTargets.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'CIToolchainReceipts-RustupRed.psm1') -Prefix Red -Force
 New-Item -ItemType Directory -Force -Path $ReceiptDir | Out-Null
 $failures = [Collections.Generic.List[string]]::new()
@@ -134,17 +135,12 @@ $savedMode = $env:HELIOS_RUSTUP_FIXTURE_MODE
 $env:PATH = "$fixtureDirectory;$savedPath"
 $env:HELIOS_RUSTUP_FIXTURE_MODE = 'valid-info'
 try {
-    $targets = @(
-        [pscustomobject]@{name='native';script='Assert-CIToolchain.ps1';args=@('-ReceiptDir',(Join-Path $ReceiptDir 'checker-native'));dir=(Join-Path $ReceiptDir 'checker-native');receipt='toolchain.json'},
-        [pscustomobject]@{name='driver';script='Assert-ComponentToolchain.ps1';args=@('-Component','driver','-ReceiptDir',(Join-Path $ReceiptDir 'checker-driver'));dir=(Join-Path $ReceiptDir 'checker-driver');receipt='pre-producer-tools.json'},
-        [pscustomobject]@{name='package-pre';script='Assert-ComponentToolchain.ps1';args=@('-Component','package','-Phase','pre','-ReceiptDir',(Join-Path $ReceiptDir 'checker-package-pre'));dir=(Join-Path $ReceiptDir 'checker-package-pre');receipt='pre-producer-tools.json'},
-        [pscustomobject]@{name='package-post';script='Assert-ComponentToolchain.ps1';args=@('-Component','package','-Phase','post','-ReceiptDir',(Join-Path $ReceiptDir 'checker-package-post'));dir=(Join-Path $ReceiptDir 'checker-package-post');receipt='post-producer-tools.json'}
-    )
+    $targets = @(Get-CIRustupCheckerTargets -ReceiptDir $ReceiptDir)
     $fixtureIdentity = [pscustomobject]@{path=[IO.Path]::GetFullPath($namedFixture);size=[long](Get-Item -LiteralPath $namedFixture).Length;sha256=(Get-FileHash -LiteralPath $namedFixture -Algorithm SHA256).Hash.ToLowerInvariant()}
     foreach ($target in $targets) {
-        $targetArgs = $target.args
+        $parameters = $target.parameters
         $checkerException = $null
-        try { & (Join-Path $PSScriptRoot $target.script) @targetArgs } catch { $checkerException = [pscustomobject]@{type=$_.Exception.GetType().FullName;message=$_.Exception.Message} }
+        try { & (Join-Path $PSScriptRoot $target.script) @parameters } catch { $checkerException = [pscustomobject]@{type=$_.Exception.GetType().FullName;message=$_.Exception.Message} }
         $receiptPath = Join-Path $target.dir $target.receipt
         $receipt = $null
         if (Test-Path -LiteralPath $receiptPath -PathType Leaf) { $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json }
@@ -160,7 +156,10 @@ try {
         $wholeCheckerResult = if ($receipt) { [string]$receipt.status } else { 'NO_RECEIPT' }
         $control = [pscustomobject][ordered]@{schemaVersion=1;name="checker-focal-control-$($target.name)";status='FOCAL_ROW_ONLY';target=$target.name;RUSTUP_ROW_RESULT=$rustupRowResult;WHOLE_CHECKER_RESULT=$wholeCheckerResult;OTHER_FAILED_CHECKS=$otherFailedChecks;BLOCKERS=$blockers;CHECKER_EXCEPTION=$checkerException;PRODUCT_SOURCE_READINESS='NOT_PROVEN';rustupRowCount=$rowsForRustup.Count;fixture=$fixtureIdentity}
         Write-CIToolReceipt -Path (Join-Path $ReceiptDir "checker-$($target.name).json") -Receipt $control
-        if ($rustupRowResult -ne 'PASS') { throw "$($target.name) rustup focal receipt row failed identity/result assertions" }
+        if ($checkerException -and $wholeCheckerResult -eq 'NO_RECEIPT') {
+            throw "$($target.name) checker failed before producing a receipt: $($checkerException.type): $($checkerException.message)"
+        }
+        if ($rustupRowResult -ne 'PASS') { throw "$($target.name) rustup focal receipt row failed identity/result assertions; checker exception: $($checkerException | ConvertTo-Json -Compress)" }
     }
 } finally {
     $env:PATH = $savedPath
