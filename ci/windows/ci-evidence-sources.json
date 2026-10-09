@@ -243,6 +243,22 @@
         "tests/tests-0.log",
         "tests/tests-1.log"
       ]
+    },
+    {
+      "name": "package-toolchain-context",
+      "source": "{TEMP}/package-toolchain-context",
+      "step": "package_toolchain_context",
+      "required": true,
+      "mandatoryFilesOnSuccess": [
+        "control-summary.json",
+        "positive/pre/pre-producer-tools.json",
+        "positive/post/post-producer-tools.json",
+        "absent/pre/pre-producer-tools.json",
+        "absent/post/post-producer-tools.json",
+        "divergent/pre/pre-producer-tools.json",
+        "divergent/post/post-producer-tools.json",
+        "toolchain-correlation.json"
+      ]
     }
   ],
   "mesa": [

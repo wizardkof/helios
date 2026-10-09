@@ -272,6 +272,11 @@ jobs:
       shell: pwsh
       run: ./ci/windows/Assert-ComponentToolchain.ps1 -Component driver -ReceiptDir C:/hb/qualification
       id: s18
+    - name: Qualify real Package toolchain environment context
+      id: package_toolchain_context
+      if: ${{ inputs.infrastructure_only && steps.rustup_strictmode_preflight.outcome == 'success' && steps.rustup_identity_tests.outcome == 'success' && steps.s17.outcome == 'success' && steps.s18.outcome == 'success' }}
+      shell: pwsh
+      run: ./ci/windows/Test-PackageToolchainContext.ps1 -ReceiptDir "$env:RUNNER_TEMP/package-toolchain-context" -NativeToolchainReceipt C:/hb/qualification/toolchain.json
     - name: Candidate regressions before Release
       shell: pwsh
       run: ./ci/windows/Run-CandidateRegressions.ps1 -RepoRoot $env:GITHUB_WORKSPACE
