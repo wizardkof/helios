@@ -134,3 +134,5 @@ jobs:
           path: ${{ runner.temp }}/p06-z-receipts/
           retention-days: 3
           if-no-files-found: warn
+
+# Control Z1: single push registration probe; behavior unchanged.
