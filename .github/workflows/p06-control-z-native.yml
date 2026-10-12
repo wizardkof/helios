@@ -1,0 +1,136 @@
+name: P06 Control Z - Native E1 diagnostic only
+
+on:
+  # Single deliberately scoped execution when this workflow file is published
+  # to the isolated branch. No master/PR/product-build triggers.
+  push:
+    branches:
+      - p06/z-native-e1-20261012
+    paths:
+      - .github/workflows/p06-control-z-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p06-control-z-native-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  kmd-native:
+    name: KMD WDK real typecheck (no product image)
+    if: github.repository == 'wizardkof/helios' && github.ref == 'refs/heads/p06/z-native-e1-20261012'
+    runs-on: windows-2022
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Fail-closed hosted runner attestation
+        shell: pwsh
+        env:
+          ATTESTED_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./.ci-diagnostics/p06-z-prepare.ps1 -Mode GuardOnly
+      - name: Fetch immutable GitLab diagnostic commit
+        shell: pwsh
+        env:
+          ATTESTED_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./.ci-diagnostics/p06-z-prepare.ps1 -Mode FetchSource
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
+        with:
+          toolchain: nightly-2026-07-14
+          components: rust-src
+          targets: x86_64-pc-windows-msvc
+      - uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+        with:
+          version: '22.1.8'
+          force-url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe
+      - name: Install/qualify pinned SDK and WDK on ephemeral runner
+        shell: pwsh
+        env:
+          ATTESTED_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./.ci-diagnostics/p06-z-prepare.ps1 -Mode InstallWdk
+      - name: Native WDK/Rust typecheck only
+        shell: pwsh
+        env:
+          ATTESTED_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./.ci-diagnostics/p06-z-prepare.ps1 -Mode Typecheck
+      - name: Upload small diagnostic logs (never binaries or product artifacts)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-z-kmd-native-logs
+          path: ${{ runner.temp }}/p06-z-receipts/
+          retention-days: 3
+          if-no-files-found: warn
+
+  mesa-native:
+    name: Mesa ${{ matrix.arch }} production translation unit only
+    if: github.repository == 'wizardkof/helios' && github.ref == 'refs/heads/p06/z-native-e1-20261012'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - arch: x64
+            msystem: UCRT64
+            packages: >-
+              git bison flex mingw-w64-ucrt-x86_64-gcc
+              mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja
+              mingw-w64-ucrt-x86_64-python mingw-w64-ucrt-x86_64-python-mako
+              mingw-w64-ucrt-x86_64-python-packaging
+              mingw-w64-ucrt-x86_64-python-yaml
+              mingw-w64-ucrt-x86_64-pkgconf
+              mingw-w64-ucrt-x86_64-vulkan-headers
+              mingw-w64-ucrt-x86_64-vulkan-loader
+          - arch: x86
+            msystem: MINGW32
+            packages: >-
+              git bison flex mingw-w64-i686-gcc
+              mingw-w64-i686-meson mingw-w64-i686-ninja
+              mingw-w64-i686-python mingw-w64-i686-python-mako
+              mingw-w64-i686-python-packaging
+              mingw-w64-i686-python-yaml
+              mingw-w64-i686-pkgconf
+              mingw-w64-i686-vulkan-headers
+              mingw-w64-i686-vulkan-loader
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Fail-closed hosted runner attestation
+        shell: pwsh
+        env:
+          ATTESTED_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./.ci-diagnostics/p06-z-prepare.ps1 -Mode GuardOnly
+      - name: Fetch immutable GitLab commit and pinned Mesa; apply exact attached W patch
+        shell: pwsh
+        env:
+          ATTESTED_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: ./.ci-diagnostics/p06-z-prepare.ps1 -Mode PrepareMesa
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: ${{ matrix.packages }}
+      - name: Compile only vn_renderer_helios.c production object
+        shell: msys2 {0}
+        env:
+          CONTROL_Z_ARCH: ${{ matrix.arch }}
+        run: bash .ci-diagnostics/p06-z-mesa.sh
+      - name: Upload small diagnostic logs (never Mesa DLLs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-z-mesa-${{ matrix.arch }}-logs
+          path: ${{ runner.temp }}/p06-z-receipts/
+          retention-days: 3
+          if-no-files-found: warn
