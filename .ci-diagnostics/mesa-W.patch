@@ -1,0 +1,252 @@
+diff --git a/src/virtio/vulkan/test_helios_green_b_wait_production.py b/src/virtio/vulkan/test_helios_green_b_wait_production.py
+index 3963d0d2419..1234e271f19 100644
+--- a/src/virtio/vulkan/test_helios_green_b_wait_production.py
++++ b/src/virtio/vulkan/test_helios_green_b_wait_production.py
+@@ -37,7 +37,20 @@ struct helios_sync {int backing;HANDLE carrier_handle_owned;
+   volatile struct helios_carrier_v2_record *carrier_view_readonly;uint8_t carrier_id[16];};
+ struct vn_renderer_wait {unsigned sync_count;struct helios_sync **syncs;
+   uint64_t *sync_values;bool wait_any;uint64_t timeout;};
+-static uint64_t clock_ns, setup_cost;
++static uint64_t clock_ns, setup_cost, trace_cost;
++static bool helios_e1_trace_enabled(void){return true;}
++/* Real callback bodies use a deterministic diagnostic sink in this CPU seam.
++ * Trace correctness is checked against actual observe/register/wait operations. */
++static unsigned trace_register, trace_unregister, trace_observe, trace_end;
++static void helios_e1_trace(struct helios *h,const char *op,const struct helios_sync *s,uint64_t target,HANDLE event,uint64_t token,uint64_t detail,uint64_t seq,uint64_t complete){
++ (void)h;(void)s;(void)target;(void)event;(void)token;(void)detail;(void)seq;(void)complete;
++ if(!strcmp(op,"E1_REGISTER"))trace_register++;
++ if(!strcmp(op,"E1_UNREGISTER"))trace_unregister++;
++ if(!strcmp(op,"E1_OBSERVE"))trace_observe++;
++ if(!strcmp(op,"E1_EVENT_END"))trace_end++;
++ if(!strcmp(op,"E1_EVENT_BEGIN"))clock_ns+=trace_cost;
++}
++
+ static unsigned registers, unregisters, waits, queries, next_token, closed;
+ static int stage, fail_at_register, fail_unregister, error_wake;
+ static struct helios_carrier_v2_record record, complete_record;
+@@ -49,6 +62,7 @@ static bool ResetEvent(HANDLE e){(void)e;signaled=0;return true;}
+ static bool CloseHandle(HANDLE e){(void)e;closed++;return true;}
+ static void publish(void){record.sequence+=2;if(error_wake){record.terminal_error_value=9;record.terminal_response_type=0x1200;}else record.completed_value=9;signaled=1;}
+ static DWORD WaitForSingleObject(HANDLE e,DWORD timeout){(void)e;waits++;assert(waits<4);
++ if(stage==4&&waits==1){clock_ns+=1000000;return WAIT_OBJECT_0;}
+  if(stage==3){publish();return WAIT_OBJECT_0;}if(signaled)return WAIT_OBJECT_0;
+  clock_ns+=(uint64_t)timeout*1000000;return WAIT_TIMEOUT;}
+ static int helios_e1_escape_callback(void*data,void*buffer,uint32_t size){(void)data;assert(size==152);
+@@ -66,10 +80,11 @@ static int helios_e1_escape_callback(void*data,void*buffer,uint32_t size){(void)
+ """
+ unit+='\n'+actual
+ unit+=r"""
+-static void reset(void){clock_ns=0;setup_cost=0;registers=unregisters=waits=queries=next_token=closed=0;
++static void reset(void){clock_ns=0;setup_cost=0;trace_cost=0;trace_register=trace_unregister=trace_observe=trace_end=0;registers=unregisters=waits=queries=next_token=closed=0;
+  stage=fail_at_register=fail_unregister=error_wake=signaled=0;
+  memset(&record,0,sizeof(record));record.magic=HELIOS_P06_SECTION_MAGIC;record.version=2;record.size=64;memset(record.carrier_id,1,16);}
+ int main(void){
++ (void)helios_e1_trace_enabled;(void)helios_e1_trace;
+  struct helios h={0};struct helios_sync sync={.backing=2,.carrier_handle_owned=(HANDLE)5,
+   .carrier_view_readonly=&record,.carrier_id={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}};
+  struct helios_sync*syncs[]={&sync,&sync};uint64_t values[]={9,9};
+@@ -81,6 +96,8 @@ int main(void){
+  reset();stage=3;assert(helios_e1_wait_blocking(&h,&w)==VK_SUCCESS);assert(registers==1&&unregisters==1&&waits==1);
+  reset();stage=3;error_wake=1;assert(helios_e1_wait_blocking(&h,&w)==VK_ERROR_UNKNOWN);assert(registers==unregisters);
+  reset();assert(helios_e1_wait_blocking(&h,&w)==VK_TIMEOUT);assert(clock_ns==10000000&&registers==unregisters);
++ reset();stage=4;assert(helios_e1_wait_blocking(&h,&w)==VK_TIMEOUT);assert(clock_ns==10000000&&waits==2&&registers==2&&unregisters==2);
++ reset();trace_cost=2000000;assert(helios_e1_wait_blocking(&h,&w)==VK_TIMEOUT);assert(clock_ns==10000000);assert(trace_register==registers&&trace_unregister==unregisters&&trace_end==waits&&trace_observe>0);
+  reset();setup_cost=10000000;assert(helios_e1_wait_blocking(&h,&w)==VK_TIMEOUT);assert(!registers&&!waits);
+  reset();stage=2;fail_unregister=1;assert(helios_e1_wait_blocking(&h,&w)==VK_ERROR_UNKNOWN);assert(closed==1);
+  reset();w.sync_count=2;fail_at_register=2;assert(helios_e1_wait_blocking(&h,&w)==VK_ERROR_UNKNOWN);assert(registers==2&&unregisters==1&&closed==1);
+diff --git a/src/virtio/vulkan/vn_renderer_helios.c b/src/virtio/vulkan/vn_renderer_helios.c
+index fb496068566..a83add4c1df 100644
+--- a/src/virtio/vulkan/vn_renderer_helios.c
++++ b/src/virtio/vulkan/vn_renderer_helios.c
+@@ -4617,6 +4617,47 @@ helios_submit(struct vn_renderer *renderer, const struct vn_renderer_submit *sub
+    return result;
+ }
+ 
++/* E1 trace is process-local opt-in and independently bounded. No driver
++ * configuration or synchronization predicate depends on diagnostic success. */
++#include "vn_renderer_helios_e1_trace.h"
++static bool
++helios_e1_trace_enabled(void)
++{
++   char enabled[8] = {0};
++   return GetEnvironmentVariableA("HELIOS_P06_E1_TRACE", enabled, sizeof(enabled)) == 1 &&
++          enabled[0] == '1' && helios_p06_diag_enabled();
++}
++static void
++helios_e1_trace(struct helios *helios, const char *operation,
++                const struct helios_sync *sync, uint64_t target,
++                HANDLE event, uint64_t token, uint64_t detail,
++                uint64_t sequence, uint64_t completed)
++{
++   if (!helios_e1_trace_enabled()) return;
++   static volatile LONG count, loss;
++   /* Saturate at the terminal loss marker: no wrap, no unbounded logging. */
++   LONG old = InterlockedCompareExchange(&count, 0, 0);
++   if (old >= (LONG)HELIOS_E1_TRACE_LIMIT + 1) return;
++   if (InterlockedCompareExchange(&count, old + 1, old) != old) {
++      if (InterlockedCompareExchange(&loss, 1, 0) == 0)
++         helios_p06_wait_diag(helios, "E1_TRACE_LOSS", 0, "contention=1 loss=1");
++      return;
++   }
++   if (!helios_e1_trace_admit(1, old + 1)) {
++      helios_p06_wait_diag(helios, "E1_TRACE_TRUNCATED", 0, "limit=2048 loss=1");
++      return;
++   }
++   char id[33] = {0};
++   if (sync) for (unsigned i=0;i<16;i++) snprintf(id+2*i,3,"%02x",sync->carrier_id[i]);
++   char fields[512];
++   snprintf(fields,sizeof(fields),"trace_ordinal=%ld carrier=%s target=%llu event_user=%llx token=%llu detail=%llu sequence=%llu completed=%llu",
++            old+1,sync?id:"none",(unsigned long long)target,
++            (unsigned long long)(uintptr_t)event,(unsigned long long)token,
++            (unsigned long long)detail,(unsigned long long)sequence,
++            (unsigned long long)completed);
++   helios_p06_wait_diag(helios,operation,0,fields);
++}
++
+ /* Per-call aggregate event. Registrations belong to the importer object,
+  * independently of the producer lease; no dev_mutex is held while waiting. */
+ struct helios_e1_wait_context {
+@@ -4642,6 +4683,9 @@ helios_e1_wait_observe(void *data)
+       }
+       const enum helios_carrier_observation state =
+          helios_carrier_observe(&snap, ctx->wait->sync_values[i]);
++      helios_e1_trace(ctx->helios, "E1_OBSERVE", sync, ctx->wait->sync_values[i],
++                      ctx->event, ctx->tokens ? ctx->tokens[i] : 0,
++                      state, snap.sequence, snap.completed_value);
+       if (state == HELIOS_CARRIER_ERROR) {
+          ctx->failure = VK_ERROR_UNKNOWN;
+          return HELIOS_E1_WAIT_ERROR;
+@@ -4662,8 +4706,11 @@ helios_e1_wait_disarm(void *data)
+       struct helios_e1_control req = helios_e1_control_query(id), response;
+       req.operation = HELIOS_E1_CONTROL_UNREGISTER;
+       req.registration_token = ctx->tokens[i];
+-      if (!helios_e1_control_exchange(&req, helios_e1_escape_callback,
+-                                    ctx->helios, &response)) {
++      const int unregistered = helios_e1_control_exchange(&req, helios_e1_escape_callback,
++                                                       ctx->helios, &response);
++      helios_e1_trace(ctx->helios, "E1_UNREGISTER", (const struct helios_sync *)ctx->wait->syncs[i],
++                      ctx->wait->sync_values[i], ctx->event, ctx->tokens[i], unregistered, 0, 0);
++      if (!unregistered) {
+          ctx->cleanup_failed = true;
+          continue;
+       }
+@@ -4699,8 +4746,11 @@ helios_e1_wait_arm(void *data)
+       req.target_value = ctx->wait->sync_values[i];
+       req.record_version = 2;
+       memcpy(req.carrier_id, sync->carrier_id, 16);
+-      if (!helios_e1_control_exchange(&req, helios_e1_escape_callback,
+-                                    ctx->helios, &response)) return 0;
++      const int registered = helios_e1_control_exchange(&req, helios_e1_escape_callback,
++                                                     ctx->helios, &response);
++      helios_e1_trace(ctx->helios, "E1_REGISTER", sync, req.target_value, ctx->event,
++                      registered ? response.response_token : 0, registered, snap.sequence, snap.completed_value);
++      if (!registered) return 0;
+       ctx->tokens[i] = response.response_token;
+    }
+    return 1;
+@@ -4716,9 +4766,22 @@ helios_e1_wait_event(void *data, uint64_t remaining)
+ {
+    struct helios_e1_wait_context *ctx = data;
+    const uint64_t ms = remaining / 1000000 + (remaining % 1000000 != 0);
+-   const DWORD timeout = remaining == UINT64_MAX ? INFINITE :
++   DWORD timeout = remaining == UINT64_MAX ? INFINITE :
+       ms >= INFINITE ? INFINITE - 1 : (DWORD)ms;
++   const bool traced = helios_e1_trace_enabled();
++   const uint64_t start = traced ? (uint64_t)os_time_get_nano() : 0;
++   const uint64_t deadline = remaining == UINT64_MAX || UINT64_MAX - start < remaining ? UINT64_MAX : start + remaining;
++   if (traced) {
++      helios_e1_trace(ctx->helios,"E1_EVENT_BEGIN",NULL,remaining,ctx->event,0,deadline,0,0);
++      if (remaining != UINT64_MAX) {
++         const uint64_t elapsed = (uint64_t)os_time_get_nano() - start;
++         const uint64_t left = elapsed >= remaining ? 0 : remaining - elapsed;
++         const uint64_t left_ms = left / 1000000 + (left % 1000000 != 0);
++         timeout = left_ms >= INFINITE ? INFINITE - 1 : (DWORD)left_ms;
++      }
++   }
+    const DWORD result = WaitForSingleObject(ctx->event, timeout);
++   if (traced) helios_e1_trace(ctx->helios,"E1_EVENT_END",NULL,(uint64_t)os_time_get_nano()-start,ctx->event,0,result,0,0);
+    if (result == WAIT_OBJECT_0) return HELIOS_E1_WAKE_EVENT;
+    if (result == WAIT_TIMEOUT) return HELIOS_E1_WAKE_TIMEOUT;
+    return HELIOS_E1_WAKE_FAILED;
+diff --git a/src/virtio/vulkan/vn_renderer_helios_carrier_v2.h b/src/virtio/vulkan/vn_renderer_helios_carrier_v2.h
+index e554415b94a..67e492dc9d7 100644
+--- a/src/virtio/vulkan/vn_renderer_helios_carrier_v2.h
++++ b/src/virtio/vulkan/vn_renderer_helios_carrier_v2.h
+@@ -35,6 +35,7 @@ _Static_assert(offsetof(struct helios_carrier_v2_record, terminal_response_type)
+                "v2 error response offset");
+ 
+ struct helios_carrier_v2_snapshot {
++   uint64_t sequence; /* diagnostic metadata, not part of the wire record */
+    uint8_t carrier_id[16];
+    uint64_t completed_value;
+    uint64_t terminal_error_value;
+@@ -76,6 +77,7 @@ helios_carrier_read_snapshot(const volatile struct helios_carrier_v2_record *rec
+       const uint32_t version = record->version;
+       const uint32_t size = record->size;
+       struct helios_carrier_v2_snapshot next;
++      next.sequence = begin;
+       bool id_nonzero = false;
+       for (unsigned i = 0; i < sizeof(next.carrier_id); i++) {
+          next.carrier_id[i] = record->carrier_id[i];
+diff --git a/src/virtio/vulkan/test_helios_e1_trace.c b/src/virtio/vulkan/test_helios_e1_trace.c
+new file mode 100644
+index 00000000000..043da2c2fe1
+--- /dev/null
++++ b/src/virtio/vulkan/test_helios_e1_trace.c
+@@ -0,0 +1,3 @@
++#include "vn_renderer_helios_e1_trace.h"
++#include <assert.h>
++int main(void){assert(!helios_e1_trace_admit(0,1));assert(!helios_e1_trace_admit(1,0));assert(helios_e1_trace_admit(1,1));assert(helios_e1_trace_admit(1,2048));assert(!helios_e1_trace_admit(1,2049));assert(!helios_e1_trace_admit(1,UINT32_MAX));return 0;}
+diff --git a/src/virtio/vulkan/test_helios_e1_trace_production.py b/src/virtio/vulkan/test_helios_e1_trace_production.py
+new file mode 100644
+index 00000000000..39041f1886f
+--- /dev/null
++++ b/src/virtio/vulkan/test_helios_e1_trace_production.py
+@@ -0,0 +1,32 @@
++"""Actual diagnostic emitter with Win32 seams; CPU-only, no renderer build."""
++from pathlib import Path
++import subprocess,sys
++root=Path(__file__).parent;source=(root/'vn_renderer_helios.c').read_text()
++def body(name):
++ a=source.index('\n'+name+'(')+1;b=source.index('{',a);depth=1;i=b+1
++ while depth:depth+=(source[i]=='{')-(source[i]=='}');i+=1
++ return source[a:i]
++unit=r'''
++#include "vn_renderer_helios_e1_trace.h"
++#include <assert.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <string.h>
++typedef long LONG;typedef void* HANDLE;
++struct helios{int unused;};struct helios_sync{unsigned char carrier_id[16];};
++static int enabled;static unsigned emitted,truncated;
++static int GetEnvironmentVariableA(const char*n,char*b,unsigned z){(void)n;assert(z>=2);if(!enabled)return 0;b[0]='1';b[1]=0;return 1;}
++static bool helios_p06_diag_enabled(void){return enabled;}
++static LONG InterlockedCompareExchange(volatile LONG*p,LONG n,LONG old){LONG v=*p;if(v==old)*p=n;return v;}
++static void helios_p06_wait_diag(struct helios*h,const char*op,uint64_t fence,const char*fields){(void)h;assert(!fence);assert(strlen(fields)<768);emitted++;if(!strcmp(op,"E1_TRACE_TRUNCATED"))truncated++;}
++'''
++unit+='\nstatic bool\n'+body('helios_e1_trace_enabled')+'\nstatic void\n'+body('helios_e1_trace')
++unit+=r'''
++int main(void){struct helios h={0};struct helios_sync sync={{1}};
++ helios_e1_trace(&h,"E1_REGISTER",&sync,9,(HANDLE)1,17,1,0,0);assert(!emitted);
++ enabled=1;for(unsigned i=0;i<2100;i++)helios_e1_trace(&h,"E1_REGISTER",&sync,9,(HANDLE)1,17,1,0,0);
++ assert(emitted==2049&&truncated==1);return 0;
++}
++'''
++out=Path(sys.argv[1]).resolve();out.with_suffix('.c').write_text(unit)
++subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-I',str(root),str(out.with_suffix('.c')),'-o',str(out)],check=True);subprocess.run([str(out)],check=True)
+diff --git a/src/virtio/vulkan/vn_renderer_helios_e1_trace.h b/src/virtio/vulkan/vn_renderer_helios_e1_trace.h
+new file mode 100644
+index 00000000000..9040a3ee950
+--- /dev/null
++++ b/src/virtio/vulkan/vn_renderer_helios_e1_trace.h
+@@ -0,0 +1,9 @@
++#ifndef VN_RENDERER_HELIOS_E1_TRACE_H
++#define VN_RENDERER_HELIOS_E1_TRACE_H
++#include <stdint.h>
++/* Per-process bounded diagnostic budget. Disabled must never reserve IDs.
++ * Caller serializes through the ICD's atomic record counter, not an E1 lock. */
++#define HELIOS_E1_TRACE_LIMIT 2048u
++static inline int helios_e1_trace_admit(int enabled, uint32_t ordinal)
++{ return enabled && ordinal > 0 && ordinal <= HELIOS_E1_TRACE_LIMIT; }
++#endif
